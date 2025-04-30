@@ -1,0 +1,22 @@
+# gere o conteudo do .gitignore para uma aplicação python
+
+# Arquivos e pastas que devem ser ignorados pelo git
+
+# Arquivos gerados pelo python
+__pycache__
+# ignorar o pycache nos diretorios
+*/__pycache__
+
+# Arquivos gerados pelo poetry
+poetry.lock
+
+# Arquivos gerados pelo docker
+Dockerfile
+docker-compose.yml
+
+# Arquivos gerados pelo vscode
+.vscode
+
+.env
+.env.example
+
