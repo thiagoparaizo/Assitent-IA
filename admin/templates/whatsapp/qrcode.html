@@ -1,0 +1,98 @@
+<!-- admin/templates/whatsapp/qrcode.html -->
+{% extends 'base.html' %}
+
+{% block title %}QR Code - {{ device.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.devices') }}">Dispositivos WhatsApp</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.view_device', device_id=device.id) }}">{{ device.name }}</a></li>
+                <li class="breadcrumb-item active">QR Code</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Vincular Dispositivo</h5>
+            </div>
+            <div class="card-body text-center">
+                <h5 class="card-title mb-4">{{ device.name }}</h5>
+                
+                <div class="qr-code-container mb-4">
+                    {% if qr_data.qr_code %}
+                    <img src="data:image/png;base64,{{ qr_data.qr_code }}" class="img-fluid qr-code" alt="QR Code">
+                    {% else %}
+                    <div class="alert alert-warning">
+                        QR Code não disponível. Tente atualizar a página.
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="alert alert-info">
+                    <div class="d-flex">
+                        <div class="flex-shrink-0">
+                            <i class="bi bi-info-circle-fill fs-4"></i>
+                        </div>
+                        <div class="ms-3 text-start">
+                            <h5>Como vincular seu celular</h5>
+                            <ol class="mb-0">
+                                <li>Abra o WhatsApp no seu celular</li>
+                                <li>Toque em <strong>Menu</strong> ou <strong>Configurações</strong> e selecione <strong>Aparelhos vinculados</strong></li>
+                                <li>Selecione <strong>Vincular um aparelho</strong></li>
+                                <li>Aponte a câmera do seu celular para esta tela para capturar o código</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button id="refresh-qr" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-clockwise"></i> Atualizar QR Code
+                    </button>
+                    <a href="{{ url_for('whatsapp.view_device', device_id=device.id) }}" class="btn btn-secondary">
+                        Voltar para Detalhes do Dispositivo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Atualizar QR code automaticamente a cada 30 segundos
+    let refreshInterval;
+    
+    function startAutoRefresh() {
+        refreshInterval = setInterval(function() {
+            window.location.reload();
+        }, 30000); // 30 segundos
+    }
+    
+    // Iniciar atualização automática
+    startAutoRefresh();
+    
+    // Botão de atualização manual
+    document.getElementById('refresh-qr').addEventListener('click', function() {
+        window.location.reload();
+    });
+    
+    // Parar atualizações quando a página não estiver visível
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            clearInterval(refreshInterval);
+        } else {
+            startAutoRefresh();
+        }
+    });
+</script>
+{% endblock %}

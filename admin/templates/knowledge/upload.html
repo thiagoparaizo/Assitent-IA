@@ -1,0 +1,58 @@
+<!-- admin/templates/knowledge/upload.html -->
+{% extends 'base.html' %}
+
+{% block title %}Upload de Documentos - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('knowledge.index') }}">Base de Conhecimento</a></li>
+                <li class="breadcrumb-item active">Upload</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Upload de Documentos</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('knowledge.upload') }}" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="category" class="form-label">Categoria</label>
+                        <select class="form-select" id="category" name="category" required>
+                            <option value="">Selecione uma categoria</option>
+                            <option value="general">Geral</option>
+                            <option value="agendamento">Agendamento</option>
+                            <option value="procedimentos">Procedimentos</option>
+                            <option value="financeiro">Financeiro</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="files" class="form-label">Arquivos</label>
+                        <input type="file" class="form-control" id="files" name="files" multiple required>
+                        <div class="form-text">Formatos suportados: PDF, DOCX, DOC, PPTX, XLSX</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('knowledge.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Fazer Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

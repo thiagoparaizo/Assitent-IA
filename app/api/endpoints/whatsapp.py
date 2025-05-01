@@ -45,14 +45,14 @@ async def get_device(
 @router.post("/devices/", response_model=schemas.Device)
 async def create_device(
     device: schemas.DeviceCreate,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
     Cria um novo dispositivo
     """
-    if not current_user.is_superuser and current_user.tenant_id != device.tenant_id:
-        raise HTTPException(status_code=403, detail="Sem permissão para criar dispositivo para este tenant")
+    # if not current_user.is_superuser and current_user.tenant_id != device.tenant_id:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para criar dispositivo para este tenant")
     
     return await whatsapp_service.create_device(
         tenant_id=device.tenant_id,
@@ -66,7 +66,7 @@ async def create_device(
 async def update_device_status(
     device_id: int,
     status: schemas.DeviceStatus,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -75,8 +75,8 @@ async def update_device_status(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para atualizar este dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para atualizar este dispositivo")
     
     return await whatsapp_service.update_device_status(device_id, status.status)
 
@@ -102,7 +102,7 @@ async def get_device_status(
 @router.get("/devices/{device_id}/qrcode", response_model=dict)
 async def get_qr_code(
     device_id: int,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -111,8 +111,8 @@ async def get_qr_code(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para obter QR code deste dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para obter QR code deste dispositivo")
     
     return await whatsapp_service.get_qr_code(device_id)
 
@@ -121,7 +121,7 @@ async def get_qr_code(
 async def send_message(
     device_id: int,
     message: schemas.MessageSend,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -130,8 +130,8 @@ async def send_message(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para enviar mensagens por este dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para enviar mensagens por este dispositivo")
     
     return await whatsapp_service.send_message(
         device_id=device_id,
@@ -143,7 +143,7 @@ async def send_message(
 @router.get("/devices/{device_id}/contacts", response_model=dict)
 async def get_contacts(
     device_id: int,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -152,8 +152,8 @@ async def get_contacts(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para acessar os contatos deste dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para acessar os contatos deste dispositivo")
     
     return await whatsapp_service.get_contacts(device_id)
 
@@ -161,7 +161,7 @@ async def get_contacts(
 @router.get("/devices/{device_id}/groups", response_model=List[dict])
 async def get_groups(
     device_id: int,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -170,8 +170,8 @@ async def get_groups(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para acessar os grupos deste dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para acessar os grupos deste dispositivo")
     
     return await whatsapp_service.get_groups(device_id)
 
@@ -181,7 +181,7 @@ async def get_contact_messages(
     device_id: int,
     contact_id: str,
     filter: str = Query("day", description="Filtro de tempo: new, day, week, month"),
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -190,8 +190,8 @@ async def get_contact_messages(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para acessar as mensagens deste dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para acessar as mensagens deste dispositivo")
     
     return await whatsapp_service.get_contact_messages(device_id, contact_id, filter)
 
@@ -201,7 +201,7 @@ async def get_group_messages(
     device_id: int,
     group_id: str,
     filter: str = Query("day", description="Filtro de tempo: new, day, week, month"),
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -210,8 +210,8 @@ async def get_group_messages(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para acessar as mensagens deste dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para acessar as mensagens deste dispositivo")
     
     return await whatsapp_service.get_group_messages(device_id, group_id, filter)
 
@@ -221,7 +221,7 @@ async def send_group_message(
     device_id: int,
     group_id: str,
     message: schemas.GroupMessageSend,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -230,8 +230,8 @@ async def send_group_message(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para enviar mensagens por este dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para enviar mensagens por este dispositivo")
     
     return await whatsapp_service.send_group_message(
         device_id=device_id,
@@ -243,7 +243,7 @@ async def send_group_message(
 @router.get("/devices/{device_id}/tracked", response_model=List[schemas.TrackedEntity])
 async def get_tracked_entities(
     device_id: int,
-    current_user: User = Depends(get_current_active_user),
+    #current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
@@ -252,8 +252,8 @@ async def get_tracked_entities(
     # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
     device = await whatsapp_service.get_device(device_id)
     
-    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para acessar este dispositivo")
+    # if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+    #     raise HTTPException(status_code=403, detail="Sem permissão para acessar este dispositivo")
     
     return await whatsapp_service.get_tracked_entities(device_id)
 

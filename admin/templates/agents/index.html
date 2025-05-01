@@ -1,0 +1,168 @@
+<!-- admin/templates/agents/index.html -->
+{% extends 'base.html' %}
+
+{% block title %}Agentes - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="h3">Agentes</h1>
+        <a href="{{ url_for('agents.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus"></i> Criar Agente
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Agentes Disponíveis</h5>
+                    <div class="input-group" style="width: auto;">
+                        <input type="text" class="form-control" id="agent-search" placeholder="Pesquisar agentes...">
+                        <button class="btn btn-outline-secondary" type="button" id="search-button">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Tipo</th>
+                                <th>Descrição</th>
+                                <th>Categorias</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if agents %}
+                                {% for agent in agents %}
+                                <tr>
+                                    <td>{{ agent.name }}</td>
+                                    <td>
+                                        {% if agent.type == 'general' %}
+                                            <span class="badge bg-primary">Geral</span>
+                                        {% elif agent.type == 'specialist' %}
+                                            <span class="badge bg-success">Especialista</span>
+                                        {% elif agent.type == 'integration' %}
+                                            <span class="badge bg-info">Integração</span>
+                                        {% elif agent.type == 'human' %}
+                                            <span class="badge bg-warning">Humano</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ agent.description|truncate(100) }}</td>
+                                    <td>
+                                        {% if agent.rag_categories %}
+                                            {% for category in agent.rag_categories %}
+                                                <span class="badge bg-secondary">{{ category }}</span>
+                                            {% endfor %}
+                                        {% else %}
+                                            <span class="text-muted">Nenhuma</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if agent.active %}
+                                            <span class="badge bg-success">Ativo</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Inativo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{{ url_for('agents.view', agent_id=agent.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('agents.edit', agent_id=agent.id) }}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deleteAgentModal"
+                                                    data-agent-id="{{ agent.id }}"
+                                                    data-agent-name="{{ agent.name }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+                                            Nenhum agente encontrado.
+                                        </div>
+                                        <a href="{{ url_for('agents.create') }}" class="btn btn-sm btn-primary mt-2">
+                                            <i class="bi bi-plus"></i> Criar Agente
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteAgentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o agente <strong id="agent-name-to-delete"></strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" id="delete-agent-form" action="">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Configurar modal de exclusão
+    document.getElementById('deleteAgentModal').addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const agentId = button.getAttribute('data-agent-id');
+        const agentName = button.getAttribute('data-agent-name');
+        
+        document.getElementById('agent-name-to-delete').textContent = agentName;
+        document.getElementById('delete-agent-form').action = '{{ url_for("agents.delete", agent_id="") }}' + agentId;
+    });
+    
+    // Pesquisa de agentes
+    document.getElementById('agent-search').addEventListener('keyup', function(e) {
+        const searchText = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('tbody tr');
+        
+        tableRows.forEach(row => {
+            const name = row.cells[0].textContent.toLowerCase();
+            const description = row.cells[2].textContent.toLowerCase();
+            
+            if (name.includes(searchText) || description.includes(searchText)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

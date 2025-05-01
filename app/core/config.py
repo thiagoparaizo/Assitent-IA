@@ -1,3 +1,5 @@
+# Atualizar o arquivo app/core/config.py
+
 from typing import List, Union
 
 from pydantic import AnyHttpUrl, PostgresDsn, validator
@@ -28,12 +30,11 @@ class Settings(BaseSettings):
     WHATSAPP_SERVICE_AUTH_USERNAME: str = ""
     WHATSAPP_SERVICE_AUTH_PASSWORD: str = ""
     
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+    
     # RAG
     VECTOR_DB_PATH: str = "./storage/vectordb"
-    
-    # Redis (para filas e cache)
-    REDIS_HOST: str = "localhost"
-    REDIS_PORT: int = 6379
     
     # LLMs API_KEYs
     OPENAI_API_KEY: str = ""

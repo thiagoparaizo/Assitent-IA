@@ -1,0 +1,429 @@
+<!-- admin/templates/agents/create.html -->
+{% extends 'base.html' %}
+
+{% block title %}Criar Agente - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('agents.index') }}">Agentes</a></li>
+                <li class="breadcrumb-item active">Criar Agente</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Criar Novo Agente</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('agents.create') }}">
+                    <!-- Tabs de navegação -->
+                    <ul class="nav nav-tabs" id="agentTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic-info" type="button" role="tab">Informações Básicas</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="prompt-tab" data-bs-toggle="tab" data-bs-target="#prompt-info" type="button" role="tab">Prompt</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="rag-tab" data-bs-toggle="tab" data-bs-target="#rag-info" type="button" role="tab">Conhecimento (RAG)</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="mcp-tab" data-bs-toggle="tab" data-bs-target="#mcp-info" type="button" role="tab">Integrações (MCP)</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="escalation-tab" data-bs-toggle="tab" data-bs-target="#escalation-info" type="button" role="tab">Escalação</button>
+                        </li>
+                    </ul>
+                    
+                    <!-- Conteúdo das tabs -->
+                    <div class="tab-content p-3 border border-top-0 rounded-bottom" id="agentTabsContent">
+                        <!-- Informações Básicas -->
+                        <div class="tab-pane fade show active" id="basic-info" role="tabpanel">
+                            <div class="mb-3">
+                                <label for="name" class="form-label">Nome do Agente<span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="name" name="name" required>
+                                <div class="form-text">Nome descritivo para o agente.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="type" class="form-label">Tipo de Agente<span class="text-danger">*</span></label>
+                                <select class="form-select" id="type" name="type" required>
+                                    <option value="general">Agente Geral</option>
+                                    <option value="specialist">Especialista</option>
+                                    <option value="integration">Integração</option>
+                                    <option value="human">Humano</option>
+                                </select>
+                                <div class="form-text">
+                                    <strong>Geral:</strong> Atendimento principal ao cliente.<br>
+                                    <strong>Especialista:</strong> Focado em área específica.<br>
+                                    <strong>Integração:</strong> Para sistemas externos.<br>
+                                    <strong>Humano:</strong> Representa atendente real.
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Descrição</label>
+                                <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                                <div class="form-text">Descrição das responsabilidades e capacidades do agente.</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Configuração de Prompt -->
+                        <div class="tab-pane fade" id="prompt-info" role="tabpanel">
+                            <div class="mb-3">
+                                <label for="prompt_role" class="form-label">Papel do Agente<span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="prompt_role" name="prompt_role" required>
+                                <div class="form-text">Ex: "Assistente Odontológico", "Especialista em Ortodontia"</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="prompt_description" class="form-label">Descrição do Papel<span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="prompt_description" name="prompt_description" rows="3" required></textarea>
+                                <div class="form-text">Descreva as características e conhecimentos que o agente possui.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="prompt_instructions" class="form-label">Instruções<span class="text-danger">*</span></label>
+                                <textarea class="form-control" id="prompt_instructions" name="prompt_instructions" rows="5" required></textarea>
+                                <div class="form-text">Instruções detalhadas sobre como o agente deve se comportar e responder.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="prompt_constraints" class="form-label">Restrições</label>
+                                <textarea class="form-control" id="prompt_constraints" name="prompt_constraints" rows="3"></textarea>
+                                <div class="form-text">Liste cada restrição em uma linha separada (ex: "Não fornecer diagnósticos médicos").</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="prompt_examples" class="form-label">Exemplos</label>
+                                <div id="examples-container">
+                                    <!-- Os exemplos serão adicionados aqui dinamicamente -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-example-btn">
+                                    <i class="bi bi-plus"></i> Adicionar Exemplo
+                                </button>
+                                <input type="hidden" id="prompt_examples" name="prompt_examples" value="[]">
+                                <div class="form-text">Exemplos de interações para guiar o comportamento do agente.</div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-outline-info" id="test-prompt-btn">
+                                    <i class="bi bi-lightning"></i> Testar Prompt
+                                </button>
+                            </div>
+                            
+                            <!-- Modal de teste de prompt -->
+                            <div class="modal fade" id="testPromptModal" tabindex="-1">
+                                <div class="modal-dialog modal-lg">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title">Testar Prompt</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="test-message" class="form-label">Mensagem de Teste</label>
+                                                <textarea class="form-control" id="test-message" rows="3" placeholder="Digite uma mensagem para testar o agente..."></textarea>
+                                            </div>
+                                            <div id="test-result" class="border p-3 rounded bg-light" style="display: none;">
+                                                <h6>Resposta do Agente:</h6>
+                                                <div id="test-response"></div>
+                                            </div>
+                                            <div id="test-loading" class="text-center p-3" style="display: none;">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Carregando...</span>
+                                                </div>
+                                                <p class="mt-2">Processando resposta...</p>
+                                            </div>
+                                            <div id="test-error" class="alert alert-danger" style="display: none;"></div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                                            <button type="button" class="btn btn-primary" id="run-test-btn">Testar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Configuração de RAG -->
+                        <div class="tab-pane fade" id="rag-info" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label">Categorias de Conhecimento</label>
+                                <div class="list-group">
+                                    {% for category in categories %}
+                                    <label class="list-group-item">
+                                        <input class="form-check-input me-1" type="checkbox" name="rag_categories" value="{{ category.id }}">
+                                        {{ category.name }}
+                                        <small class="text-muted d-block">{{ category.description }}</small>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                <div class="form-text">Selecione as categorias de conhecimento que este agente pode acessar.</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Configuração de MCP -->
+                        <div class="tab-pane fade" id="mcp-info" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="mcp_enabled" name="mcp_enabled">
+                                    <label class="form-check-label" for="mcp_enabled">Habilitar MCP (Model Context Protocol)</label>
+                                </div>
+                                <div class="form-text">Permite que o agente acesse funções e dados externos.</div>
+                            </div>
+                            
+                            <div id="mcp-functions-section" style="display: none;">
+                                <div class="mb-3">
+                                    <label class="form-label">Funções Disponíveis</label>
+                                    <div id="mcp-functions-container">
+                                        <!-- As funções serão adicionadas aqui dinamicamente -->
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-function-btn">
+                                        <i class="bi bi-plus"></i> Adicionar Função
+                                    </button>
+                                    <input type="hidden" id="mcp_functions" name="mcp_functions" value="[]">
+                                </div>
+                            </div>
+                            
+                            <!-- Modal de adição/edição de função -->
+                            <div class="modal fade" id="functionModal" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content">
+                                        <div class="modal-header">
+                                            <h5 class="modal-title" id="function-modal-title">Adicionar Função</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="mb-3">
+                                                <label for="function-name" class="form-label">Nome da Função</label>
+                                                <input type="text" class="form-control" id="function-name">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="function-description" class="form-label">Descrição</label>
+                                                <textarea class="form-control" id="function-description" rows="2"></textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Parâmetros</label>
+                                                <div id="function-params-container">
+                                                    <!-- Os parâmetros serão adicionados aqui -->
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-param-btn">
+                                                    <i class="bi bi-plus"></i> Adicionar Parâmetro
+                                                </button>
+                                            </div>
+                                            <input type="hidden" id="function-index" value="">
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                                            <button type="button" class="btn btn-primary" id="save-function-btn">Salvar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Configuração de Escalação -->
+                        <div class="tab-pane fade" id="escalation-info" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="human_escalation_enabled" name="human_escalation_enabled">
+                                    <label class="form-check-label" for="human_escalation_enabled">Habilitar Escalação para Humano</label>
+                                </div>
+                                <div class="form-text">Permite que o agente encaminhe conversas para um atendente humano.</div>
+                            </div>
+                            
+                            <div id="escalation-section" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="human_escalation_contact" class="form-label">Contato para Escalação</label>
+                                    <input type="text" class="form-control" id="human_escalation_contact" name="human_escalation_contact" placeholder="Ex: 5511999999999">
+                                    <div class="form-text">Número do WhatsApp para onde serão encaminhadas as escalações.</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{{ url_for('agents.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Criar Agente</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Gerenciamento de exemplos
+    let examples = [];
+    
+    function updateExamplesField() {
+        document.getElementById('prompt_examples').value = JSON.stringify(examples);
+    }
+    
+    function renderExamples() {
+        const container = document.getElementById('examples-container');
+        container.innerHTML = '';
+        
+        if (examples.length === 0) {
+            container.innerHTML = '<p class="text-muted">Nenhum exemplo adicionado.</p>';
+            return;
+        }
+        
+        examples.forEach((example, index) => {
+            const exampleDiv = document.createElement('div');
+            exampleDiv.className = 'card mb-2';
+            
+            const cardBody = document.createElement('div');
+            cardBody.className = 'card-body';
+            
+            // Criar conteúdo do exemplo
+            let exampleContent = '';
+            for (const [key, value] of Object.entries(example)) {
+                exampleContent += `<p><strong>${key}:</strong> ${value}</p>`;
+            }
+            
+            cardBody.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="example-content">${exampleContent}</div>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-primary edit-example" data-index="${index}">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-danger delete-example" data-index="${index}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            exampleDiv.appendChild(cardBody);
+            container.appendChild(exampleDiv);
+        });
+        
+        // Adicionar event listeners
+        document.querySelectorAll('.edit-example').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-index'));
+                showExampleModal(index);
+            });
+        });
+        
+        document.querySelectorAll('.delete-example').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = parseInt(this.getAttribute('data-index'));
+                examples.splice(index, 1);
+                renderExamples();
+                updateExamplesField();
+            });
+        });
+    }
+    
+    function showExampleModal(editIndex = null) {
+        // Implementar modal para adicionar/editar exemplos
+        // ...
+    }
+    
+    document.getElementById('add-example-btn').addEventListener('click', function() {
+        showExampleModal();
+    });
+    
+    // MCP Functions
+    let mcpFunctions = [];
+    
+    function updateMCPFunctionsField() {
+        document.getElementById('mcp_functions').value = JSON.stringify(mcpFunctions);
+    }
+    
+    document.getElementById('mcp_enabled').addEventListener('change', function() {
+        const mcpSection = document.getElementById('mcp-functions-section');
+        mcpSection.style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Escalação
+    document.getElementById('human_escalation_enabled').addEventListener('change', function() {
+        const escalationSection = document.getElementById('escalation-section');
+        escalationSection.style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Teste de prompt
+    document.getElementById('test-prompt-btn').addEventListener('click', function() {
+        const modal = new bootstrap.Modal(document.getElementById('testPromptModal'));
+        modal.show();
+    });
+    
+    document.getElementById('run-test-btn').addEventListener('click', function() {
+        const testMessage = document.getElementById('test-message').value;
+        const resultDiv = document.getElementById('test-result');
+        const loadingDiv = document.getElementById('test-loading');
+        const errorDiv = document.getElementById('test-error');
+        const responseDiv = document.getElementById('test-response');
+        
+        // Validar mensagem
+        if (!testMessage.trim()) {
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = 'Por favor, digite uma mensagem de teste.';
+            resultDiv.style.display = 'none';
+            return;
+        }
+        
+        // Coletar dados do prompt
+        const promptData = {
+            role: document.getElementById('prompt_role').value,
+            description: document.getElementById('prompt_description').value,
+            instructions: document.getElementById('prompt_instructions').value,
+            constraints: document.getElementById('prompt_constraints').value.split('\n').filter(line => line.trim()),
+            examples: examples,
+            message: testMessage
+        };
+        
+        // Esconder resultado anterior e erro
+        resultDiv.style.display = 'none';
+        errorDiv.style.display = 'none';
+        
+        // Mostrar loading
+        loadingDiv.style.display = 'block';
+        
+        // Enviar para API
+        fetch('{{ url_for("agents.test_prompt") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(promptData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            loadingDiv.style.display = 'none';
+            
+            if (data.error) {
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = data.error;
+            } else {
+                resultDiv.style.display = 'block';
+                responseDiv.textContent = data.response;
+            }
+        })
+        .catch(error => {
+            loadingDiv.style.display = 'none';
+            errorDiv.style.display = 'block';
+            errorDiv.textContent = 'Erro ao testar prompt: ' + error.message;
+        });
+    });
+    
+    // Inicialização
+    renderExamples();
+    updateExamplesField();
+    updateMCPFunctionsField();
+</script>
+{% endblock %}

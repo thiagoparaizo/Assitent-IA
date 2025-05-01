@@ -1,0 +1,83 @@
+<!-- admin/templates/auth/profile.html -->
+{% extends 'base.html' %}
+
+{% block title %}Meu Perfil - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Meu Perfil</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Informações do Usuário</h5>
+            </div>
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <div class="avatar avatar-xl">
+                        <span class="avatar-initial rounded-circle bg-primary">
+                            {{ current_user.email[0]|upper }}
+                        </span>
+                    </div>
+                </div>
+                <h5 class="mb-1">{{ current_user.email }}</h5>
+                <p class="text-muted mb-3">
+                    {% if current_user.is_superuser %}
+                    Administrador
+                    {% else %}
+                    Usuário
+                    {% endif %}
+                </p>
+                <div class="d-grid">
+                    <button class="btn btn-outline-primary mb-2">Alterar Senha</button>
+                    <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-danger">Sair</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Editar Perfil</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('auth.profile') }}">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" class="form-control" id="email" name="email" value="{{ current_user.email }}" required readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome</label>
+                        <input type="text" class="form-control" id="name" name="name" value="Nome do Usuário">
+                    </div>
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Senha Atual</label>
+                        <input type="password" class="form-control" id="current_password" name="current_password">
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Nova Senha</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password">
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirmar Nova Senha</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password">
+                    </div>
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
