@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional
 from app.services.agent import AgentService, Agent, AgentType, AgentPrompt
 from app.api.deps import get_tenant_id, get_agent_service
 
-router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
+router = APIRouter()
 
 @router.post("/")
 async def create_agent(

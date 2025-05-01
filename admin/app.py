@@ -11,6 +11,7 @@ from admin.views.knowledge import knowledge_bp
 from admin.views.tenants import tenants_bp
 from admin.views.whatsapp import whatsapp_bp
 from admin.views.conversations import conversations_bp
+from admin.views.webhooks import webhooks_bp
 from admin.models.user import User
 
 def create_app(config_class=Config):
@@ -32,6 +33,7 @@ def create_app(config_class=Config):
     app.register_blueprint(tenants_bp)
     app.register_blueprint(whatsapp_bp)
     app.register_blueprint(conversations_bp)
+    app.register_blueprint(webhooks_bp)
     
     # Configurar contexto global
     @app.context_processor

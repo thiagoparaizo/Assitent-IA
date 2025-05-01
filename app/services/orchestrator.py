@@ -1,9 +1,17 @@
 # app/services/orchestrator.py
-from typing import Dict, List, Optional, Any
+import asyncio
+from datetime import datetime
+import os
+from typing import Dict, List, Optional, Any, Tuple
 import json
 import time
 import uuid
 from pydantic import BaseModel
+
+from app.services.memory import MemoryService, MemoryEntry, MemoryType, ConversationSummary
+
+from app.services.config import SystemConfig, load_system_config
+import logging
 
 from app.services.agent import Agent, AgentType
 from app.services.rag import RAGService
@@ -17,14 +25,80 @@ class ConversationState(BaseModel):
     metadata: Dict[str, Any] = {}
     last_updated: float = 0
 
+class AgentScore:
+    """Represents a score for an agent's ability to handle a conversation."""
+    
+    def __init__(self, agent_id: str, score: float, reason: str):
+        self.agent_id = agent_id
+        self.score = score
+        self.reason = reason
+
 class AgentOrchestrator:
     """Orquestrador para gerenciar a comunicação entre agentes."""
     
-    def __init__(self, agent_service, rag_service, redis_client, llm_service):
+    def __init__(self, agent_service, rag_service, redis_client, llm_service, config: SystemConfig = None):
         self.agent_service = agent_service
         self.rag_service = rag_service
         self.redis = redis_client
         self.llm = llm_service
+        
+        # Load or use provided config
+        self.config = config or load_system_config()
+        
+        # Set up logging based on config
+        self._setup_logging()
+        
+        # Initialize memory service with config
+        if self.config.memory.enabled:
+            self.memory_service = MemoryService(
+                llm_service, 
+                vector_db_url=self.config.memory.vector_db_url
+            )
+        else:
+            self.memory_service = None
+            
+        # Log initialization
+        logging.info(f"AgentOrchestrator initialized with config: {self.config}")
+
+    def _setup_logging(self):
+        """Set up logging based on configuration."""
+        log_level = getattr(logging, self.config.logging.level.value.upper())
+        
+        # Configure root logger
+        logger = logging.getLogger()
+        logger.setLevel(log_level)
+        
+        # Clear existing handlers
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+        
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(log_level)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        # Add file handler if configured
+        if self.config.logging.log_to_file:
+            # Make sure log directory exists
+            log_dir = os.path.dirname(self.config.logging.log_file_path)
+            os.makedirs(log_dir, exist_ok=True)
+            
+            if self.config.logging.log_rotation:
+                # Use rotating file handler for log rotation
+                from logging.handlers import RotatingFileHandler
+                file_handler = RotatingFileHandler(
+                    self.config.logging.log_file_path,
+                    maxBytes=self.config.logging.max_log_size_mb * 1024 * 1024,
+                    backupCount=5
+                )
+            else:
+                file_handler = logging.FileHandler(self.config.logging.log_file_path)
+                
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
         
     async def start_conversation(self, tenant_id: str, user_id: str) -> str:
         """Inicia uma nova conversa."""
@@ -54,39 +128,158 @@ class AgentOrchestrator:
         return conversation_id
     
     async def process_message(self, conversation_id: str, message: str) -> Dict[str, Any]:
-        """Processa uma mensagem dentro de uma conversa existente."""
-        # Recuperar estado da conversa
+        """Processes a message within a conversation."""
+        # Get the system config for this tenant
         state = await self.get_conversation_state(conversation_id)
         if not state:
-            raise ValueError(f"Conversa {conversation_id} não encontrada")
+            raise ValueError(f"Conversation {conversation_id} not found")
         
-        # Adicionar mensagem ao histórico
+        # Apply tenant-specific config overrides
+        tenant_config = self.config.apply_tenant_overrides(state.tenant_id)
+        
+        # Check conversation length limit
+        if len(state.history) >= tenant_config.max_conversation_length:
+            return {
+                "response": "I'm sorry, but this conversation has reached its maximum length. Please start a new conversation.",
+                "conversation_id": conversation_id,
+                "error": "max_length_exceeded"
+            }
+        
+        # Check conversation timeout
+        last_update_time = state.last_updated
+        current_time = time.time()
+        time_diff_minutes = (current_time - last_update_time) / 60
+        
+        if time_diff_minutes > tenant_config.conversation_timeout_minutes:
+            return {
+                "response": "I'm sorry, but this conversation has timed out due to inactivity. Please start a new conversation.",
+                "conversation_id": conversation_id,
+                "error": "conversation_timeout"
+            }
+        
+        # Add message to history
         state.history.append({
             "role": "user",
             "content": message,
-            "timestamp": time.time()
+            "timestamp": current_time
         })
         
-        # Obter agente atual
-        current_agent = await self.agent_service.get_agent(state.current_agent_id)
+        # Update state metadata with config settings
+        state.metadata.update({
+            "transfer_threshold": tenant_config.agent_transfer.default_threshold,
+            "max_transfers": tenant_config.agent_transfer.max_transfers_per_conversation,
+            "memory_enabled": tenant_config.memory.enabled,
+            "rag_enabled": tenant_config.rag.enabled,
+        })
         
-        # Determinar se precisa de contexto do RAG
+        # Rest of the processing logic remains similar...
+        # Evaluate whether we should transfer to another agent
+        agent_scores = await self.evaluate_agent_transfer(state, message)
+        
+        # Get the best agent (might be the current one)
+        best_agent_score = agent_scores[0]
+        transfer_threshold = state.metadata.get(
+            "transfer_threshold", 
+            tenant_config.agent_transfer.default_threshold
+        )
+        
+        # Determine if we should transfer
+        current_agent_id = state.current_agent_id
+        transfer_to_id = None
+        transfer_reason = None
+        
+        # Check if best agent is different from current and meets threshold
+        if best_agent_score.agent_id != current_agent_id and best_agent_score.score > transfer_threshold:
+            transfer_to_id = best_agent_score.agent_id
+            transfer_reason = best_agent_score.reason
+            
+            # Update transfer count
+            state.metadata["transfer_count"] = state.metadata.get("transfer_count", 0) + 1
+        
+        # Get current agent (either the same or after transfer)
+        if transfer_to_id:
+            # Log the transfer decision
+            logging.info(f"Transferring conversation {conversation_id} from agent {current_agent_id} to {transfer_to_id}: {transfer_reason}")
+            
+            state.history.append({
+                "role": "system",
+                "content": f"Transferring to agent {transfer_to_id} ({transfer_reason})",
+                "timestamp": time.time()
+            })
+            
+            # Update current agent
+            state.current_agent_id = transfer_to_id
+            current_agent = await self.agent_service.get_agent(transfer_to_id)
+        else:
+            current_agent = await self.agent_service.get_agent(current_agent_id)
+        
+        # Retrieve RAG context based on agent settings and config
         rag_context = []
-        if current_agent.rag_categories:
-            for category in current_agent.rag_categories:
-                docs = await self.rag_service.search(message, category=category)
-                rag_context.extend(docs)
+        if tenant_config.rag.enabled and current_agent.rag_categories:
+            # Limit the number of categories to search
+            categories_to_search = current_agent.rag_categories[:tenant_config.rag.categories_hard_limit]
+            
+            for category in categories_to_search:
+                docs = await self.rag_service.search(
+                    message, 
+                    category=category,
+                    limit=tenant_config.rag.default_limit
+                )
+                
+                # Filter by relevance threshold
+                relevant_docs = [doc for doc in docs if doc.get("relevance_score", 0) >= tenant_config.rag.min_relevance_score]
+                rag_context.extend(relevant_docs)
         
-        # Preparar prompt com histórico e contexto
-        prompt = self._prepare_prompt(state, current_agent, rag_context)
+        # Retrieve relevant memories if enabled
+        memory_context = []
+        if tenant_config.memory.enabled and self.memory_service:
+            try:
+                relevant_memories = await self.memory_service.recall_memories(
+                    tenant_id=state.tenant_id,
+                    user_id=state.user_id,
+                    query=message,
+                    limit=tenant_config.memory.max_memories_per_query
+                )
+                
+                if relevant_memories:
+                    # Filter by relevance threshold
+                    memory_context = [
+                        {"content": m.content, "type": m.type} 
+                        for m in relevant_memories
+                    ]
+                    
+                    logging.debug(f"Retrieved {len(memory_context)} relevant memories for conversation {conversation_id}")
+            except Exception as e:
+                logging.error(f"Error retrieving memories: {e}")
         
-        # Obter resposta do modelo
+        # Check if it's time to generate a summary
+        should_summarize = False
+        message_count = len(state.history)
+        last_summary_at = state.metadata.get("last_summary_at", 0)
+        time_since_summary = time.time() - last_summary_at
+        
+        if (tenant_config.memory.enabled and 
+            (message_count % tenant_config.memory.summary_frequency == 0 or 
+            time_since_summary > tenant_config.memory.summary_time_threshold)):
+            should_summarize = True
+        
+        if should_summarize and self.memory_service:
+            # Generate summary in the background
+            asyncio.create_task(self._generate_and_store_summary(state))
+            
+            # Update metadata
+            state.metadata["last_summary_at"] = time.time()
+        
+        # Prepare prompt with history, context, and memories
+        prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context)
+        
+        # Get response from LLM
         response = await self.llm.generate_response(prompt)
         
-        # Processar a resposta para identificar ações
-        processed_response = await self._process_agent_response(response, state, current_agent)
+        # Process the response for actions
+        processed_response = await self._process_agent_response(response, state, current_agent, tenant_config)
         
-        # Atualizar estado da conversa
+        # Add to history
         state.history.append({
             "role": "assistant",
             "agent_id": current_agent.id,
@@ -94,94 +287,242 @@ class AgentOrchestrator:
             "timestamp": time.time()
         })
         
+        # Add any action history if needed
+        for action in processed_response.get("actions", []):
+            if action.get("type") == "mcp_function":
+                # Log function calls to history
+                state.history.append({
+                    "role": "system",
+                    "content": f"Function call: {action['function']['name']}",
+                    "timestamp": time.time(),
+                    "metadata": {
+                        "function_call": action["function"]
+                    }
+                })
+            elif action.get("type") == "human_escalation":
+                # Log escalation to history
+                state.history.append({
+                    "role": "system",
+                    "content": f"Escalated to human: {action['contact']}",
+                    "timestamp": time.time(),
+                    "metadata": {
+                        "escalation_info": action
+                    }
+                })
+        
         state.last_updated = time.time()
         
-        # Se houve mudança de agente, registrar
-        if processed_response.get("next_agent_id") and processed_response["next_agent_id"] != current_agent.id:
-            state.current_agent_id = processed_response["next_agent_id"]
-            
-            # Registrar transição de agente no histórico
-            next_agent = await self.agent_service.get_agent(state.current_agent_id)
-            state.history.append({
-                "role": "system",
-                "content": f"Conversa transferida para {next_agent.name}",
-                "timestamp": time.time()
-            })
-        
-        # Salvar estado atualizado
+        # Save updated state
         await self.save_conversation_state(state)
         
+        # Return result
         return {
             "response": processed_response["response"],
             "conversation_id": conversation_id,
             "current_agent": current_agent.name,
-            "actions": processed_response.get("actions", [])
+            "actions": processed_response.get("actions", []),
+            "transfer_info": {
+                "transferred": transfer_to_id is not None,
+                "from_agent": None if not transfer_to_id else current_agent_id,
+                "to_agent": transfer_to_id,
+                "reason": transfer_reason
+            } if transfer_to_id else None
         }
     
-    async def _process_agent_response(self, response: str, state: ConversationState, current_agent: Agent) -> Dict[str, Any]:
-        """Processa a resposta do agente para identificar ações especiais."""
+    async def _process_agent_response(self, response: str, state: ConversationState, current_agent: Agent, config: SystemConfig) -> Dict[str, Any]:
+        """
+        Processes the response from the agent to identify actions.
+        
+        Args:
+            response: Raw response from LLM
+            state: Conversation state
+            current_agent: Current agent handling the conversation
+            config: System configuration
+            
+        Returns:
+            Processed response with actions
+        """
         result = {
             "response": response,
             "next_agent_id": current_agent.id,
             "actions": []
         }
         
-        # Verificar se há solicitação de especialista
-        if "CONSULTAR_ESPECIALISTA:" in response:
-            # Extrair informações do especialista necessário
-            specialization = response.split("CONSULTAR_ESPECIALISTA:")[1].split("\n")[0].strip()
+        # Check for MCP function calls
+        if config.mcp.enabled and current_agent.mcp_enabled and "EXECUTAR_MCP:" in response:
+            # Extract function calls (may be multiple)
+            function_calls = []
+            for function_call_text in response.split("EXECUTAR_MCP:")[1:]:
+                # Extract the JSON function call
+                function_data = function_call_text.split("\n")[0].strip()
+                try:
+                    function_call = json.loads(function_data)
+                    function_calls.append(function_call)
+                    
+                    # Clean the response
+                    result["response"] = result["response"].replace(f"EXECUTAR_MCP:{function_data}", "")
+                except json.JSONDecodeError:
+                    logging.warning(f"Invalid function call format: {function_data}")
             
-            # Buscar agente especialista
-            agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
-            specialists = [a for a in agents if a.type == AgentType.SPECIALIST and specialization.lower() in a.name.lower()]
-            
-            if specialists:
-                # Transferir para o especialista
-                result["next_agent_id"] = specialists[0].id
-                result["actions"].append({
-                    "type": "specialist_consultation",
-                    "specialist_id": specialists[0].id,
-                    "context": response
-                })
+            # Process function calls (up to configured limit)
+            max_calls = min(len(function_calls), config.mcp.max_function_calls_per_message)
+            for i, function_call in enumerate(function_calls[:max_calls]):
+                logging.info(f"Processing function call {i+1}/{max_calls}: {function_call.get('name')}")
                 
-                # Limpar a tag da resposta
-                result["response"] = response.replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
-        
-        # Verificar se há solicitação de escalação para humano
-        if "ESCALAR_PARA_HUMANO" in response:
-            # Verificar se o agente permite escalação
-            if current_agent.human_escalation_enabled and current_agent.human_escalation_contact:
-                result["actions"].append({
-                    "type": "human_escalation",
-                    "contact": current_agent.human_escalation_contact,
-                    "conversation_summary": self._generate_conversation_summary(state)
-                })
-                
-                # Limpar a tag da resposta
-                result["response"] = response.replace("ESCALAR_PARA_HUMANO", "")
-        
-        # Verificar se há chamada de função MCP
-        if "EXECUTAR_MCP:" in response:
-            # Extrair informações da função
-            function_data = response.split("EXECUTAR_MCP:")[1].split("\n")[0].strip()
-            try:
-                function_call = json.loads(function_data)
                 result["actions"].append({
                     "type": "mcp_function",
-                    "function": function_call
+                    "function": function_call,
+                    "requires_approval": config.mcp.functions_require_approval
+                })
+        
+        # Check for specialist consultation requests
+        if "CONSULTAR_ESPECIALISTA:" in response:
+            # Extract specialization information
+            specialization = response.split("CONSULTAR_ESPECIALISTA:")[1].split("\n")[0].strip()
+            
+            # Look for specialists
+            try:
+                agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
+                specialists = [a for a in agents if a.type == AgentType.SPECIALIST and specialization.lower() in a.name.lower()]
+                
+                if specialists:
+                    result["next_agent_id"] = specialists[0].id
+                    result["actions"].append({
+                        "type": "specialist_consultation",
+                        "specialist_id": specialists[0].id,
+                        "specialization": specialization,
+                        "context": response
+                    })
+                    
+                    # Clean response
+                    result["response"] = result["response"].replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
+                    
+                    logging.info(f"Specialist consultation requested: {specialization}, found: {specialists[0].name}")
+                else:
+                    logging.warning(f"Specialist consultation requested but no matching specialist found: {specialization}")
+            except Exception as e:
+                logging.error(f"Error finding specialist: {e}")
+        
+        # Check for human escalation
+        if config.enable_escalation_to_human and "ESCALAR_PARA_HUMANO" in response:
+            # Determine if agent supports escalation
+            escalation_available = False
+            escalation_contact = None
+            
+            if current_agent.human_escalation_enabled and current_agent.human_escalation_contact:
+                escalation_available = True
+                escalation_contact = current_agent.human_escalation_contact
+            else:
+                # Look for human agents
+                try:
+                    agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
+                    human_agents = [a for a in agents if a.type == AgentType.HUMAN]
+                    
+                    if human_agents:
+                        escalation_available = True
+                        result["next_agent_id"] = human_agents[0].id
+                        escalation_contact = human_agents[0].human_escalation_contact
+                except Exception as e:
+                    logging.error(f"Error finding human agent: {e}")
+            
+            if escalation_available and escalation_contact:
+                # Create escalation action
+                result["actions"].append({
+                    "type": "human_escalation",
+                    "contact": escalation_contact,
+                    "conversation_id": state.conversation_id,
+                    "conversation_summary": await self._generate_escalation_summary(state)
                 })
                 
-                # Limpar a tag da resposta
-                result["response"] = response.replace(f"EXECUTAR_MCP:{function_data}", "")
-            except json.JSONDecodeError:
-                pass
+                # Clean response
+                result["response"] = result["response"].replace("ESCALAR_PARA_HUMANO", "")
+                
+                logging.info(f"Human escalation triggered to {escalation_contact}")
+            else:
+                # Remove the tag but add explanation
+                result["response"] = result["response"].replace(
+                    "ESCALAR_PARA_HUMANO", 
+                    "[Nota: Escalação para humano solicitada, mas não há agentes humanos disponíveis no momento.]"
+                )
+                
+                logging.warning("Human escalation requested but no human agents available")
         
         return result
     
-    def _prepare_prompt(self, state: ConversationState, agent: Agent, rag_context: List[Any]) -> Dict[str, Any]:
-        """Prepara o prompt completo para o agente, incluindo histórico e contexto."""
-        # Implementação do prompt...
-        pass
+    def _prepare_prompt(self, state: ConversationState, agent: Agent, rag_context: List[Any], memory_context: List[Dict[str, Any]] = None) -> List[Dict[str, str]]:
+        """
+        Prepares the prompt for the LLM, including history, RAG context, and memories.
+        """
+        # Start with system prompt from agent configuration
+        system_prompt = agent.generate_system_prompt()
+        
+        # Add RAG context if available
+        if rag_context:
+            system_prompt += "\n\n## Relevant Knowledge Base Information:\n"
+            for i, doc in enumerate(rag_context[:3]):  # Limit to top 3 most relevant docs
+                system_prompt += f"\nDocument {i+1}:\n{doc['content']}\n"
+        
+        # Add memory context if available
+        if memory_context:
+            system_prompt += "\n\n## User Memory and Context:\n"
+            for memory in memory_context:
+                memory_type_label = memory["type"].value.replace("_", " ").title()
+                system_prompt += f"\n{memory_type_label}: {memory['content']}\n"
+        
+        # Prepare conversation history
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Extract the relevant conversation history (last 10 exchanges)
+        history = []
+        for msg in state.history[-20:]:  # Get last 20 messages
+            if msg["role"] in ["user", "assistant"]:
+                history.append({"role": msg["role"], "content": msg["content"]})
+            elif msg["role"] == "system" and "Transferring to agent" in msg["content"]:
+                # Skip agent transfer messages in the prompt
+                continue
+        
+        # Add history to messages
+        messages.extend(history)
+        
+        return messages
+    
+    async def _generate_escalation_summary(self, state: ConversationState) -> str:
+        """
+        Generates a summary of the conversation for human escalation.
+        
+        Args:
+            state: Conversation state
+            
+        Returns:
+            Summary text
+        """
+        # Get the last few messages (max 10)
+        recent_messages = state.history[-10:] if len(state.history) >= 10 else state.history[:]
+        
+        # Filter to just user and assistant messages
+        filtered_messages = [
+            msg for msg in recent_messages
+            if msg.get("role") in ["user", "assistant"]
+        ]
+        
+        # Format messages
+        formatted_messages = []
+        for msg in filtered_messages:
+            timestamp = datetime.fromtimestamp(msg.get("timestamp", 0)).strftime("%H:%M:%S")
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            content = msg.get("content", "")
+            formatted_messages.append(f"[{timestamp}] {role}: {content}")
+        
+        # Check if there's a recent summary in metadata
+        if "last_summary" in state.metadata:
+            summary = f"Conversation Summary: {state.metadata['last_summary'].get('brief', '')}\n\n"
+        else:
+            summary = "Recent conversation:\n\n"
+        
+        # Add recent messages
+        summary += "\n".join(formatted_messages)
+        
+        return summary
     
     def _generate_conversation_summary(self, state: ConversationState) -> str:
         """Gera um resumo da conversa para escalação."""
@@ -201,3 +542,569 @@ class AgentOrchestrator:
         if not data:
             return None
         return ConversationState.parse_raw(data)
+    
+    async def _generate_and_store_summary(self, state: ConversationState) -> None:
+        """
+        Gera e armazena um resumo da conversa.
+        
+        Args:
+            state: Estado da conversa
+        """
+        try:
+            # Verificar se o serviço de memória está ativo
+            if not self.memory_service:
+                logging.warning(f"Tentativa de gerar resumo, mas o serviço de memória não está ativo")
+                return
+            
+            logging.info(f"Gerando resumo para a conversa {state.conversation_id}")
+            
+            # Gerar resumo
+            summary = await self.memory_service.generate_conversation_summary(
+                conversation_id=state.conversation_id,
+                tenant_id=state.tenant_id,
+                user_id=state.user_id,
+                messages=state.history
+            )
+            
+            if not summary:
+                logging.warning(f"Falha ao gerar resumo para conversa {state.conversation_id}")
+                return
+            
+            # Armazenar o resumo nos metadados do estado
+            state.metadata["last_summary"] = {
+                "brief": summary.brief_summary,
+                "detailed": summary.detailed_summary,
+                "key_points": summary.key_points,
+                "sentiment": summary.sentiment,
+                "generated_at": time.time()
+            }
+            
+            # Salvar estado atualizado
+            await self.save_conversation_state(state)
+            
+            logging.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
+            
+            # Verificar se precisa extrair memórias adicionais
+            # Nota: O método generate_conversation_summary já extrai memórias básicas,
+            # mas podemos adicionar lógica adicional aqui se necessário
+            
+        except Exception as e:
+            logging.error(f"Erro ao gerar resumo da conversa: {str(e)}")
+            
+            # Registrar o erro nos metadados
+            state.metadata["last_summary_error"] = {
+                "error": str(e),
+                "timestamp": time.time()
+            }
+            
+            # Salvar estado mesmo com erro
+            try:
+                await self.save_conversation_state(state)
+            except Exception as save_error:
+                logging.error(f"Erro adicional ao salvar estado após falha de resumo: {str(save_error)}")
+
+    # Add method to get user profile with memories
+    async def get_user_profile(self, tenant_id: str, user_id: str) -> Dict[str, Any]:
+        """
+        Retrieves a user profile with their memories and conversation history.
+        """
+        return await self.memory_service.get_user_profile(tenant_id, user_id)
+
+    # Add method to start conversation with memory loading
+    async def start_conversation(self, tenant_id: str, user_id: str) -> str:
+        """
+        Starts a new conversation with memory context.
+        """
+        # Original implementation
+        agents = await self.agent_service.get_agents_by_tenant(tenant_id)
+        general_agents = [a for a in agents if a.type == AgentType.GENERAL]
+        
+        if not general_agents:
+            raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
+        
+        primary_agent = general_agents[0]
+        
+        # Create conversation state
+        conversation_id = str(uuid.uuid4())
+        state = ConversationState(
+            conversation_id=conversation_id,
+            tenant_id=tenant_id,
+            user_id=user_id,
+            current_agent_id=primary_agent.id,
+            history=[],
+            last_updated=time.time()
+        )
+        
+        # Get user profile from memory
+        try:
+            user_profile = await self.memory_service.get_user_profile(tenant_id, user_id)
+            
+            # Add relevant profile info to conversation state
+            if user_profile:
+                state.metadata["user_profile"] = user_profile
+                
+                # Add greeting message with personalization if user has history
+                if user_profile.get("recent_conversations"):
+                    # Has previous history
+                    state.history.append({
+                        "role": "system",
+                        "content": "User has previous conversation history.",
+                        "timestamp": time.time()
+                    })
+        except Exception as e:
+            print(f"Error retrieving user profile: {e}")
+        
+        # Save state
+        await self.save_conversation_state(state)
+        
+        return conversation_id
+    
+    def _calculate_topic_change(self, previous_focus: Dict[str, float], current_focus: Dict[str, float]) -> float:
+        """
+        Calculate how much the conversation topic has changed.
+        
+        Args:
+            previous_focus: Previous topic distribution
+            current_focus: Current topic distribution
+            
+        Returns:
+            Change score between 0.0 and 1.0
+        """
+        # Calculate Euclidean distance between focus vectors
+        squared_diff_sum = 0
+        for category in set(previous_focus.keys()) | set(current_focus.keys()):
+            prev_value = previous_focus.get(category, 0)
+            curr_value = current_focus.get(category, 0)
+            squared_diff_sum += (prev_value - curr_value) ** 2
+        
+        # Normalize to 0-1 range
+        distance = min(1.0, squared_diff_sum ** 0.5)
+        
+        return distance
+    
+    async def evaluate_agent_transfer(self, state: ConversationState, message: str) -> List[AgentScore]:
+        """
+        Evaluates if the conversation should be transferred to a different agent.
+        
+        Returns:
+            List of agent scores ordered by relevance
+        """
+        # Get transfer config
+        transfer_config = self.config.agent_transfer
+        
+        # Check if transfers are enabled
+        if not transfer_config.enabled:
+            # Return only current agent with max score
+            current_agent = await self.agent_service.get_agent(state.current_agent_id)
+            return [AgentScore(
+                agent_id=current_agent.id,
+                score=1.0,
+                reason="Agent transfers disabled"
+            )]
+        
+        # Get current agent
+        current_agent = await self.agent_service.get_agent(state.current_agent_id)
+        
+        # Check minimum messages before transfer
+        if len(state.history) < transfer_config.min_messages_before_transfer:
+            return [AgentScore(
+                agent_id=current_agent.id,
+                score=1.0,
+                reason="Not enough messages for transfer evaluation"
+            )]
+        
+        # Check max transfers per conversation
+        transfer_count = state.metadata.get("transfer_count", 0)
+        if transfer_count >= transfer_config.max_transfers_per_conversation:
+            return [AgentScore(
+                agent_id=current_agent.id,
+                score=1.0,
+                reason="Maximum transfers reached"
+            )]
+        
+        # Check cool down period after last transfer
+        last_transfer_index = -1
+        for i, msg in enumerate(reversed(state.history)):
+            if msg.get("role") == "system" and "Transferring to agent" in msg.get("content", ""):
+                last_transfer_index = len(state.history) - i - 1
+                break
+        
+        if last_transfer_index != -1:
+            messages_since_transfer = len(state.history) - last_transfer_index - 1
+            if messages_since_transfer < transfer_config.cool_down_messages:
+                return [AgentScore(
+                    agent_id=current_agent.id,
+                    score=1.0,
+                    reason=f"In transfer cool-down period ({messages_since_transfer}/{transfer_config.cool_down_messages})"
+                )]
+        
+        # Get recent message history (last 5 messages)
+        recent_messages = state.history[-5:] if len(state.history) >= 5 else state.history[:]
+        
+        # Get all agents for this tenant
+        all_agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
+        
+        # Initialize scores
+        agent_scores = []
+        
+        # Add configurable threshold from conversation state metadata or config
+        transfer_threshold = state.metadata.get(
+            "transfer_threshold", 
+            transfer_config.default_threshold
+        )
+        
+        # Calculate the conversation focus
+        conversation_focus = await self._analyze_conversation_focus(recent_messages, message)
+        
+        # Check for repetitive transfers (avoid transfer loops)
+        recent_transfers = self._count_recent_transfers(state, 10)  # Look at last 10 exchanges
+        transfer_penalty = min(transfer_config.default_transfer_penalty * recent_transfers, 0.5)
+        
+        # Check for topic change
+        previous_focus = state.metadata.get("previous_focus", {})
+        topic_change_score = 0
+        if previous_focus:
+            topic_change_score = self._calculate_topic_change(previous_focus, conversation_focus)
+        
+        # Store current focus for future comparison
+        state.metadata["previous_focus"] = conversation_focus
+        
+        # Evaluate each agent
+        for agent in all_agents:
+            # Skip the current agent
+            if agent.id == current_agent.id:
+                agent_scores.append(AgentScore(
+                    agent_id=agent.id,
+                    score=0.7,  # Default score for current agent
+                    reason="Current handling agent"
+                ))
+                continue
+            
+            # Calculate base score for this agent
+            score, reason = await self._calculate_agent_score(
+                agent, 
+                message, 
+                conversation_focus,
+                recent_messages
+            )
+            
+            # Apply transfer penalty to avoid loops
+            if recent_transfers > 1:
+                score -= transfer_penalty
+                reason += f" (Transfer penalty: -{transfer_penalty:.2f})"
+            
+            # Apply topic change bonus if applicable
+            if topic_change_score > 0.3 and score > 0.4:
+                topic_bonus = min(transfer_config.topic_change_bonus, 0.3)
+                score += topic_bonus
+                reason += f" (Topic change bonus: +{topic_bonus:.2f})"
+            
+            agent_scores.append(AgentScore(
+                agent_id=agent.id,
+                score=score,
+                reason=reason
+            ))
+        
+        # Sort by score (highest first)
+        result = sorted(agent_scores, key=lambda x: x.score, reverse=True)
+        
+        # Log the evaluation result
+        logging.debug(f"Agent transfer evaluation: {[f'{a.agent_id}: {a.score:.2f} ({a.reason})' for a in result[:3]]}")
+        
+        return result
+
+    async def _analyze_conversation_focus(self, recent_messages: List[Dict[str, Any]], current_message: str) -> Dict[str, float]:
+        """
+        Analyzes the focus/topics of the conversation.
+        
+        Returns:
+            Dictionary mapping categories to their relevance scores
+        """
+        # Combine recent messages with current message
+        all_text = current_message + " " + " ".join([msg["content"] for msg in recent_messages 
+                                                if msg["role"] in ["user", "assistant"]])
+        
+        # Extract categories - we'll use a simpler approach first, can be enhanced with ML
+        categories = {
+            "appointment": 0.0,
+            "product_info": 0.0,
+            "technical_issue": 0.0,
+            "billing": 0.0,
+            "complaint": 0.0,
+            "general": 0.0
+        }
+        
+        # Simple keyword matching (can be replaced with embedding similarity later)
+        keywords = {
+            "appointment": ["appointment", "schedule", "book", "reservation", "meeting", "reschedule", "cancel"],
+            "product_info": ["product", "information", "details", "specs", "how does", "features"],
+            "technical_issue": ["problem", "issue", "error", "not working", "broken", "help", "fix"],
+            "billing": ["bill", "payment", "charge", "refund", "price", "cost", "subscription"],
+            "complaint": ["unhappy", "disappointed", "complaint", "manager", "supervisor", "unsatisfied", "poor"],
+        }
+        
+        # Calculate raw scores based on keyword presence
+        all_text_lower = all_text.lower()
+        for category, words in keywords.items():
+            for word in words:
+                if word in all_text_lower:
+                    categories[category] += 0.2  # Increment score for each keyword found
+        
+        # Ensure general category gets a minimum score
+        categories["general"] = max(0.3, 1.0 - sum(categories.values()))
+        
+        # Normalize scores
+        total = sum(categories.values())
+        if total > 0:
+            for category in categories:
+                categories[category] /= total
+        
+        return categories
+
+    async def _calculate_agent_score(self, agent, message: str, conversation_focus: Dict[str, float], 
+                                    recent_messages: List[Dict[str, Any]]) -> Tuple[float, str]:
+        """
+        Calculates a score for how well an agent can handle the current conversation.
+        
+        Returns:
+            Tuple of (score, reason)
+        """
+        score = 0.0
+        reasons = []
+        
+        # 1. Check if agent type matches conversation focus
+        agent_specialties = self._get_agent_specialties(agent)
+        
+        focus_score = 0.0
+        for category, focus_value in conversation_focus.items():
+            if category in agent_specialties:
+                focus_score += focus_value * agent_specialties[category]
+        
+        score += focus_score
+        if focus_score > 0.3:
+            reasons.append(f"Topic relevance: {focus_score:.2f}")
+        
+        # 2. Check if the agent has the right RAG categories for this conversation
+        if agent.rag_categories and message:
+            rag_score = await self._calculate_rag_relevance(agent, message)
+            score += rag_score
+            if rag_score > 0.2:
+                reasons.append(f"Knowledge base: {rag_score:.2f}")
+        
+        # 3. Check agent's MCP capabilities if needed in this conversation
+        if "API_CALL" in message or "SYSTEM" in message:
+            mcp_score = 0.3 if agent.mcp_enabled else 0.0
+            score += mcp_score
+            if mcp_score > 0:
+                reasons.append("MCP capability needed")
+        
+        # 4. Check for human escalation needs
+        escalation_indicators = ["speak to human", "real person", "manager", "supervisor", "unhappy", "complaint"]
+        if any(indicator in message.lower() for indicator in escalation_indicators):
+            human_score = 0.5 if agent.type == AgentType.HUMAN or agent.human_escalation_enabled else 0.0
+            score += human_score
+            if human_score > 0:
+                reasons.append("Human escalation likely needed")
+        
+        # Generate final reason text
+        reason = ", ".join(reasons) if reasons else "No strong match"
+        
+        return score, reason
+
+    def _get_agent_specialties(self, agent) -> Dict[str, float]:
+        """
+        Extract agent specialties from its configuration.
+        
+        Returns:
+            Dictionary mapping categories to specialty scores
+        """
+        specialties = {
+            "appointment": 0.0,
+            "product_info": 0.0,
+            "technical_issue": 0.0,
+            "billing": 0.0,
+            "complaint": 0.0,
+            "general": 0.0
+        }
+        
+        # Default score based on agent type
+        if agent.type == AgentType.GENERAL:
+            specialties["general"] = 0.8
+        elif agent.type == AgentType.HUMAN:
+            specialties["complaint"] = 0.9
+        
+        # Extract specialties from name and description
+        agent_text = f"{agent.name} {agent.description}".lower()
+        
+        specialty_keywords = {
+            "appointment": ["appointment", "schedule", "booking", "calendar"],
+            "product_info": ["product", "catalog", "information", "details", "specs"],
+            "technical_issue": ["technical", "support", "help", "troubleshoot", "issue"],
+            "billing": ["billing", "payment", "invoice", "financial", "refund"],
+            "complaint": ["complaint", "escalation", "resolution", "satisfaction"],
+        }
+        
+        for category, keywords in specialty_keywords.items():
+            for keyword in keywords:
+                if keyword in agent_text:
+                    specialties[category] += 0.3
+        
+        # Cap scores at 1.0
+        for category in specialties:
+            specialties[category] = min(specialties[category], 1.0)
+        
+        return specialties
+
+    async def _calculate_rag_relevance(self, agent, message: str) -> float:
+        """
+        Calculate how relevant an agent's RAG categories are to the message.
+        
+        Returns:
+            Relevance score between 0.0 and 1.0
+        """
+        if not agent.rag_categories:
+            return 0.0
+        
+        relevance = 0.0
+        
+        # Find if any documents in the agent's categories match the query
+        for category in agent.rag_categories:
+            try:
+                # Search with a low limit to quickly check relevance
+                results = await self.rag_service.search(message, category=category, limit=2)
+                if results and len(results) > 0:
+                    # Add score based on the top result's score
+                    top_score = results[0].get("relevance_score", 0.0)
+                    relevance += min(top_score, 0.4)  # Cap individual category contribution
+            except Exception:
+                # Error handling - continue with other categories
+                pass
+        
+        # Cap overall relevance
+        return min(relevance, 0.6)
+
+    def _count_recent_transfers(self, state: ConversationState, max_messages: int) -> int:
+        """
+        Count the number of agent transfers in recent conversation history.
+        
+        Returns:
+            Number of agent transfers
+        """
+        transfers = 0
+        agent_sequence = []
+        
+        # Look at recent messages to extract agent transfers
+        for message in reversed(state.history[-max_messages:] if len(state.history) >= max_messages else state.history):
+            if message["role"] == "assistant" and "agent_id" in message:
+                agent_sequence.append(message["agent_id"])
+        
+        # Count changes in agent_id
+        for i in range(1, len(agent_sequence)):
+            if agent_sequence[i] != agent_sequence[i-1]:
+                transfers += 1
+        
+        return transfers
+    
+    async def list_conversations_by_tenant(self, tenant_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Lists conversations for a specific tenant.
+        
+        Args:
+            tenant_id: The tenant ID
+            limit: Maximum number of conversations to return
+            
+        Returns:
+            List of conversation information dictionaries
+        """
+        conversations = []
+        
+        try:
+            # Get all keys matching the pattern
+            pattern = f"conversation:*"
+            keys = await self.redis.keys(pattern)
+            
+            # Get each conversation state
+            for key in keys[:limit * 2]:  # Get more than needed to filter by tenant
+                try:
+                    data = await self.redis.get(key)
+                    if data:
+                        state = ConversationState.parse_raw(data)
+                        
+                        # Filter by tenant
+                        if state.tenant_id == tenant_id:
+                            # Add basic info
+                            conversations.append({
+                                "conversation_id": state.conversation_id,
+                                "user_id": state.user_id,
+                                "current_agent_id": state.current_agent_id,
+                                "message_count": len(state.history),
+                                "last_updated": state.last_updated,
+                                # Add summary if available
+                                "summary": state.metadata.get("last_summary", {}).get("brief", None)
+                            })
+                            
+                            if len(conversations) >= limit:
+                                break
+                except Exception as e:
+                    logging.warning(f"Error parsing conversation state for key {key}: {e}")
+                    continue
+        except Exception as e:
+            logging.error(f"Error listing conversations: {e}")
+        
+        # Sort by last updated (most recent first)
+        conversations.sort(key=lambda x: x.get("last_updated", 0), reverse=True)
+        
+        return conversations[:limit]
+
+    async def list_conversations_by_user(self, tenant_id: str, user_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Lists conversations for a specific user within a tenant.
+        
+        Args:
+            tenant_id: The tenant ID
+            user_id: The user ID
+            limit: Maximum number of conversations to return
+            
+        Returns:
+            List of conversation information dictionaries
+        """
+        conversations = []
+        
+        try:
+            # Get all keys matching the pattern
+            pattern = f"conversation:*"
+            keys = await self.redis.keys(pattern)
+            
+            # Get each conversation state
+            for key in keys[:limit * 2]:  # Get more than needed to filter
+                try:
+                    data = await self.redis.get(key)
+                    if data:
+                        state = ConversationState.parse_raw(data)
+                        
+                        # Filter by tenant and user
+                        if state.tenant_id == tenant_id and state.user_id == user_id:
+                            # Add basic info
+                            conversations.append({
+                                "conversation_id": state.conversation_id,
+                                "user_id": state.user_id,
+                                "current_agent_id": state.current_agent_id,
+                                "message_count": len(state.history),
+                                "last_updated": state.last_updated,
+                                # Add summary if available
+                                "summary": state.metadata.get("last_summary", {}).get("brief", None)
+                            })
+                            
+                            if len(conversations) >= limit:
+                                break
+                except Exception as e:
+                    logging.warning(f"Error parsing conversation state for key {key}: {e}")
+                    continue
+        except Exception as e:
+            logging.error(f"Error listing conversations: {e}")
+        
+        # Sort by last updated (most recent first)
+        conversations.sort(key=lambda x: x.get("last_updated", 0), reverse=True)
+        
+        return conversations[:limit]
+

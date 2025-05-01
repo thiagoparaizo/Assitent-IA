@@ -1,0 +1,159 @@
+<!-- admin/templates/webhooks/create.html -->
+{% extends 'base.html' %}
+
+{% block title %}Novo Webhook - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('webhooks.index') }}">Webhooks</a></li>
+                <li class="breadcrumb-item active">Novo Webhook</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Configurar Novo Webhook</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('webhooks.create') }}">
+                    <div class="mb-3">
+                        <label for="url" class="form-label">URL do Webhook<span class="text-danger">*</span></label>
+                        <input type="url" class="form-control" id="url" name="url" required placeholder="https://seu-servidor.com/webhook">
+                        <div class="form-text">Endpoint que receberá as notificações de eventos.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="secret" class="form-label">Chave Secreta</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="secret" name="secret" placeholder="Opcional">
+                            <button class="btn btn-outline-secondary" type="button" id="generate-secret">Gerar</button>
+                        </div>
+                        <div class="form-text">Uma chave secreta usada para assinar e validar requisições (recomendado).</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Eventos a Notificar</label>
+                        <div class="list-group">
+                            {% for event in event_types %}
+                            <label class="list-group-item">
+                                <input class="form-check-input me-1" type="checkbox" name="events" value="{{ event.value }}" {% if event.value == '*' %}checked{% endif %}>
+                                {{ event.name }}
+                            </label>
+                            {% endfor %}
+                        </div>
+                        <div class="form-text">Selecione quais tipos de eventos serão enviados para o webhook.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Dispositivos</label>
+                        <div class="list-group">
+                            <label class="list-group-item">
+                                <input class="form-check-input me-1" type="checkbox" id="all-devices" checked>
+                                Todos os dispositivos
+                            </label>
+                            
+                            <div id="device-list" style="display: none;">
+                                {% for device in devices %}
+                                <label class="list-group-item">
+                                    <input class="form-check-input me-1 device-checkbox" type="checkbox" name="device_ids" value="{{ device.id }}">
+                                    {{ device.name }}
+                                    <small class="text-muted d-block">{{ device.phone_number }}</small>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="form-text">Selecione quais dispositivos acionarão este webhook.</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="enabled" name="enabled" checked>
+                        <label class="form-check-label" for="enabled">Webhook ativo</label>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle me-2"></i>Como integrar seu webhook</h5>
+                        <p>Para processar eventos recebidos do webhook, seu servidor deve:</p>
+                        <ol>
+                            <li>Aceitar requisições POST com Content-Type application/json</li>
+                            <li>Processar o evento no corpo da requisição</li>
+                            <li>Verificar a assinatura no cabeçalho X-Webhook-Signature (se usar chave secreta)</li>
+                            <li>Responder com status 200 OK para confirmação</li>
+                        </ol>
+                        <p>Exemplo de evento recebido:</p>
+<pre class="bg-light p-2">
+{
+  "device_id": 123,
+  "tenant_id": 456,
+  "event_type": "*events.Message",
+  "timestamp": "2025-05-01T12:34:56Z",
+  "event": {
+    "Info": {
+      "Chat": "123456789@s.whatsapp.net",
+      "Sender": "987654321@s.whatsapp.net",
+      "IsFromMe": false
+    },
+    "Message": {
+      "Conversation": "Olá, como posso ajudar?"
+    }
+  }
+}
+</pre>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('webhooks.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Criar Webhook</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Gerar chave secreta aleatória
+    document.getElementById('generate-secret').addEventListener('click', function() {
+        const length = 32;
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let secret = '';
+        
+        for (let i = 0; i < length; i++) {
+            secret += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        
+        document.getElementById('secret').value = secret;
+    });
+    
+    // Alternar entre todos os dispositivos e seleção específica
+    document.getElementById('all-devices').addEventListener('change', function() {
+        const deviceList = document.getElementById('device-list');
+        deviceList.style.display = this.checked ? 'none' : 'block';
+        
+        // Se "Todos" estiver marcado, desmarcar checkboxes específicos
+        if (this.checked) {
+            document.querySelectorAll('.device-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        }
+    });
+    
+    // Se algum dispositivo específico for marcado, desmarcar "Todos"
+    document.querySelectorAll('.device-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                document.getElementById('all-devices').checked = false;
+            }
+        });
+    });
+</script>
+{% endblock %}

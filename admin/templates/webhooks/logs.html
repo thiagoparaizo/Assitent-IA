@@ -1,0 +1,238 @@
+<!-- admin/templates/webhooks/logs.html -->
+{% extends 'base.html' %}
+
+{% block title %}Logs de Webhook - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('webhooks.index') }}">Webhooks</a></li>
+                <li class="breadcrumb-item active">Logs</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="h3">Logs de Entrega de Webhook</h1>
+        <a href="{{ url_for('webhooks.index') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">Histórico de Entregas</h5>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-outline-secondary" id="btn-refresh">
+                        <i class="bi bi-arrow-clockwise"></i> Atualizar
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        Filtrar
+                    </button>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item filter-status" href="#" data-status="all">Todos</a></li>
+                        <li><a class="dropdown-item filter-status" href="#" data-status="success">Sucesso</a></li>
+                        <li><a class="dropdown-item filter-status" href="#" data-status="failed">Falha</a></li>
+                        <li><a class="dropdown-item filter-status" href="#" data-status="pending">Pendentes</a></li>
+                        <li><a class="dropdown-item filter-status" href="#" data-status="retrying">Reenvio</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Evento</th>
+                                <th>Status</th>
+                                <th>Tentativas</th>
+                                <th>Resposta</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logs-table-body">
+                            {% if logs %}
+                                {% for log in logs %}
+                                <tr class="log-row" data-status="{{ log.status }}">
+                                    <td>{{ log.created_at|datetime('%d/%m/%Y %H:%M:%S') }}</td>
+                                    <td>
+                                        {% if log.event_type == '*events.Message' %}
+                                            <span class="badge bg-success">Mensagem</span>
+                                        {% elif log.event_type == '*events.Connected' %}
+                                            <span class="badge bg-info">Conexão</span>
+                                        {% elif log.event_type == '*events.Disconnected' %}
+                                            <span class="badge bg-warning">Desconexão</span>
+                                        {% elif log.event_type == '*events.LoggedOut' %}
+                                            <span class="badge bg-danger">Logout</span>
+                                        {% elif log.event_type == 'test_event' %}
+                                            <span class="badge bg-secondary">Teste</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ log.event_type }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.status == 'success' %}
+                                            <span class="badge bg-success">Sucesso</span>
+                                        {% elif log.status == 'failed' %}
+                                            <span class="badge bg-danger">Falha</span>
+                                        {% elif log.status == 'pending' %}
+                                            <span class="badge bg-warning">Pendente</span>
+                                        {% elif log.status == 'retrying' %}
+                                            <span class="badge bg-info">Reenvio</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ log.status }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ log.attempt_count }}</td>
+                                    <td>
+                                        {% if log.response_code %}
+                                            <span class="badge {% if log.response_code < 400 %}bg-success{% else %}bg-danger{% endif %}">
+                                                {{ log.response_code }}
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn btn-sm btn-outline-info view-details" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#logDetailsModal"
+                                                data-log-id="{{ log.id }}"
+                                                data-log-payload="{{ log.payload|tojson }}"
+                                                data-log-response="{{ log.response_body }}"
+                                                data-log-error="{{ log.error_message }}">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr id="no-logs-row">
+                                    <td colspan="6" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+                                            Nenhum log de webhook encontrado.
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalhes do Log -->
+<div class="modal fade" id="logDetailsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Detalhes da Entrega</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs" id="detailTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="payload-tab" data-bs-toggle="tab" data-bs-target="#payload" type="button" role="tab">Payload</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="response-tab" data-bs-toggle="tab" data-bs-target="#response" type="button" role="tab">Resposta</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="error-tab" data-bs-toggle="tab" data-bs-target="#error" type="button" role="tab">Erro</button>
+                    </li>
+                </ul>
+                <div class="tab-content pt-3" id="detailTabsContent">
+                    <div class="tab-pane fade show active" id="payload" role="tabpanel">
+                        <pre class="bg-light p-3 rounded" id="payload-content" style="max-height: 400px; overflow: auto;">
+                            Carregando...
+                        </pre>
+                    </div>
+                    <div class="tab-pane fade" id="response" role="tabpanel">
+                        <pre class="bg-light p-3 rounded" id="response-content" style="max-height: 400px; overflow: auto;">
+                            Carregando...
+                        </pre>
+                    </div>
+                    <div class="tab-pane fade" id="error" role="tabpanel">
+                        <pre class="bg-light p-3 rounded" id="error-content" style="max-height: 400px; overflow: auto;">
+                            Carregando...
+                        </pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Atualizar página
+    document.getElementById('btn-refresh').addEventListener('click', function() {
+        location.reload();
+    });
+    
+    // Filtrar por status
+    document.querySelectorAll('.filter-status').forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const status = this.getAttribute('data-status');
+            const rows = document.querySelectorAll('.log-row');
+            
+            rows.forEach(row => {
+                if (status === 'all' || row.getAttribute('data-status') === status) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+            
+            // Mostrar mensagem se não houver resultados
+            const visibleRows = document.querySelectorAll('.log-row[style=""]');
+            const noLogsRow = document.getElementById('no-logs-row');
+            
+            if (visibleRows.length === 0 && noLogsRow) {
+                noLogsRow.style.display = '';
+            } else if (noLogsRow) {
+                noLogsRow.style.display = 'none';
+            }
+        });
+    });
+    
+    // Exibir detalhes do log
+    document.querySelectorAll('.view-details').forEach(button => {
+        button.addEventListener('click', function() {
+            const logId = this.getAttribute('data-log-id');
+            let payload = this.getAttribute('data-log-payload');
+            const response = this.getAttribute('data-log-response');
+            const error = this.getAttribute('data-log-error');
+            
+            // Formatar JSON para exibição
+            try {
+                payload = JSON.stringify(JSON.parse(payload), null, 2);
+            } catch (e) {
+                // Manter payload como está se não for JSON válido
+            }
+            
+            // Preencher conteúdo das tabs
+            document.getElementById('payload-content').textContent = payload || 'Sem dados';
+            document.getElementById('response-content').textContent = response || 'Sem resposta';
+            document.getElementById('error-content').textContent = error || 'Sem erros';
+        });
+    });
+</script>
+{% endblock %}

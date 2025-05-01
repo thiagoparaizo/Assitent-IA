@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db, get_whatsapp_service
+from app.api.deps import get_db, get_tenant_id, get_whatsapp_service
 from app.services.whatsapp import WhatsAppService
 from app.services.rag import RAGService
 from app.core.config import settings
@@ -43,6 +43,28 @@ async def whatsapp_webhook(
         logger.error(f"Erro ao processar webhook: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("")
+async def get_webhooks(
+    tenant_id: str = Depends(get_tenant_id),
+    # outras dependências
+):
+    """
+    Lista webhooks configurados para um tenant
+    """
+    # Implementação...
+    return []  # Lista de webhooks
+
+@router.delete("/{webhook_id}")
+async def delete_webhook(
+    webhook_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    # outras dependências
+):
+    """
+    Remove um webhook
+    """
+    # Implementação...
+    return {"status": "success"}
 
 async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: WhatsAppService, db: Session):
     """

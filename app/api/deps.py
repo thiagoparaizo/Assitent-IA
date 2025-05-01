@@ -21,6 +21,10 @@ from app.services.orchestrator import AgentOrchestrator
 from app.services.rag import RAGService
 from app.services.whatsapp import WhatsAppService
 
+from app.services.config import SystemConfig, load_system_config
+from app.services.memory import MemoryService
+from app.services.orchestrator import AgentOrchestrator
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 
@@ -154,3 +158,30 @@ async def get_orchestrator(
     """
     llm_service = LLMService(api_key=openai_api_key)
     return AgentOrchestrator(agent_service, rag_service, redis_client, llm_service)
+
+async def get_enhanced_orchestrator(
+    agent_service: AgentService = Depends(get_agent_service),
+    rag_service: RAGService = Depends(get_rag_service),
+    redis_client = Depends(get_redis_client),
+    llm_service: LLMService = Depends(get_llm_service),
+    config: SystemConfig = None
+) -> AgentOrchestrator:
+    """
+    Get an enhanced orchestrator with scoring system and memory.
+    
+    Args:
+        agent_service: Agent service
+        rag_service: RAG service
+        redis_client: Redis client
+        llm_service: LLM service
+        config: Optional system configuration
+        
+    Returns:
+        Enhanced AgentOrchestrator instance
+    """
+    # Load system config if not provided
+    if config is None:
+        config = load_system_config()
+    
+    # Create orchestrator
+    return AgentOrchestrator(agent_service, rag_service, redis_client, llm_service, config)
