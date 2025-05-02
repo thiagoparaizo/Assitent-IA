@@ -2,12 +2,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import List, Dict, Any, Optional
 
+from app.schemas import agent as schemas
 from app.services.agent import AgentService, Agent, AgentType, AgentPrompt
 from app.api.deps import get_tenant_id, get_agent_service
 
-router = APIRouter()
+router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
 
-@router.post("/")
+@router.post("/", response_model=schemas.Agent)
 async def create_agent(
     agent_data: Dict[str, Any] = Body(...),
     tenant_id: str = Depends(get_tenant_id),
@@ -23,7 +24,7 @@ async def create_agent(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get("/")
+@router.get("/", response_model=List[schemas.Agent])
 async def list_agents(
     tenant_id: str = Depends(get_tenant_id),
     agent_service: AgentService = Depends(get_agent_service),
@@ -41,7 +42,7 @@ async def list_agents(
     
     return agents
 
-@router.get("/{agent_id}")
+@router.get("/{agent_id}", response_model=schemas.Agent)
 async def get_agent(
     agent_id: str,
     tenant_id: str = Depends(get_tenant_id),
@@ -59,7 +60,7 @@ async def get_agent(
     
     return agent
 
-@router.put("/{agent_id}")
+@router.put("/{agent_id}", response_model=schemas.AgentUpdate)
 async def update_agent(
     agent_id: str,
     agent_data: Dict[str, Any] = Body(...),

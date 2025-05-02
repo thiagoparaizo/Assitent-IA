@@ -17,3 +17,5 @@ class Tenant(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     users = relationship("User", back_populates="tenant")
+    webhooks = relationship("Webhook", back_populates="tenant", cascade="all, delete-orphan")
+    agents = relationship("Agent", back_populates="tenant", cascade="all, delete-orphan")

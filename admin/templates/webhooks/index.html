@@ -62,6 +62,12 @@
                                                     {% elif event == '*events.LoggedOut' %}
                                                         Logout
                                                     {% else %}
+                                                        {{ event }}
+                                                    {% endif %}
+                                                </span>
+                                                {% if not loop.last %}, {% endif %}
+                                            {% endfor %}
+                                        {% else %}
                                             <span class="text-muted">Todos</span>
                                         {% endif %}
                                     </td>
@@ -91,8 +97,8 @@
                                             <button type="button" class="btn btn-sm btn-outline-danger" 
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#deleteWebhookModal"
-                                                    data-webhook-id="{{ webhook.id }}"
-                                                    data-webhook-url="{{ webhook.url }}">
+                                                    data-webhook-id="{{ webhook.id if webhook and webhook.id else "0" }}"
+                                                    data-webhook-url="{{ webhook.url if webhook and webhook.url else "-" }}">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -141,6 +147,7 @@
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                 <form method="post" id="delete-webhook-form" action="">
                     <button type="submit" class="btn btn-danger">Excluir</button>
+                    
                 </form>
             </div>
         </div>
@@ -156,8 +163,13 @@
         const webhookId = button.getAttribute('data-webhook-id');
         const webhookUrl = button.getAttribute('data-webhook-url');
         
+        if (!webhookId) {
+            console.error('Webhook ID não encontrado');
+            return;
+        }
+        
         document.getElementById('webhook-url-to-delete').textContent = webhookUrl;
-        document.getElementById('delete-webhook-form').action = '{{ url_for("webhooks.delete", webhook_id="") }}' + webhookId;
+        document.getElementById('delete-webhook-form').action = '/webhooks/' + webhookId + '/delete';
     });
     
     // Função para testar webhook

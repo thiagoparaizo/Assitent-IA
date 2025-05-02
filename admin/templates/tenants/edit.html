@@ -1,0 +1,142 @@
+<!-- admin/templates/tenants/edit.html -->
+{% extends 'base.html' %}
+
+{% block title %}Editar Tenant - {{ tenant.name }} - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('tenants.index') }}">Tenants</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}">{{ tenant.name }}</a></li>
+                <li class="breadcrumb-item active">Editar</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Editar Tenant</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('tenants.edit', tenant_id=tenant.id) }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ tenant.name }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ tenant.description }}</textarea>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if tenant.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Ativo</label>
+                        <div class="form-text">Um tenant inativo não poderá usar os serviços.</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">Informações do Tenant</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">ID:</div>
+                        <div class="col-7">{{ tenant.id }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Criado em:</div>
+                        <div class="col-7">{{ tenant.created_at|datetime('%d/%m/%Y %H:%M') }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Atualizado em:</div>
+                        <div class="col-7">{{ tenant.updated_at|datetime('%d/%m/%Y %H:%M') }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Usuários:</div>
+                        <div class="col-7">{{ tenant.users|length }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Dispositivos:</div>
+                        <div class="col-7">{{ tenant.device_count }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Agentes:</div>
+                        <div class="col-7">{{ tenant.agent_count }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Zona de Perigo</h5>
+            </div>
+            <div class="card-body">
+                <p>Ações irreversíveis para este tenant.</p>
+                <button type="button" class="btn btn-danger w-100 mb-2" 
+                        data-bs-toggle="modal" 
+                        data-bs-target="#deleteTenantModal"
+                        data-tenant-id="{{ tenant.id }}"
+                        data-tenant-name="{{ tenant.name }}">
+                    <i class="bi bi-trash"></i> Excluir Tenant
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteTenantModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o tenant <strong id="tenant-name-to-delete">{{ tenant.name }}</strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita. Todos os usuários, agentes e dispositivos associados a este tenant serão excluídos.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" action="{{ url_for('tenants.delete', tenant_id=tenant.id) }}">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

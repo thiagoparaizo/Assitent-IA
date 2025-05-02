@@ -22,8 +22,11 @@ def index():
     """Lista de webhooks configurados."""
     webhooks = []
     
+    print("Lista de webhooks configurados...")
+    
     try:
         tenant_id = current_user.tenant_id if current_user.tenant_id else 1
+        print( "Tenant ID:", tenant_id )
         response = requests.get(
             f"{Config.API_URL}/webhook?tenant_id={tenant_id}",
             headers=get_api_headers(),

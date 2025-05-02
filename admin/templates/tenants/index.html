@@ -1,13 +1,152 @@
-<!-- admin/templates/tenants/index.html -->
+<!-- admin/templates/tenants/index.html (continued) -->
 {% extends 'base.html' %}
 
 {% block title %}Tenants - Assistente Inteligente{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
-    <div class="col-12">
+    <div class="col-12 d-flex justify-content-between align-items-center">
         <h1 class="h3">Gerenciamento de Tenants</h1>
-        <p class="text-muted">Esta funcionalidade está em desenvolvimento.</p>
+        <a href="{{ url_for('tenants.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus"></i> Novo Tenant
+        </a>
     </div>
 </div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Tenants Disponíveis</h5>
+                    <div class="input-group" style="width: auto;">
+                        <input type="text" class="form-control" id="tenant-search" placeholder="Pesquisar tenants...">
+                        <button class="btn btn-outline-secondary" type="button" id="search-button">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nome</th>
+                                <th>Descrição</th>
+                                <th>Status</th>
+                                <th>Usuários</th>
+                                <th>Criado em</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if tenants %}
+                                {% for tenant in tenants %}
+                                <tr>
+                                    <td>{{ tenant.id }}</td>
+                                    <td>{{ tenant.name }}</td>
+                                    <td>{{ tenant.description or 'Sem descrição' }}</td>
+                                    <td>
+                                        {% if tenant.is_active %}
+                                            <span class="badge bg-success">Ativo</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Inativo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ tenant.user_count }}</td>
+                                    <td>{{ tenant.created_at|datetime('%d/%m/%Y') }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('tenants.edit', tenant_id=tenant.id) }}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deleteTenantModal"
+                                                    data-tenant-id="{{ tenant.id }}"
+                                                    data-tenant-name="{{ tenant.name }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+                                            Nenhum tenant encontrado.
+                                        </div>
+                                        <a href="{{ url_for('tenants.create') }}" class="btn btn-sm btn-primary mt-2">
+                                            <i class="bi bi-plus"></i> Criar Tenant
+                                        </a>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteTenantModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o tenant <strong id="tenant-name-to-delete"></strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita. Todos os usuários, agentes e dispositivos associados a este tenant serão excluídos.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" id="delete-tenant-form" action="">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Configurar modal de exclusão
+    document.getElementById('deleteTenantModal').addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const tenantId = button.getAttribute('data-tenant-id');
+        const tenantName = button.getAttribute('data-tenant-name');
+        
+        document.getElementById('tenant-name-to-delete').textContent = tenantName;
+        document.getElementById('delete-tenant-form').action = '{{ url_for("tenants.delete", tenant_id="") }}' + tenantId;
+    });
+    
+    // Pesquisa de tenants
+    document.getElementById('tenant-search').addEventListener('keyup', function(e) {
+        const searchText = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('tbody tr');
+        
+        tableRows.forEach(row => {
+            const name = row.cells[1].textContent.toLowerCase();
+            const description = row.cells[2].textContent.toLowerCase();
+            
+            if (name.includes(searchText) || description.includes(searchText)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
 {% endblock %}
