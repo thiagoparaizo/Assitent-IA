@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+import uuid
+from sqlalchemy import UUID, Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db.session import Base
@@ -8,7 +9,7 @@ from app.db.session import Base
 class Webhook(Base):
     __tablename__ = "webhooks"
 
-    id = Column(String, primary_key=True, index=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
     url = Column(String, nullable=False)
     secret = Column(String, nullable=True)
     events = Column(Text, nullable=True)  # JSON string of event types
@@ -26,16 +27,15 @@ class Webhook(Base):
 class WebhookLog(Base):
     __tablename__ = "webhook_logs"
 
-    id = Column(String, primary_key=True, index=True)
-    webhook_id = Column(String, ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False)
-    status = Column(String, nullable=False)  # pending, success, failed, retrying
-    event_type = Column(String, nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, index=True, default=uuid.uuid4)
+    webhook_id = Column(UUID(as_uuid=True), ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(50), nullable=False)
+    event_type = Column(String(100), nullable=True)
     attempt_count = Column(Integer, default=0)
     response_code = Column(Integer, nullable=True)
     response_body = Column(Text, nullable=True)
     error_message = Column(Text, nullable=True)
-    payload = Column(Text, nullable=True)  # JSON string of the payload
+    payload = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Define relationship with webhook
     webhook = relationship("Webhook", back_populates="logs")

@@ -1,7 +1,9 @@
 # admin/app.py
+import time
 from flask import Flask, render_template, redirect, url_for, flash, request, session
-from flask_login import LoginManager, login_required, login_user, logout_user, current_user
+from flask_login import LoginManager, login_required, current_user, login_user, logout_user
 import os
+import requests
 
 from admin.config import Config
 from admin.views.auth import auth_bp
@@ -13,10 +15,18 @@ from admin.views.whatsapp import whatsapp_bp
 from admin.views.conversations import conversations_bp
 from admin.views.webhooks import webhooks_bp
 from admin.models.user import User
+from admin.models.user_store import user_store
 
 def create_app(config_class=Config):
     app = Flask(__name__)
     app.config.from_object(config_class)
+    
+    # Configuração crítica que estava faltando
+    app.config.update(
+        SECRET_KEY=Config.SECRET_KEY,  # Deve ser igual ao da API
+        SESSION_COOKIE_NAME='webapp_session',
+        PERMANENT_SESSION_LIFETIME=3600  # 1 hora
+    )
     
     # Configurar Login Manager
     login_manager = LoginManager()
@@ -42,8 +52,7 @@ def create_app(config_class=Config):
     
     @login_manager.user_loader
     def load_user(user_id):
-        # Implementar carregamento de usuário
-        return User.get(user_id)
+        return user_store.get(user_id)
     
     @app.route('/')
     def index():
@@ -54,7 +63,85 @@ def create_app(config_class=Config):
     if not os.path.exists(uploads_dir):
         os.makedirs(uploads_dir)
     
-    return app
+    # @app.before_request
+    # def verify_token():
+    #     if request.endpoint and not request.endpoint.startswith('static') and \
+    #        not request.endpoint.startswith('auth.login') and \
+    #        not current_user.is_authenticated:
+    #         # Skip verification for login endpoint and static files
+    #         return
+
+    #     if current_user.is_authenticated and request.endpoint.startswith('api.'):
+    #         # Verify token for API calls
+    #         # If token is expired or invalid, redirect to login
+    #         try:
+    #             # Test token against API
+    #             response = requests.get(
+    #                 f"{Config.API_URL}/auth/test-token",
+    #                 headers={"Authorization": f"Bearer {current_user.token}"},
+    #                 timeout=5
+    #             )
+                
+    #             if response.status_code != 200:
+    #                 # Token is invalid
+    #                 logout_user()
+    #                 flash('Sua sessão expirou. Por favor, faça login novamente.', 'warning')
+    #                 return redirect(url_for('auth.login'))
+    #         except:
+    #             pass
+    
+    @app.before_request
+    def check_auth_and_verify_token():
+        # Public routes that don't require authentication
+        public_routes = ['static', 'auth.login']
+        
+        # If endpoint is public, allow access
+        if request.endpoint and any(request.endpoint.startswith(route) for route in public_routes):
+            return
+            
+        # If user is not authenticated, redirect to login
+        if not hasattr(current_user, 'is_authenticated') or current_user.is_authenticated == False:
+            print("User is not authenticated")
+            # Only redirect if this is not the login page itself
+            if request.endpoint != 'auth.login':
+                print("User is not authenticated and not on login page")
+                return login_manager.unauthorized()
+        
+        # If user is authenticated but token may be expired, verify it
+        elif current_user.is_authenticated and hasattr(current_user, 'token'):
+            print("User is authenticated")
+            # Only verify token periodically or for important operations
+            # to avoid too many API calls
+            should_verify = False
+            
+            # Check session data to determine if verification is needed
+            last_verify = session.get('last_token_verify', 0)
+            now = time.time()
+            
+            # Verify every 5 minutes
+            if now - last_verify > 300:  # 5 minutes in seconds
+                should_verify = True
+                session['last_token_verify'] = now
+            
+            if should_verify:
+                try:
+                    # Test token against API
+                    response = requests.get(
+                        f"{Config.API_URL}/auth/test-token",
+                        headers={"Authorization": f"Bearer {current_user.token}"},
+                        timeout=5
+                    )
+                    
+                    if response.status_code != 200:
+                        # Token is invalid, log the user out
+                        logout_user()
+                        flash('Sua sessão expirou. Por favor, faça login novamente.', 'warning')
+                        return redirect(url_for('auth.login'))
+                except:
+                    # On error, continue but don't update last_verify
+                    session['last_token_verify'] = last_verify
+    
+    return app  
 
 if __name__ == '__main__':
     app = create_app()

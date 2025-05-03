@@ -157,7 +157,8 @@ def view(tenant_id):
             # Get tenant agents
             try:
                 agents_response = requests.get(
-                    f"{Config.API_URL}/agents/?tenant_id={tenant_id}",
+                    #f"{Config.API_URL}/agents/?tenant_id={tenant_id}",
+                    f"{Config.API_URL}/agents/list/?tenant_id={tenant_id}",
                     headers=get_api_headers(),
                     timeout=3
                 )

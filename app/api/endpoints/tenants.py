@@ -16,7 +16,7 @@ def read_tenants(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser),
+    current_user: User = Depends(get_current_active_superuser), # TODO: implementar 
 ):
     """
     Retrieve all tenants (superuser only).
@@ -28,7 +28,7 @@ def read_tenants(
 def create_tenant(
     tenant: TenantCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser),
+    current_user: User = Depends(get_current_active_superuser), # TODO: implementar 
 ):
     """
     Create a new tenant (superuser only).
@@ -53,7 +53,7 @@ def create_tenant(
 def read_tenant(
     tenant_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+     current_user: User = Depends(get_current_active_user), # TODO: implementar 
 ):
     """
     Get a specific tenant by ID.
@@ -73,7 +73,7 @@ def update_tenant(
     tenant_update: TenantUpdate,
     tenant_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser),
+    current_user: User = Depends(get_current_active_superuser), # TODO: implementar 
 ):
     """
     Update a tenant (superuser only).
@@ -94,7 +94,7 @@ def update_tenant(
 def delete_tenant(
     tenant_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_superuser),
+    current_user: User = Depends(get_current_active_superuser), # TODO: implementar 
 ):
     """
     Delete a tenant (superuser only).
@@ -115,7 +115,7 @@ def read_tenant_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user), # TODO: implementar 
 ):
     """
     Get all users for a specific tenant.
@@ -151,7 +151,7 @@ def read_tenant_users(
 def count_tenant_users(
     tenant_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user), # TODO: implementar 
 ):
     """
     Count users for a specific tenant.

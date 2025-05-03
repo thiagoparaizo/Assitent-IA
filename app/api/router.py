@@ -4,7 +4,7 @@ from app.api.endpoints import auth, whatsapp, tenants, conversations, appointmen
 
 api_router = APIRouter()
 
-#api_router.include_router(auth.router, prefix="/auth", tags=["autenticação"])
+api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
 api_router.include_router(tenants.router, prefix="/tenants", tags=["tenants"])
 #api_router.include_router(conversations.router, prefix="/conversations", tags=["conversas"])

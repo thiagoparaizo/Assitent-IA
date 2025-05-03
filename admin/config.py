@@ -4,8 +4,9 @@ from datetime import timedelta
 
 class Config:
     # Configurações básicas
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here'
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here-2025-abc'
     DEBUG = os.environ.get('FLASK_DEBUG') or True
+    LOGIN_DISABLED = False
     
     # Configuração do banco de dados
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///app.db'
@@ -21,3 +22,5 @@ class Config:
     # Configuração de upload
     UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
+    
+    

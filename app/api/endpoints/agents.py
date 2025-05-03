@@ -2,17 +2,20 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import List, Dict, Any, Optional
 
+from app.db.models.user import User
 from app.schemas import agent as schemas
 from app.services.agent import AgentService, Agent, AgentType, AgentPrompt
-from app.api.deps import get_tenant_id, get_agent_service
+from app.api.deps import get_current_active_user, get_tenant_id, get_agent_service
 
-router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
+router = APIRouter()
 
 @router.post("/", response_model=schemas.Agent)
 async def create_agent(
     agent_data: Dict[str, Any] = Body(...),
     tenant_id: str = Depends(get_tenant_id),
-    agent_service: AgentService = Depends(get_agent_service)
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: User = Depends(get_current_active_user),
+    
 ):
     """Cria um novo agente."""
     # Garantir que o tenant_id está correto
@@ -24,11 +27,31 @@ async def create_agent(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@router.get("/list", response_model=List[schemas.Agent])
+async def list_agents(
+    tenant_id: int,
+    agent_service: AgentService = Depends(get_agent_service),
+    agent_type: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Lista os agentes de um tenant."""
+    agents = await agent_service.get_agents_by_tenant(tenant_id)
+    
+    if agent_type:
+        try:
+            type_enum = AgentType(agent_type)
+            agents = [a for a in agents if a.type == type_enum]
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Tipo de agente inválido: {agent_type}")
+    
+    return agents
+
 @router.get("/", response_model=List[schemas.Agent])
 async def list_agents(
     tenant_id: str = Depends(get_tenant_id),
     agent_service: AgentService = Depends(get_agent_service),
-    agent_type: Optional[str] = None
+    agent_type: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user),
 ):
     """Lista os agentes de um tenant."""
     agents = await agent_service.get_agents_by_tenant(tenant_id)
@@ -46,7 +69,8 @@ async def list_agents(
 async def get_agent(
     agent_id: str,
     tenant_id: str = Depends(get_tenant_id),
-    agent_service: AgentService = Depends(get_agent_service)
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Obtém um agente pelo ID."""
     agent = await agent_service.get_agent(agent_id)
@@ -60,12 +84,14 @@ async def get_agent(
     
     return agent
 
+
 @router.put("/{agent_id}", response_model=schemas.AgentUpdate)
 async def update_agent(
     agent_id: str,
     agent_data: Dict[str, Any] = Body(...),
     tenant_id: str = Depends(get_tenant_id),
-    agent_service: AgentService = Depends(get_agent_service)
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Atualiza um agente existente."""
     # Verificar se o agente existe e pertence ao tenant
@@ -90,7 +116,8 @@ async def update_agent(
 async def delete_agent(
     agent_id: str,
     tenant_id: str = Depends(get_tenant_id),
-    agent_service: AgentService = Depends(get_agent_service)
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Remove um agente."""
     # Verificar se o agente existe e pertence ao tenant

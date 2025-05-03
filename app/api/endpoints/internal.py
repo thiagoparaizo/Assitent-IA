@@ -65,3 +65,8 @@ async def process_webhook_event(
     await process_whatsapp_message(event, None, db)
     
     return {"status": "processed"}
+
+router.get("/init_db")
+def init_db():
+    from app.db.init_db import init_db
+    init_db()

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, AnyHttpUrl
+import uuid
 
 class WebhookBase(BaseModel):
     url: AnyHttpUrl
@@ -20,13 +21,16 @@ class WebhookUpdate(BaseModel):
     enabled: Optional[bool] = None
 
 class WebhookResponse(WebhookBase):
-    id: str
-    tenant_id: int
+    id: uuid.UUID  # Alterado para UUID
+    tenant_id: uuid.UUID  # Atualize conforme seu modelo Tenant
     created_at: datetime
     updated_at: datetime
 
     class Config:
         orm_mode = True
+        json_encoders = {
+            uuid.UUID: lambda v: str(v)  # Converte UUID para string no JSON
+        }
 
 class WebhookLogBase(BaseModel):
     status: str
@@ -38,12 +42,15 @@ class WebhookLogBase(BaseModel):
     payload: Optional[str] = None
 
 class WebhookLogCreate(WebhookLogBase):
-    webhook_id: str
+    webhook_id: uuid.UUID
 
 class WebhookLogResponse(WebhookLogBase):
-    id: str
-    webhook_id: str
+    id: uuid.UUID
+    webhook_id: uuid.UUID
     created_at: datetime
 
     class Config:
         orm_mode = True
+        json_encoders = {
+            uuid.UUID: lambda v: str(v)
+        }
