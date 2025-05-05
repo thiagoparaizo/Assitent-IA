@@ -65,7 +65,7 @@ async def create_device(
 @router.put("/devices/{device_id}/status", response_model=dict)
 async def update_device_status(
     device_id: int,
-    status: schemas.DeviceStatus,
+    status: schemas.DeviceStatusUpdate,
     current_user: User = Depends(get_current_active_user),
     whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
@@ -284,42 +284,42 @@ def get_db() -> Generator:
         db.close()
 
 
-def get_current_user(
-    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
-) -> User:
-    print("get_current_user >>")
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[ALGORITHM]
-        )
-        token_data = TokenPayload(**payload)
-    except (jwt.JWTError, ValidationError):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Não foi possível validar as credenciais",
-        )
-    user = db.query(User).filter(User.id == token_data.sub).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    return user
+# def get_current_user(
+#     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
+# ) -> User:
+#     print("get_current_user >>")
+#     try:
+#         payload = jwt.decode(
+#             token, settings.SECRET_KEY, algorithms=[ALGORITHM]
+#         )
+#         token_data = TokenPayload(**payload)
+#     except (jwt.JWTError, ValidationError):
+#         raise HTTPException(
+#             status_code=status.HTTP_403_FORBIDDEN,
+#             detail="Não foi possível validar as credenciais",
+#         )
+#     user = db.query(User).filter(User.id == token_data.sub).first()
+#     if not user:
+#         raise HTTPException(status_code=404, detail="Usuário não encontrado")
+#     return user
 
 
-def get_current_active_user(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    if not current_user.is_active:
-        raise HTTPException(status_code=400, detail="Usuário inativo")
-    return current_user
+# def get_current_active_user(
+#     current_user: User = Depends(get_current_user),
+# ) -> User:
+#     if not current_user.is_active:
+#         raise HTTPException(status_code=400, detail="Usuário inativo")
+#     return current_user
 
 
-def get_current_active_superuser(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    if not current_user.is_superuser:
-        raise HTTPException(
-            status_code=400, detail="O usuário não tem privilégios suficientes"
-        )
-    return current_user
+# def get_current_active_superuser(
+#     current_user: User = Depends(get_current_user),
+# ) -> User:
+#     if not current_user.is_superuser:
+#         raise HTTPException(
+#             status_code=400, detail="O usuário não tem privilégios suficientes"
+#         )
+#     return current_user
 
 
 def get_whatsapp_service() -> WhatsAppService:

@@ -34,6 +34,9 @@ class DeviceStatus(BaseModel):
     connected: bool
     requires_reauth: bool
     last_seen: Optional[datetime] = None
+    
+class DeviceStatusUpdate(BaseModel):
+    status: str
 
 
 class MessageBase(BaseModel):

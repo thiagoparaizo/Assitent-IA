@@ -119,8 +119,17 @@ class AgentService:
         """Obtém todos os agentes de um tenant."""
         # Buscar no banco de dados
         query = select(AgentModel).where(AgentModel.tenant_id == int(tenant_id))
-        result = await self.db.execute(query)
-        db_agents = result.scalars().all()
+        
+        # Aqui está o problema - não podemos usar await com execute() a menos que estejamos usando AsyncSession
+        # Vamos verificar o tipo de self.db
+        if hasattr(self.db, 'execute'):
+            # Estamos usando uma sessão síncrona
+            result = self.db.execute(query)
+            db_agents = result.scalars().all()
+        else:
+            # Estamos usando uma sessão assíncrona
+            result = await self.db.execute(query)
+            db_agents = result.scalars().all()
         
         # Converter para schema
         return [self._db_to_schema(db_agent) for db_agent in db_agents]

@@ -10,11 +10,19 @@ from admin.config import Config
 webhooks_bp = Blueprint('webhooks', __name__, url_prefix='/webhooks')
 
 def get_api_headers():
-    return {
+    headers = {
         'Content-Type': 'application/json',
-        'Authorization': f'Bearer {Config.API_TOKEN}',
-        'X-Tenant-ID': str(current_user.tenant_id) if current_user.tenant_id else ''
     }
+    
+    # Add token if user is authenticated
+    if hasattr(current_user, 'token') and current_user.token:
+        headers['Authorization'] = f'Bearer {current_user.token}'
+    
+    # Add tenant ID if available
+    if hasattr(current_user, 'tenant_id') and current_user.tenant_id:
+        headers['X-Tenant-ID'] = str(current_user.tenant_id)
+    
+    return headers
 
 @webhooks_bp.route('/')
 @login_required
@@ -56,7 +64,7 @@ def create():
         
         try:
             response = requests.post(
-                f"{Config.API_URL}/webhook",
+                f"{Config.API_URL}/webhook/create",
                 headers=get_api_headers(),
                 json=webhook_data,
                 timeout=10
@@ -106,7 +114,7 @@ def create():
     
     return render_template('webhooks/create.html', devices=devices, event_types=event_types)
 
-@webhooks_bp.route('/<int:webhook_id>/delete', methods=['POST'])
+@webhooks_bp.route('/<string:webhook_id>/delete', methods=['POST'])
 @login_required
 def delete(webhook_id):
     """Excluir webhook."""
@@ -134,7 +142,7 @@ def delete(webhook_id):
         
     return redirect(url_for('webhooks.index'))
 
-@webhooks_bp.route('/<int:webhook_id>/test', methods=['POST'])
+@webhooks_bp.route('/<string:webhook_id>/test', methods=['POST'])
 @login_required
 def test(webhook_id):
     """Testar webhook."""
@@ -166,7 +174,7 @@ def test(webhook_id):
         
     return redirect(url_for('webhooks.index'))
 
-@webhooks_bp.route('/<int:webhook_id>/logs')
+@webhooks_bp.route('/<string:webhook_id>/logs')
 @login_required
 def logs(webhook_id):
     """Visualizar logs de entrega de webhook."""

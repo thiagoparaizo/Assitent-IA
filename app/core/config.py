@@ -1,5 +1,6 @@
 # Atualizar o arquivo app/core/config.py
 
+import os
 from typing import List, Union
 
 from pydantic import AnyHttpUrl, PostgresDsn, validator
@@ -39,7 +40,7 @@ class Settings(BaseSettings):
     VECTOR_DB_PATH: str = "./storage/vectordb"
     
     # LLMs API_KEYs
-    OPENAI_API_KEY: str = ""
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
     
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
     def assemble_db_connection(cls, v: str, values: dict) -> str:

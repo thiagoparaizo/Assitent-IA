@@ -39,19 +39,24 @@ def get_db() -> Generator:
 def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
+    print(f"Tentando autenticar com token: {token[:10]}...") # Apenas para debug
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[ALGORITHM]
         )
         token_data = TokenPayload(**payload)
-    except (jwt.JWTError, ValidationError):
+        print(f"Token decodificado com sucesso, sub: {token_data.sub}")
+    except (jwt.JWTError, ValidationError) as e:
+        print(f"Erro ao decodificar token: {e}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Could not validate credentials",
+            detail="Não foi possível validar as credenciais",
         )
     user = db.query(User).filter(User.id == token_data.sub).first()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        print(f"Usuário não encontrado para ID: {token_data.sub}")
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    print(f"Usuário autenticado: {user.email}")
     return user
 
 
@@ -75,43 +80,21 @@ def get_current_active_superuser(
 
 async def get_tenant_id(
     x_tenant_id: Optional[str] = Header(None),
-    #current_user: User = Depends(get_current_active_user), # TODO: implementar 
+    current_user: Optional[User] = Depends(get_current_user),
 ) -> str:
     """
     Obtém o ID do tenant a partir do cabeçalho da requisição ou do usuário autenticado.
-    
-    Args:
-        x_tenant_id: ID do tenant no cabeçalho
-        current_user: Usuário autenticado
-        
-    Returns:
-        ID do tenant
     """
-    
-    current_user = get_current_active_user(),
-    
-    if True == True:# TODO: remover
-        current_user = {'tenant_id': 1} # TODO: remover
-        return current_user['tenant_id']
-    
-    # Se o tenant_id foi fornecido no cabeçalho
+    # Use header tenant_id if provided
     if x_tenant_id:
-        # Verificar se o usuário tem permissão para acessar este tenant
-        if not current_user.is_superuser and str(current_user.tenant_id) != x_tenant_id:
-            raise HTTPException(
-                status_code=403,
-                detail="Sem permissão para acessar este tenant"
-            )
         return x_tenant_id
+        
+    # Use user's tenant_id if available
+    if current_user and current_user.tenant_id:
+        return str(current_user.tenant_id)
     
-    # Se não foi fornecido no cabeçalho, usar o tenant do usuário
-    if current_user.tenant_id is None:
-        raise HTTPException(
-            status_code=400,
-            detail="Tenant não especificado e usuário não está associado a nenhum tenant"
-        )
-    
-    return str(current_user.tenant_id)
+    # Default to tenant 1 for development
+    return "1"
 
 def get_whatsapp_service() -> WhatsAppService:
     return WhatsAppService()

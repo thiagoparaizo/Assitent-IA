@@ -1,6 +1,8 @@
+from datetime import datetime
 import os
 from typing import List, Optional, Dict, Any
 
+import chromadb
 import httpx
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
@@ -11,7 +13,9 @@ from docling_core.types import DoclingDocument
 from docling.document_converter import DocumentConverter
 
 
-from app.core.config import settings
+from app.core.config import Settings, settings
+
+from langchain.document_loaders import TextLoader, DirectoryLoader, PyPDFLoader, UnstructuredMarkdownLoader
 
 
 class RAGService:
@@ -21,23 +25,38 @@ class RAGService:
     
     def __init__(self, tenant_id: int = None, vector_db_path: str = None):
         self.tenant_id = tenant_id
-        self.base_vector_db_path = vector_db_path or settings.VECTOR_DB_PATH
         
-        # Se temos um tenant_id, personalizar o caminho
-        if tenant_id:
-            self.vector_db_path = os.path.join(self.base_vector_db_path, f"tenant_{tenant_id}")
-        else:
-            self.vector_db_path = os.path.join(self.base_vector_db_path, "shared")
+        # Configurações para o PostgreSQL
+        self.collection_name = f"tenant_{tenant_id}_collection" if tenant_id else "shared_collection"
         
-        self.embeddings = OpenAIEmbeddings(openai_api_key=settings.OPENAI_API_KEY)
-        self.vectorstore = None
+        # Configurar cliente Chroma para usar PostgreSQL
+        self.client = chromadb.PersistentClient(
+            path="/path/to/persist",
+            settings=chromadb.Settings(
+                persist_directory="/path/to/persist",
+                postgres_connection_string="postgresql://postgres:postgres@localhost:5432/assistant"
+            )
+        )
         
-        # Criar diretório para o vectorstore se não existir
-        os.makedirs(self.vector_db_path, exist_ok=True)
+        # Inicializar embedding
+        self.embeddings = OpenAIEmbeddings(api_key=settings.OPENAI_API_KEY)
         
-        # Inicializar o vectorstore se já existir
-        if os.path.exists(os.path.join(self.vector_db_path, "chroma.sqlite3")):
-            self.load_vectorstore()
+        # Tentar obter a collection ou criar uma nova
+        try:
+            self.collection = self.client.get_or_create_collection(
+                name=self.collection_name,
+                metadata={"tenant_id": self.tenant_id} if self.tenant_id else {}
+            )
+            
+            # Inicializar o vectorstore
+            self.vectorstore = Chroma(
+                client=self.client,
+                collection_name=self.collection_name,
+                embedding_function=self.embeddings
+            )
+        except Exception as e:
+            print(f"Erro ao inicializar Chroma com PostgreSQL: {e}")
+            self.vectorstore = None
     
     def load_vectorstore(self):
         """
@@ -48,8 +67,186 @@ class RAGService:
             embedding_function=self.embeddings
         )
         
+    # def index_documents(self, documents_dir: str, category: str = None, tenant_id: int = None) -> int:
+    #     """
+    #     Indexa documentos de um diretório para o vectorstore usando carregadores nativos do LangChain
+    #     """
+    #     # Atualizar tenant_id se necessário
+    #     if tenant_id is not None:
+    #         self.tenant_id = tenant_id
+    #         self.vector_db_path = os.path.join(self.base_vector_db_path, f"tenant_{tenant_id}")
+    #         os.makedirs(self.vector_db_path, exist_ok=True)
+            
+    #         # Recarregar vectorstore
+    #         if os.path.exists(os.path.join(self.vector_db_path, "chroma.sqlite3")):
+    #             self.load_vectorstore()
+    #         else:
+    #             self.vectorstore = None
+                
+    #     # Dicionário de carregadores por extensão
+    #     loaders = {
+    #         ".txt": (lambda path: TextLoader(path, encoding='utf-8')),
+    #         ".md": (lambda path: UnstructuredMarkdownLoader(path)),
+    #         ".pdf": (lambda path: PyPDFLoader(path)),
+    #     }
+        
+    #     # Processar cada arquivo no diretório
+    #     all_documents = []
+        
+    #     for root, _, files in os.walk(documents_dir):
+    #         for file in files:
+    #             file_path = os.path.join(root, file)
+    #             _, ext = os.path.splitext(file)
+                
+    #             if ext.lower() in loaders:
+    #                 try:
+    #                     # Usar o carregador apropriado
+    #                     loader = loaders[ext.lower()](file_path)
+    #                     documents = loader.load()
+                        
+    #                     # Adicionar metadados
+    #                     for doc in documents:
+    #                         doc.metadata["tenant_id"] = self.tenant_id
+    #                         doc.metadata["filename"] = file
+    #                         doc.metadata["source"] = file_path
+    #                         if category:
+    #                             doc.metadata["category"] = category
+                        
+    #                     all_documents.extend(documents)
+    #                 except Exception as e:
+    #                     print(f"Erro ao processar arquivo {file_path}: {e}")
+        
+    #     # Dividir em chunks menores
+    #     if all_documents:
+    #         text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    #         texts = text_splitter.split_documents(all_documents)
+            
+    #         # Adicionar ao vectorstore
+    #         if self.vectorstore is None:
+    #             self.vectorstore = Chroma.from_documents(
+    #                 documents=texts,
+    #                 embedding=self.embeddings,
+    #                 persist_directory=self.vector_db_path
+    #             )
+    #         else:
+    #             self.vectorstore.add_documents(texts)
+            
+    #         # Salvar alterações
+    #         self.vectorstore.persist()
+            
+    #         return len(texts)
+        
+    #     return 0
+    def index_documents(self, documents_dir: str, category: str = None, tenant_id: int = None) -> int:
+        """
+        Indexa documentos de um diretório para o vectorstore usando PostgreSQL
+        """
+        # Atualizar tenant_id se necessário
+        if tenant_id is not None and tenant_id != self.tenant_id:
+            self.tenant_id = tenant_id
+            self.collection_name = f"tenant_{tenant_id}_collection"
+            
+            # Reinicializar com a nova collection
+            try:
+                self.collection = self.client.get_or_create_collection(
+                    name=self.collection_name,
+                    metadata={"tenant_id": self.tenant_id}
+                )
+                
+                self.vectorstore = Chroma(
+                    client=self.client,
+                    collection_name=self.collection_name,
+                    embedding_function=self.embeddings
+                )
+            except Exception as e:
+                print(f"Erro ao reinicializar Chroma para tenant {tenant_id}: {e}")
+                return 0
+                
+        # Dicionário de carregadores por extensão
+        loaders = {
+            ".txt": (lambda path: TextLoader(path, encoding='utf-8')),
+            ".md": (lambda path: TextLoader(path, encoding='utf-8')),
+            ".pdf": (lambda path: PyPDFLoader(path)),
+        }
+        
+        # Processar cada arquivo no diretório
+        all_documents = []
+        
+        for root, _, files in os.walk(documents_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                _, ext = os.path.splitext(file)
+                
+                if ext.lower() in loaders:
+                    try:
+                        # Usar o carregador apropriado
+                        loader = loaders[ext.lower()](file_path)
+                        documents = loader.load()
+                        
+                        # Adicionar metadados
+                        for doc in documents:
+                            doc.metadata["tenant_id"] = self.tenant_id
+                            doc.metadata["filename"] = file
+                            doc.metadata["source"] = file_path
+                            if category:
+                                doc.metadata["category"] = category
+                        
+                        all_documents.extend(documents)
+                    except Exception as e:
+                        print(f"Erro ao processar arquivo {file_path}: {e}")
+        
+        # Dividir em chunks menores
+        if all_documents:
+            text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            texts = text_splitter.split_documents(all_documents)
+            
+            # Adicionar ao vectorstore
+            if self.vectorstore is None:
+                return 0
+                
+            self.vectorstore.add_documents(texts)
+            return len(texts)
+        
+        return 0
     
-    from docling.document_converter import DocumentConverter
+    async def get_context(self, question: str, category: str = None, top_k: int = 5) -> List[Dict[str, Any]]:
+        """
+        Busca documentos relevantes para uma pergunta
+        """
+        if self.vectorstore is None:
+            return []
+        
+        # Preparar filtro de metadados
+        where_document = {}
+        
+        # Adicionar filtro de tenant_id se aplicável
+        if self.tenant_id is not None:
+            where_document["tenant_id"] = self.tenant_id
+        
+        # Adicionar filtro de categoria se fornecido
+        if category:
+            where_document["category"] = category
+        
+        # Fazer a busca com filtro de metadados
+        docs = self.vectorstore.similarity_search(
+            question, 
+            k=top_k,
+            where_document=where_document
+        )
+        
+        # Formatar resultados
+        results = []
+        for i, doc in enumerate(docs):
+            results.append({
+                "content": doc.page_content,
+                "metadata": doc.metadata,
+                "relevance_score": 1.0 - (i * 0.1),  # Simulação de score
+            })
+        
+        return results
+        
+    
+from docling.document_converter import DocumentConverter
 from langchain.schema import Document
 import os
 from typing import List
@@ -71,7 +268,7 @@ class SeuProcessador:
             "source": file_path,
             "filename": os.path.basename(file_path),
             "tenant_id": self.tenant_id,
-            "docling_id": doc.id,
+            "docling_id": f"{doc.name}_{int(datetime.now().timestamp())}",
         }
 
         documents = []
@@ -265,6 +462,15 @@ class SeuProcessador:
         result = self.qa_chain({"query": question})
         
         return result["result"]
+    
+    def load_vectorstore(self):
+        """
+        Carrega o vectorstore existente
+        """
+        self.vectorstore = Chroma(
+            persist_directory=self.vector_db_path,
+            embedding_function=self.embeddings
+        )
     
     # async def get_context(self, question: str, top_k: int = 5) -> List[Dict[str, Any]]:
     #     """

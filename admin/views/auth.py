@@ -34,7 +34,7 @@ def login():
                     "username": email,  # OAuth2 uses username field
                     "password": password
                 },
-                timeout=10
+                timeout=100
             )
             
             if response.status_code == 200:
@@ -47,7 +47,7 @@ def login():
                     headers={
                         "Authorization": f"Bearer {access_token}"
                     },
-                    timeout=10
+                    timeout=100
                 )
                 
                 if user_response.status_code == 200:

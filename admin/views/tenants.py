@@ -9,11 +9,19 @@ from admin.config import Config
 tenants_bp = Blueprint('tenants', __name__, url_prefix='/tenants')
 
 def get_api_headers():
-    return {
+    headers = {
         'Content-Type': 'application/json',
-        'Authorization': f'Bearer {Config.API_TOKEN}',
-        'X-Tenant-ID': str(current_user.tenant_id) if current_user.tenant_id else ''
     }
+    
+    # Add token if user is authenticated
+    if hasattr(current_user, 'token') and current_user.token:
+        headers['Authorization'] = f'Bearer {current_user.token}'
+    
+    # Add tenant ID if available
+    if hasattr(current_user, 'tenant_id') and current_user.tenant_id:
+        headers['X-Tenant-ID'] = str(current_user.tenant_id)
+    
+    return headers
 
 @tenants_bp.route('/')
 @login_required

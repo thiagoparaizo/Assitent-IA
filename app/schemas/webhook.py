@@ -22,7 +22,7 @@ class WebhookUpdate(BaseModel):
 
 class WebhookResponse(WebhookBase):
     id: uuid.UUID  # Alterado para UUID
-    tenant_id: uuid.UUID  # Atualize conforme seu modelo Tenant
+    tenant_id: int # Atualize conforme seu modelo Tenant
     created_at: datetime
     updated_at: datetime
 

@@ -20,3 +20,5 @@ docker-compose.yml
 .env
 .env.example
 
+storage/*
+

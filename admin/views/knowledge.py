@@ -10,11 +10,19 @@ from admin.config import Config
 knowledge_bp = Blueprint('knowledge', __name__, url_prefix='/knowledge')
 
 def get_api_headers():
-    return {
+    headers = {
         'Content-Type': 'application/json',
-        'Authorization': f'Bearer {Config.API_TOKEN}',
-        'X-Tenant-ID': str(current_user.tenant_id) if current_user.tenant_id else ''
     }
+    
+    # Add token if user is authenticated
+    if hasattr(current_user, 'token') and current_user.token:
+        headers['Authorization'] = f'Bearer {current_user.token}'
+    
+    # Add tenant ID if available
+    if hasattr(current_user, 'tenant_id') and current_user.tenant_id:
+        headers['X-Tenant-ID'] = str(current_user.tenant_id)
+    
+    return headers
 
 def get_multipart_headers():
     headers = get_api_headers()
@@ -26,33 +34,52 @@ def get_multipart_headers():
 @knowledge_bp.route('/')
 @login_required
 def index():
+    # Obter categoria selecionada da query string
+    selected_category = request.args.get('category')
+    
     # Obter lista de documentos via API
     documents = []
-    try:
-        response = requests.get(
-            f"{Config.API_URL}/knowledge/documents",
-            headers=get_api_headers(),
-            timeout=5
-        )
-        if response.status_code == 200:
-            documents = response.json()
-    except requests.exceptions.RequestException as e:
-        flash(f"Erro ao obter documentos: {e}", "danger")
-    
-    # Obter categorias
     categories = []
+    total_documents = 0
+    
     try:
+        # Obter categorias
         response = requests.get(
             f"{Config.API_URL}/knowledge/categories",
             headers=get_api_headers(),
             timeout=5
         )
         if response.status_code == 200:
-            categories = response.json()['categories']
-    except requests.exceptions.RequestException:
-        categories = []
-        
-    return render_template('knowledge/index.html', documents=documents, categories=categories)
+            categories = response.json().get('categories', [])
+            
+        # Obter documentos
+        url = f"{Config.API_URL}/knowledge/documents"
+        if selected_category:
+            url += f"?category={selected_category}"
+            
+        response = requests.get(
+            url,
+            headers=get_api_headers(),
+            timeout=5
+        )
+        if response.status_code == 200:
+            data = response.json()
+            documents = data.get('documents', [])
+            total_documents = data.get('total', 0)
+    except requests.exceptions.RequestException as e:
+        flash(f"Erro ao obter dados: {e}", "danger")
+    
+    # Calcular total de documentos em todas as categorias se necessário
+    if not total_documents and categories:
+        total_documents = sum(category.get('document_count', 0) for category in categories)
+    
+    return render_template(
+        'knowledge/index.html', 
+        documents=documents,
+        categories=categories,
+        selected_category=selected_category,
+        total_documents=total_documents
+    )
 
 @knowledge_bp.route('/upload', methods=['GET', 'POST'])
 @login_required
@@ -211,3 +238,30 @@ def delete_category(category_id):
         flash(f"Erro ao remover categoria: {e}", "danger")
         
     return redirect(url_for('knowledge.categories'))
+
+@knowledge_bp.route('/document/<document_id>/delete', methods=['POST'])
+@login_required
+def delete_document(document_id):
+    """Exclui um documento da base de conhecimento."""
+    try:
+        response = requests.delete(
+            f"{Config.API_URL}/knowledge/documents/{document_id}",
+            headers=get_api_headers(),
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            flash("Documento excluído com sucesso!", "success")
+        else:
+            error_detail = "Erro desconhecido"
+            try:
+                error_data = response.json()
+                error_detail = error_data.get('detail', str(response.status_code))
+            except:
+                error_detail = f"Erro {response.status_code}"
+            
+            flash(f"Erro ao excluir documento: {error_detail}", "danger")
+    except requests.exceptions.RequestException as e:
+        flash(f"Erro ao excluir documento: {e}", "danger")
+        
+    return redirect(url_for('knowledge.index'))

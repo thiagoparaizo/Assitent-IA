@@ -95,10 +95,13 @@ async def create_webhook(
     Create a new webhook
     """
     try:
+        # Converter a URL para string
+        url_str = str(webhook.url)
+        
         # Create webhook
         new_webhook = Webhook(
             id=str(uuid.uuid4()),
-            url=webhook.url,
+            url=url_str,  # Usar a string aqui
             secret=webhook.secret,
             events=json.dumps(webhook.events) if webhook.events else None,
             device_ids=json.dumps(webhook.device_ids) if webhook.device_ids else None,
@@ -114,7 +117,7 @@ async def create_webhook(
         # Convert to response model
         return WebhookResponse(
             id=new_webhook.id,
-            url=new_webhook.url,
+            url=webhook.url,  # Aqui podemos usar o objeto original
             secret=new_webhook.secret,
             events=webhook.events,
             device_ids=webhook.device_ids,
