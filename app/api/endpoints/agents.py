@@ -247,7 +247,7 @@ async def get_agent_devices(
 ):
     """Obtém os dispositivos associados a um agente."""
     # Verificar se o agente pertence ao tenant
-    agent = await agent_service.get_agent(agent_id)
+    agent = agent_service.get_agent(agent_id)
     
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agente {agent_id} não encontrado")
@@ -256,7 +256,7 @@ async def get_agent_devices(
         raise HTTPException(status_code=403, detail="Sem permissão para acessar este agente")
     
     # Buscar dispositivos associados
-    devices = await agent_service.get_devices_for_agent(agent_id)
+    devices = agent_service.get_devices_for_agent(agent_id)
     
     return devices
 
