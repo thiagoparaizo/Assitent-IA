@@ -59,7 +59,7 @@ def read_tenant(
     Get a specific tenant by ID.
     """
     # Regular users can only access their own tenant
-    if not current_user.is_superuser and current_user.tenant_id != tenant_id:
+    if not current_user.is_superuser and current_user.tenant_id != int(tenant_id):
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
@@ -121,7 +121,7 @@ def read_tenant_users(
     Get all users for a specific tenant.
     """
     # Regular users can only access their own tenant
-    if not current_user.is_superuser and current_user.tenant_id != tenant_id:
+    if not current_user.is_superuser and current_user.tenant_id != int(tenant_id):
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     # Check if tenant exists
@@ -157,7 +157,7 @@ def count_tenant_users(
     Count users for a specific tenant.
     """
     # Regular users can only access their own tenant
-    if not current_user.is_superuser and current_user.tenant_id != tenant_id:
+    if not current_user.is_superuser and current_user.tenant_id != int(tenant_id):
         raise HTTPException(status_code=403, detail="Not enough permissions")
     
     # Check if tenant exists

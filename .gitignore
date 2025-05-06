@@ -21,4 +21,4 @@ docker-compose.yml
 .env.example
 
 storage/*
-
+logs/*

@@ -34,7 +34,7 @@ def login():
                     "username": email,  # OAuth2 uses username field
                     "password": password
                 },
-                timeout=100
+                timeout=10
             )
             
             if response.status_code == 200:

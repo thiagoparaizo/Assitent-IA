@@ -113,7 +113,7 @@ def create():
 def view(tenant_id):
     """View tenant details."""
     # Check if user is superuser or belongs to this tenant
-    if not current_user.is_superuser and current_user.tenant_id != tenant_id:
+    if not current_user.is_superuser and current_user.tenant_id != int(tenant_id):
         flash('Você não tem permissão para acessar esta página.', 'danger')
         return redirect(url_for('dashboard.index'))
     

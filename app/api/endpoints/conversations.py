@@ -66,7 +66,7 @@ async def get_conversation(
         if not state:
             raise HTTPException(status_code=404, detail=f"Conversa {conversation_id} não encontrada")
         
-        if state.tenant_id != tenant_id:
+        if state.tenant_id != int(tenant_id):
             raise HTTPException(status_code=403, detail="Sem permissão para acessar esta conversa")
         
         return {
@@ -96,7 +96,7 @@ async def get_conversation_summary(
         if not state:
             raise HTTPException(status_code=404, detail=f"Conversa {conversation_id} não encontrada")
         
-        if state.tenant_id != tenant_id:
+        if state.tenant_id != int(tenant_id):
             raise HTTPException(status_code=403, detail="Sem permissão para acessar esta conversa")
         
         # Check if there's a recent summary

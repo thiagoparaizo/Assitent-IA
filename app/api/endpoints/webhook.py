@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import logging
 import asyncio
+import os
 from typing import Dict, Any, Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Path, Query
@@ -12,9 +13,14 @@ import time
 from datetime import datetime
 
 from app.api.deps import get_db, get_tenant_id, get_whatsapp_service
-from app.services.rag import RAGService
+from app.services.agent import AgentService
+from app.services.config import load_system_config
+from app.services.llm import LLMService
+from app.services.orchestrator import AgentOrchestrator
+from app.services.rag_faiss import RAGServiceFAISS
 from app.services.whatsapp import WhatsAppService
 from app.db.models.webhook import Webhook, WebhookLog
+from app.db.models.agent import Agent
 from app.schemas.webhook import WebhookCreate, WebhookResponse, WebhookLogResponse
 from app.api.utils.webhook_processor import process_whatsapp_message, send_webhook_request
 
@@ -270,6 +276,190 @@ async def get_webhook_logs(
 
 async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: WhatsAppService, db: Session):
     """
+    Processa mensagens recebidas do WhatsApp usando o sistema de agentes inteligentes.
+    """
+    try:
+        # Extrair informações da mensagem
+        device_id = data.get("device_id")
+        tenant_id = data.get("tenant_id")
+        
+        sender = data.get("event", {}).get("Info", {}).get("Sender", {})
+        if 'User' in sender:
+            sender = sender['User']
+        chat_jid = data.get("event", {}).get("Info", {}).get("Chat")
+        
+        # O contact_id pode ser o ID do remetente ou do chat, dependendo se é grupo ou não
+        is_group = data.get("event", {}).get("Info", {}).get("IsGroup", False)
+        contact_id = chat_jid if is_group else sender
+        
+        event = data.get("event", {})
+        
+        # Ignorar mensagens enviadas pelo próprio dispositivo
+        if event.get("Info", {}).get("IsFromMe"):
+            logger.warning(f"Mensagem enviada pelo proprio dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
+            print(f"Mensagem enviada pelo proprio dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
+            return
+        
+        # Extrair informações da mensagem
+        sender = event.get("Info", {}).get("Sender", {})
+        if 'User' in sender:
+            sender = sender['User']
+        chat_jid = event.get("Info", {}).get("Chat")
+        message_content = event.get("Message", {}).get("Conversation")
+        
+        if not message_content:
+            # Tentar extrair de outros tipos de mensagem
+            if ext_text := event.get("Message", {}).get("ExtendedTextMessage", {}):
+                message_content = ext_text.get("Text", "")
+        
+        if not message_content:
+            # Ignorar mensagens sem conteúdo de texto
+            logger.warning(f"Mensagem sem conteudo de texto do dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
+            print(f"Mensagem sem conteudo de texto do dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
+            return
+        
+        
+        # Converter para objeto Agent
+        agent_service = AgentService(db, None) # Instanciar sem Redis para conversão
+        agent = await agent_service.get_agent_for_contact(device_id, tenant_id, contact_id)
+        
+        if not agent:
+            logger.warning(f"Nenhum agente encontrado para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}")
+            print(f"Nenhum agente encontrado para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}")
+        
+        
+            agent = await agent_service.get_agent_for_device(device_id, tenant_id)
+        
+            if not agent:
+                logger.warning(f"Nenhum agente encontrado para o dispositivo {device_id} do tenant {tenant_id}")
+                print(f"Nenhum agente encontrado para o dispositivo {device_id} do tenant {tenant_id}")
+
+                # Buscar agente geral ativo para este tenant
+                agent_query = (
+                    db.query(Agent)
+                    .filter(
+                        Agent.tenant_id == tenant_id,
+                        Agent.type == 'general',
+                        Agent.active == True
+                    )
+                    .first()
+                )
+                
+                if not agent_query:
+                    logger.warning(f"Nenhum agente geral ativo encontrado para o tenant {tenant_id}")
+                    print(f"Nenhum agente geral ativo encontrado para o tenant {tenant_id}")
+                    return
+                
+                agent = agent_service._db_to_schema(agent_query)
+                
+                if not agent:
+                    logger.warning(f"Nenhum agente geral ativo encontrado para o tenant {tenant_id}")
+                    print(f"Nenhum agente geral ativo encontrado para o tenant {tenant_id}")
+                    return 
+        
+        # Inicializar serviços
+        llm_service = LLMService(api_key=os.getenv("OPENAI_API_KEY"))
+        rag_service = RAGServiceFAISS(tenant_id=tenant_id)
+        
+        if whatsapp_service == None:
+            whatsapp_service = WhatsAppService()
+        
+        # Inicializar cliente Redis
+        import redis.asyncio as redis
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        redis_client = redis.from_url(redis_url) # TODO pegar de um pool
+        
+        # Configuração do sistema
+        config = load_system_config()
+        
+        # Inicializar orquestrador
+        orchestrator = AgentOrchestrator(agent_service, rag_service, redis_client, llm_service, config)
+        
+        # Verificar se já existe uma conversa para este usuário
+        conversation_key = f"whatsapp_conversation:{tenant_id}:{chat_jid}"
+        conversation_id = await redis_client.get(conversation_key) if redis_client else None
+        
+        print(f"[DEBUG] Chave recuperada: {conversation_key}")
+        print(f"[DEBUG] ID recuperado: {conversation_id}, tipo: {type(conversation_id)}")
+        
+        # Converter para string se for bytes
+        if conversation_id and isinstance(conversation_id, bytes):
+            conversation_id = conversation_id.decode('utf-8')
+            print(f"[DEBUG] ID após decodificação: {conversation_id}")
+        
+        # Se não existir, iniciar uma nova conversa
+        if not conversation_id:
+            # Usar chat_jid como identificador do usuário
+            conversation_id = await orchestrator.start_conversation(str(tenant_id), chat_jid)
+            print(f"[DEBUG] Nova conversa criada: {conversation_id}")
+            
+            # Armazenar o ID da conversa para futuras mensagens
+            if redis_client:
+                await redis_client.set(conversation_key, conversation_id)
+                await redis_client.expire(conversation_key, 60 * 60 * 24)  # Expira em 24 horas
+                print(f"[DEBUG] ID armazenado no Redis com chave: {conversation_key}")
+        
+        # Processar a mensagem usando o orquestrador
+        result = await orchestrator.process_message(conversation_id, message_content)
+        
+        # Enviar resposta via WhatsApp
+        if "response" in result:
+            await whatsapp_service.send_message(
+                device_id=device_id,
+                to=chat_jid,
+                message=result["response"]
+            )
+            logger.info(f"Resposta enviada para {chat_jid}: {result['response'][:50]}...")
+        
+        # Processar ações especiais, como escalação para humano
+        if "actions" in result:
+            for action in result["actions"]:
+                if action["type"] == "human_escalation":
+                    # Enviar notificação para o contato de escalação
+                    escalation_contact = action["contact"]
+                    conversation_summary = action["conversation_summary"]
+                    
+                    escalation_message = (
+                        f"🔔 *ESCALAÇÃO PARA ATENDIMENTO HUMANO*\n\n"
+                        f"Um cliente solicitou atendimento humano.\n\n"
+                        f"*Resumo da conversa:*\n{conversation_summary}\n\n"
+                        f"Por favor, entre em contato com o cliente."
+                    )
+                    
+                    # Enviar para o contato de escalação
+                    await whatsapp_service.send_message(
+                        device_id=device_id,
+                        to=escalation_contact,
+                        message=escalation_message
+                    )
+                    
+                    # Informar ao cliente que a escalação foi realizada
+                    await whatsapp_service.send_message(
+                        device_id=device_id,
+                        to=chat_jid,
+                        message="Sua solicitação foi encaminhada para um atendente humano. Em breve alguém entrará em contato."
+                    )
+        
+        # Processar webhooks para este evento
+        # (código existente para processamento de webhooks)
+        tenant_webhooks = db.query(Webhook).filter(
+            Webhook.tenant_id == tenant_id,
+            Webhook.enabled == True
+        ).all()
+        
+        for webhook in tenant_webhooks:
+            webhook_events = json.loads(webhook.events) if webhook.events else []
+            if not webhook_events or "*" in webhook_events or "*events.Message" in webhook_events:
+                webhook_devices = json.loads(webhook.device_ids) if webhook.device_ids else []
+                if not webhook_devices or device_id in webhook_devices:
+                    await send_webhook_request(webhook, data, db)
+        
+    except Exception as e:
+        logger.error(f"Erro ao processar mensagem do WhatsApp: {e}")
+        logger.exception(e)
+
+async def process_whatsapp_message_simplified(data: Dict[str, Any], whatsapp_service: WhatsAppService, db: Session):
+    """
     Process messages received from WhatsApp
     """
     try:
@@ -283,7 +473,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             return
         
         # Extract message information
-        sender = event.get("Info", {}).get("Sender", {}).get("User")
+        sender = event.get("Info", {}).get("Sender", {})
         chat_jid = event.get("Info", {}).get("Chat")
         message_content = event.get("Message", {}).get("Conversation")
         
@@ -297,7 +487,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             return
         
         # Initialize RAG service with the correct tenant_id
-        rag_service = RAGService(tenant_id=tenant_id)
+        rag_service = RAGServiceFAISS(tenant_id=tenant_id)
         
         # Try to detect category based on content
         category = detect_category(message_content)

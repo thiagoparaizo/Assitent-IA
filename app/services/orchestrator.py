@@ -2,6 +2,7 @@
 import asyncio
 from datetime import datetime
 import os
+import re
 from typing import Dict, List, Optional, Any, Tuple
 import json
 import time
@@ -172,6 +173,36 @@ class AgentOrchestrator:
             "rag_enabled": tenant_config.rag.enabled,
         })
         
+        # AQUI: Verificar automaticamente se a mensagem do usuário indica necessidade de escalação
+        current_agent_id = state.current_agent_id
+        current_agent = self.agent_service.get_agent(current_agent_id)
+        
+        if current_agent.human_escalation_enabled and tenant_config.enable_escalation_to_human:
+            auto_escalation_keywords = [
+                "falar com humano", "atendente humano", "pessoa real", 
+                "atendente real", "não quero falar com robô", "quero falar com alguém", 
+                "não está ajudando", "gerente", "supervisor", "falar com uma pessoa", 
+                "assistente de verdade", "atendimento humano", "pessoa de verdade",
+                "não entendeu", "conversar com alguém", "não resolveu"
+            ]
+            
+            need_escalation = False
+            for keyword in auto_escalation_keywords:
+                if keyword.lower() in message.lower():
+                    need_escalation = True
+                    break
+            
+            # Se detectar necessidade de escalação, adicionar nota especial ao histórico
+            if need_escalation:
+                state.history.append({
+                    "role": "system",
+                    "content": "O usuário solicitou atendimento humano. Inclua <comando>ESCALAR_PARA_HUMANO</comando> em sua resposta.",
+                    "timestamp": time.time()
+                })
+                
+                # Também podemos adicionar um log para acompanhamento
+                logging.info(f"Detectada necessidade de escalação automática na conversa {conversation_id}")
+        
         # Rest of the processing logic remains similar...
         # Evaluate whether we should transfer to another agent
         agent_scores = await self.evaluate_agent_transfer(state, message)
@@ -209,9 +240,9 @@ class AgentOrchestrator:
             
             # Update current agent
             state.current_agent_id = transfer_to_id
-            current_agent = await self.agent_service.get_agent(transfer_to_id)
+            current_agent = self.agent_service.get_agent(transfer_to_id)
         else:
-            current_agent = await self.agent_service.get_agent(current_agent_id)
+            current_agent = self.agent_service.get_agent(current_agent_id)
         
         # Retrieve RAG context based on agent settings and config
         rag_context = []
@@ -340,112 +371,121 @@ class AgentOrchestrator:
             config: System configuration
             
         Returns:
-            Processed response with actions
+            Processed
+            response with actions
         """
+        
+        # Padrão para capturar comandos
+        comando_pattern = r'<comando>(.*?)</comando>'
+        # Encontrar todos os comandos
+        comandos = re.findall(comando_pattern, response)
+        # Remover os comandos da resposta visível
+        resposta_limpa = re.sub(comando_pattern, '', response)
+    
         result = {
             "response": response,
             "next_agent_id": current_agent.id,
             "actions": []
         }
         
-        # Check for MCP function calls
-        if config.mcp.enabled and current_agent.mcp_enabled and "EXECUTAR_MCP:" in response:
-            # Extract function calls (may be multiple)
-            function_calls = []
-            for function_call_text in response.split("EXECUTAR_MCP:")[1:]:
-                # Extract the JSON function call
-                function_data = function_call_text.split("\n")[0].strip()
-                try:
-                    function_call = json.loads(function_data)
-                    function_calls.append(function_call)
-                    
-                    # Clean the response
-                    result["response"] = result["response"].replace(f"EXECUTAR_MCP:{function_data}", "")
-                except json.JSONDecodeError:
-                    logging.warning(f"Invalid function call format: {function_data}")
-            
-            # Process function calls (up to configured limit)
-            max_calls = min(len(function_calls), config.mcp.max_function_calls_per_message)
-            for i, function_call in enumerate(function_calls[:max_calls]):
-                logging.info(f"Processing function call {i+1}/{max_calls}: {function_call.get('name')}")
+        # Processar cada comando encontrado
+        for comando in comandos:
+            if "ESCALAR_PARA_HUMANO" in comando and config.enable_escalation_to_human:
+                # Determine if agent supports escalation
+                escalation_available = False
+                escalation_contact = None
                 
-                result["actions"].append({
-                    "type": "mcp_function",
-                    "function": function_call,
-                    "requires_approval": config.mcp.functions_require_approval
-                })
-        
-        # Check for specialist consultation requests
-        if "CONSULTAR_ESPECIALISTA:" in response:
-            # Extract specialization information
-            specialization = response.split("CONSULTAR_ESPECIALISTA:")[1].split("\n")[0].strip()
-            
-            # Look for specialists
-            try:
-                agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
-                specialists = [a for a in agents if a.type == AgentType.SPECIALIST and specialization.lower() in a.name.lower()]
+                if current_agent.human_escalation_enabled and current_agent.human_escalation_contact:
+                    escalation_available = True
+                    escalation_contact = current_agent.human_escalation_contact
+                else:
+                    # Look for human agents
+                    try:
+                        agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
+                        human_agents = [a for a in agents if a.type == AgentType.HUMAN]
+                        
+                        if human_agents:
+                            escalation_available = True
+                            result["next_agent_id"] = human_agents[0].id
+                            escalation_contact = human_agents[0].human_escalation_contact
+                    except Exception as e:
+                        logging.error(f"Error finding human agent: {e}")
                 
-                if specialists:
-                    result["next_agent_id"] = specialists[0].id
+                if escalation_available and escalation_contact:
+                    # Create escalation action
                     result["actions"].append({
-                        "type": "specialist_consultation",
-                        "specialist_id": specialists[0].id,
-                        "specialization": specialization,
-                        "context": response
+                        "type": "human_escalation",
+                        "contact": escalation_contact,
+                        "conversation_id": state.conversation_id,
+                        "conversation_summary": await self._generate_escalation_summary(state)
                     })
                     
                     # Clean response
-                    result["response"] = result["response"].replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
+                    result["response"] = result["response"].replace("ESCALAR_PARA_HUMANO", "")
                     
-                    logging.info(f"Specialist consultation requested: {specialization}, found: {specialists[0].name}")
+                    logging.info(f"Human escalation triggered to {escalation_contact}")
                 else:
-                    logging.warning(f"Specialist consultation requested but no matching specialist found: {specialization}")
-            except Exception as e:
-                logging.error(f"Error finding specialist: {e}")
-        
-        # Check for human escalation
-        if config.enable_escalation_to_human and "ESCALAR_PARA_HUMANO" in response:
-            # Determine if agent supports escalation
-            escalation_available = False
-            escalation_contact = None
-            
-            if current_agent.human_escalation_enabled and current_agent.human_escalation_contact:
-                escalation_available = True
-                escalation_contact = current_agent.human_escalation_contact
-            else:
-                # Look for human agents
+                    # Remove the tag but add explanation
+                    result["response"] = result["response"].replace(
+                        "ESCALAR_PARA_HUMANO", 
+                        "[Nota: Escalação para humano solicitada, mas não há agentes humanos disponíveis no momento.]"
+                    )
+                    
+                    logging.warning("Human escalation requested but no human agents available")
+                
+            elif "EXECUTAR_MCP:" in comando and config.mcp.enabled and current_agent.mcp_enabled:
+                # Check for MCP function calls
+                # Extract function calls (may be multiple)
+                function_calls = []
+                for function_call_text in response.split("EXECUTAR_MCP:")[1:]:
+                    # Extract the JSON function call
+                    function_data = function_call_text.split("\n")[0].strip()
+                    try:
+                        function_call = json.loads(function_data)
+                        function_calls.append(function_call)
+                        
+                        # Clean the response
+                        result["response"] = result["response"].replace(f"EXECUTAR_MCP:{function_data}", "")
+                    except json.JSONDecodeError:
+                        logging.warning(f"Invalid function call format: {function_data}")
+                
+                # Process function calls (up to configured limit)
+                max_calls = min(len(function_calls), config.mcp.max_function_calls_per_message)
+                for i, function_call in enumerate(function_calls[:max_calls]):
+                    logging.info(f"Processing function call {i+1}/{max_calls}: {function_call.get('name')}")
+                    
+                    result["actions"].append({
+                        "type": "mcp_function",
+                        "function": function_call,
+                        "requires_approval": config.mcp.functions_require_approval
+                    })
+                
+            elif "CONSULTAR_ESPECIALISTA:" in comando:
+                # Extract specialization information
+                specialization = response.split("CONSULTAR_ESPECIALISTA:")[1].split("\n")[0].strip()
+                
+                # Look for specialists
                 try:
                     agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
-                    human_agents = [a for a in agents if a.type == AgentType.HUMAN]
+                    specialists = [a for a in agents if a.type == AgentType.SPECIALIST and specialization.lower() in a.name.lower()]
                     
-                    if human_agents:
-                        escalation_available = True
-                        result["next_agent_id"] = human_agents[0].id
-                        escalation_contact = human_agents[0].human_escalation_contact
+                    if specialists:
+                        result["next_agent_id"] = specialists[0].id
+                        result["actions"].append({
+                            "type": "specialist_consultation",
+                            "specialist_id": specialists[0].id,
+                            "specialization": specialization,
+                            "context": response
+                        })
+                        
+                        # Clean response
+                        result["response"] = result["response"].replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
+                        
+                        logging.info(f"Specialist consultation requested: {specialization}, found: {specialists[0].name}")
+                    else:
+                        logging.warning(f"Specialist consultation requested but no matching specialist found: {specialization}")
                 except Exception as e:
-                    logging.error(f"Error finding human agent: {e}")
-            
-            if escalation_available and escalation_contact:
-                # Create escalation action
-                result["actions"].append({
-                    "type": "human_escalation",
-                    "contact": escalation_contact,
-                    "conversation_id": state.conversation_id,
-                    "conversation_summary": await self._generate_escalation_summary(state)
-                })
-                
-                # Clean response
-                result["response"] = result["response"].replace("ESCALAR_PARA_HUMANO", "")
-                
-                logging.info(f"Human escalation triggered to {escalation_contact}")
-            else:
-                # Remove the tag but add explanation
-                result["response"] = result["response"].replace(
-                    "ESCALAR_PARA_HUMANO", 
-                    "[Nota: Escalação para humano solicitada, mas não há agentes humanos disponíveis no momento.]"
-                )
-                
-                logging.warning("Human escalation requested but no human agents available")
+                    logging.error(f"Error finding specialist: {e}")
         
         return result
     
@@ -468,6 +508,11 @@ class AgentOrchestrator:
             for memory in memory_context:
                 memory_type_label = memory["type"].value.replace("_", " ").title()
                 system_prompt += f"\n{memory_type_label}: {memory['content']}\n"
+        
+        
+        # linguagem de resposta
+        system_prompt += "\n\n## Linguagem de resposta: Portugues Brasileiro\n"
+        
         
         # Prepare conversation history
         messages = [{"role": "system", "content": system_prompt}]
@@ -531,17 +576,46 @@ class AgentOrchestrator:
     
     async def save_conversation_state(self, state: ConversationState) -> None:
         """Salva o estado da conversa no Redis."""
+        if not self.redis:
+            return
         key = f"conversation:{state.conversation_id}"
         await self.redis.set(key, state.json())
         await self.redis.expire(key, 60 * 60 * 24)  # Expirar em 24 horas
     
     async def get_conversation_state(self, conversation_id: str) -> Optional[ConversationState]:
         """Recupera o estado da conversa do Redis."""
-        key = f"conversation:{conversation_id}"
-        data = await self.redis.get(key)
-        if not data:
+        if not self.redis:
+            print(f"[DEBUG] Cliente Redis não inicializado")
             return None
-        return ConversationState.parse_raw(data)
+        
+        # Garantir que o conversation_id seja uma string
+        if isinstance(conversation_id, bytes):
+            conversation_id = conversation_id.decode('utf-8')
+        
+        key = f"conversation:{conversation_id}"
+        print(f"[DEBUG] Buscando estado da conversa com a chave: {key}")
+        try:
+            data = await self.redis.get(key)
+            
+            if not data:
+                print(f"[DEBUG] Nenhum dado encontrado para a chave {key}")
+                
+                # Tentar buscar diretamente se o conversation_id já contém o prefixo
+                if conversation_id.startswith("conversation:"):
+                    direct_key = conversation_id
+                    print(f"[DEBUG] Tentando buscar diretamente com a chave: {direct_key}")
+                    data = await self.redis.get(direct_key)
+                    if not data:
+                        print(f"[DEBUG] Nenhum dado encontrado para a chave direta {direct_key}")
+                        return None
+                else:
+                    return None
+            
+            print(f"[DEBUG] Dados encontrados para conversa {conversation_id}")
+            return ConversationState.parse_raw(data)
+        except Exception as e:
+            print(f"[DEBUG] Erro ao recuperar estado da conversa: {e}")
+            return None
     
     async def _generate_and_store_summary(self, state: ConversationState) -> None:
         """
@@ -616,7 +690,7 @@ class AgentOrchestrator:
         Starts a new conversation with memory context.
         """
         # Original implementation
-        agents = await self.agent_service.get_agents_by_tenant(tenant_id)
+        agents = self.agent_service.get_agents_by_tenant(tenant_id)
         general_agents = [a for a in agents if a.type == AgentType.GENERAL]
         
         if not general_agents:
@@ -695,7 +769,7 @@ class AgentOrchestrator:
         # Check if transfers are enabled
         if not transfer_config.enabled:
             # Return only current agent with max score
-            current_agent = await self.agent_service.get_agent(state.current_agent_id)
+            current_agent = self.agent_service.get_agent(state.current_agent_id)
             return [AgentScore(
                 agent_id=current_agent.id,
                 score=1.0,
@@ -703,7 +777,7 @@ class AgentOrchestrator:
             )]
         
         # Get current agent
-        current_agent = await self.agent_service.get_agent(state.current_agent_id)
+        current_agent = self.agent_service.get_agent(state.current_agent_id)
         
         # Check minimum messages before transfer
         if len(state.history) < transfer_config.min_messages_before_transfer:
@@ -742,7 +816,7 @@ class AgentOrchestrator:
         recent_messages = state.history[-5:] if len(state.history) >= 5 else state.history[:]
         
         # Get all agents for this tenant
-        all_agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
+        all_agents = self.agent_service.get_agents_by_tenant(state.tenant_id)
         
         # Initialize scores
         agent_scores = []
@@ -1021,6 +1095,11 @@ class AgentOrchestrator:
         try:
             # Get all keys matching the pattern
             pattern = f"conversation:*"
+            if not self.redis:
+                logging.error("Redis client not initialized")
+                print("Redis client not initialized")
+                return []
+                
             keys = await self.redis.keys(pattern)
             
             # Get each conversation state
@@ -1071,6 +1150,11 @@ class AgentOrchestrator:
         conversations = []
         
         try:
+            if not self.redis:
+                logging.error("Redis client not initialized")
+                print("Redis client not initialized")
+                return []
+            
             # Get all keys matching the pattern
             pattern = f"conversation:*"
             keys = await self.redis.keys(pattern)

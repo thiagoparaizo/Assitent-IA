@@ -1,10 +1,13 @@
+import os
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_db, get_whatsapp_service
 from app.db.models.tenant import Tenant
 from app.db.models.user import User
+from app.services.whatsapp import WhatsAppService
+import logging
 
 router = APIRouter()
 
@@ -52,7 +55,8 @@ def list_active_tenants(
 @router.post("/webhooks/event")
 async def process_webhook_event(
     event: Dict[str, Any],
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
 ):
     """
     Recebe eventos do WhatsApp Server e processa baseado na configuração de webhooks.
@@ -62,11 +66,13 @@ async def process_webhook_event(
     from app.api.endpoints.webhook import process_whatsapp_message
     
     # Processar o evento usando a lógica existente
-    await process_whatsapp_message(event, None, db)
+    await process_whatsapp_message(event, whatsapp_service, db)
     
     return {"status": "processed"}
+
 
 router.get("/init_db")
 def init_db():
     from app.db.init_db import init_db
     init_db()
+    

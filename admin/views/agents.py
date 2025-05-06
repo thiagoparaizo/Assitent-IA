@@ -146,7 +146,8 @@ def edit(agent_id):
             'mcp_enabled': 'mcp_enabled' in request.form,
             'mcp_functions': json.loads(request.form.get('mcp_functions', '[]')),
             'human_escalation_enabled': 'human_escalation_enabled' in request.form,
-            'human_escalation_contact': request.form.get('human_escalation_contact')
+            'human_escalation_contact': request.form.get('human_escalation_contact'),
+            'active': 'active' in request.form
         }
         
         # Enviar para API
@@ -194,14 +195,97 @@ def edit(agent_id):
         response.raise_for_status()
         categories = response.json()['categories']
     except requests.exceptions.RequestException:
-        categories = [# TODO: Vrificar mais tarde outras categorias fixas ou criar uma constante
+        categories = [
             {"id": "general", "name": "Geral"},
             {"id": "agendamento", "name": "Agendamento"},
             {"id": "procedimentos", "name": "Procedimentos"},
             {"id": "financeiro", "name": "Financeiro"}
         ]
+    
+    # Obter dispositivos disponíveis
+    try:
+        response = requests.get(
+            f"{Config.API_URL}/whatsapp/devices/",
+            headers=get_api_headers(),
+            params={"tenant_id": current_user.tenant_id},
+            timeout=5
+        )
+        response.raise_for_status()
+        devices = response.json()
         
-    return render_template('agents/edit.html', agent=agent, categories=categories)
+        # Buscar também quais dispositivos já estão associados a este agente
+        device_response = requests.get(
+            f"{Config.API_URL}/agents/{agent_id}/devices",
+            headers=get_api_headers(),
+            timeout=5
+        )
+        
+        if device_response.status_code == 200:
+            agent_devices = device_response.json()
+            
+            # Adicionar flag is_active_for_agent para cada dispositivo
+            for device in devices:
+                device['is_active_for_agent'] = any(d['id'] == device['id'] for d in agent_devices)
+                
+                # Também buscar configurações de contatos para dispositivos ativos
+                if device['is_active_for_agent']:
+                    device_id = device['id']
+                    contacts_response = requests.get(
+                        f"{Config.API_URL}/agents/{agent_id}/device/{device_id}/contacts",
+                        headers=get_api_headers(),
+                        timeout=5
+                    )
+                    
+                    if contacts_response.status_code == 200:
+                        contacts_data = contacts_response.json()
+                        device['default_behavior'] = contacts_data['default_behavior']
+                        device['contacts'] = contacts_data['contacts']
+                    else:
+                        device['default_behavior'] = 'blacklist'
+                        device['contacts'] = []
+                        
+        else:
+            # Se não conseguir obter os dispositivos do agente, assumir que nenhum está ativo
+            for device in devices:
+                device['is_active_for_agent'] = False
+                
+    except requests.exceptions.RequestException as e:
+        flash(f"Erro ao obter dispositivos: {e}", "warning")
+        devices = []
+        
+    return render_template('agents/edit.html', agent=agent, categories=categories, devices=devices)
+
+@agents_bp.route('/<agent_id>/toggle_status', methods=['POST'])
+@login_required
+def toggle_status(agent_id):
+    # Obter status atual do agente
+    try:
+        response = requests.get(
+            f"{Config.API_URL}/agents/{agent_id}",
+            headers=get_api_headers(),
+            timeout=5
+        )
+        response.raise_for_status()
+        agent = response.json()
+        
+        # Inverter status atual
+        new_status = not agent.get('active', True)
+        
+        # Enviar atualização para API
+        response = requests.put(
+            f"{Config.API_URL}/agents/{agent_id}/status",
+            headers=get_api_headers(),
+            json={"active": new_status},
+            timeout=5
+        )
+        response.raise_for_status()
+        
+        status_text = "ativado" if new_status else "desativado"
+        flash(f"Agente {status_text} com sucesso!", "success")
+    except requests.exceptions.RequestException as e:
+        flash(f"Erro ao alterar status do agente: {e}", "danger")
+        
+    return redirect(url_for('agents.view', agent_id=agent_id))
 
 @agents_bp.route('/<agent_id>/delete', methods=['POST'])
 @login_required

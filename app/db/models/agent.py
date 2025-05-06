@@ -1,6 +1,7 @@
 # Adicionar ao arquivo app/db/models/agent.py
 
 from datetime import datetime
+import json
 import uuid
 from sqlalchemy import UUID, Boolean, Column, DateTime, Integer, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
@@ -21,10 +22,15 @@ class Agent(Base):
     mcp_functions = Column(Text, nullable=True)
     human_escalation_enabled = Column(Boolean, default=False)
     human_escalation_contact = Column(String, nullable=True)
+    active = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     tenant = relationship("Tenant", back_populates="agents")
+    
+    device_mappings = relationship("DeviceAgent", back_populates="agent", cascade="all, delete-orphan")
+    
+    contact_controls = relationship("ContactControl", back_populates="agent", cascade="all, delete-orphan")
     
     # Helper method to convert JSON strings to Python objects
     def get_prompt_dict(self):

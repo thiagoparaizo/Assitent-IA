@@ -107,12 +107,20 @@ class RAGServiceFAISS:
             
             # Adicionar ao vectorstore
             if self.vectorstore is None:
+                # Criar um novo vectorstore
                 self.vectorstore = FAISS.from_documents(texts, self.embeddings)
+                # Salvar alterações
+                self.vectorstore.save_local(self.vector_db_path, "index", allow_dangerous_deserialization=True)
             else:
-                self.vectorstore = self.vectorstore.add_documents(texts)
-            
-            # Salvar alterações
-            self.vectorstore.save_local(self.vector_db_path, "index", allow_dangerous_deserialization=True)
+                # Atualizar o vectorstore existente
+                # Aqui está a correção: criar um novo vectorstore temporário
+                temp_vectorstore = FAISS.from_documents(texts, self.embeddings)
+                
+                # Mesclar com o vectorstore existente
+                self.vectorstore.merge_from(temp_vectorstore)
+                
+                # Salvar alterações
+                self.vectorstore.save_local(self.vector_db_path, "index")
             
             return len(texts)
         

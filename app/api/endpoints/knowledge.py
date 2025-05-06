@@ -28,7 +28,7 @@ async def upload_documents(
     Upload de documentos para indexação no RAG, com separação por tenant e categoria
     """
     # Verificar permissão
-    if not current_user.is_superuser and current_user.tenant_id != tenant_id:
+    if not current_user.is_superuser and current_user.tenant_id != int(tenant_id):
         raise HTTPException(status_code=403, detail="Sem permissão para acessar este tenant")
     
     # Criar diretório temporário para armazenar os arquivos

@@ -1,0 +1,219 @@
+<!-- admin/templates/agents/view.html -->
+{% extends 'base.html' %}
+
+{% block title %}Visualizar Agente - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('agents.index') }}">Agentes</a></li>
+                <li class="breadcrumb-item active">{{ agent.name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="h3">{{ agent.name }}</h1>
+        <div>
+            <a href="{{ url_for('agents.edit', agent_id=agent.id) }}" class="btn btn-primary">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            <button type="button" class="btn btn-{% if agent.active %}danger{% else %}success{% endif %}" 
+                    data-bs-toggle="modal" 
+                    data-bs-target="#statusModal">
+                <i class="bi bi-{% if agent.active %}toggle-off{% else %}toggle-on{% endif %}"></i> 
+                {% if agent.active %}Desativar{% else %}Ativar{% endif %}
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Informações Básicas</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>ID:</strong> {{ agent.id }}</p>
+                <p><strong>Tipo:</strong> 
+                    {% if agent.type == 'general' %}
+                        <span class="badge bg-primary">Geral</span>
+                    {% elif agent.type == 'specialist' %}
+                        <span class="badge bg-success">Especialista</span>
+                    {% elif agent.type == 'integration' %}
+                        <span class="badge bg-info">Integração</span>
+                    {% elif agent.type == 'human' %}
+                        <span class="badge bg-warning">Humano</span>
+                    {% endif %}
+                </p>
+                <p><strong>Status:</strong> 
+                    {% if agent.active %}
+                        <span class="badge bg-success">Ativo</span>
+                    {% else %}
+                        <span class="badge bg-danger">Inativo</span>
+                    {% endif %}
+                </p>
+                <p><strong>Descrição:</strong> {{ agent.description }}</p>
+                <p><strong>Criado em:</strong> {{ agent.created_at|datetime }}</p>
+                <p><strong>Atualizado em:</strong> {{ agent.updated_at|datetime }}</p>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Configurações</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>MCP:</strong> {% if agent.mcp_enabled %}<span class="text-success">Ativado</span>{% else %}<span class="text-muted">Desativado</span>{% endif %}</p>
+                
+                <p><strong>Escalação:</strong> {% if agent.human_escalation_enabled %}<span class="text-success">Ativado</span>{% else %}<span class="text-muted">Desativado</span>{% endif %}</p>
+                
+                {% if agent.human_escalation_enabled and agent.human_escalation_contact %}
+                <p><strong>Contato:</strong> {{ agent.human_escalation_contact }}</p>
+                {% endif %}
+                
+                <p><strong>Categorias RAG:</strong></p>
+                {% if agent.rag_categories and agent.rag_categories|length > 0 %}
+                    <div>
+                        {% for category in agent.rag_categories %}
+                            <span class="badge bg-secondary">{{ category }}</span>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Nenhuma categoria configurada</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Prompt do Agente</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6 class="fw-bold">Papel:</h6>
+                    <p>{{ agent.prompt.role }}</p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="fw-bold">Descrição:</h6>
+                    <p class="white-space-pre">{{ agent.prompt.description }}</p>
+                </div>
+                <div class="mb-3">
+                    <h6 class="fw-bold">Instruções:</h6>
+                    <p class="white-space-pre">{{ agent.prompt.instructions }}</p>
+                </div>
+                
+                {% if agent.prompt.constraints and agent.prompt.constraints|length > 0 %}
+                <div class="mb-3">
+                    <h6 class="fw-bold">Restrições:</h6>
+                    <ul>
+                        {% for constraint in agent.prompt.constraints %}
+                            <li>{{ constraint }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+                
+                {% if agent.prompt.examples and agent.prompt.examples|length > 0 %}
+                <div>
+                    <h6 class="fw-bold">Exemplos:</h6>
+                    {% for example in agent.prompt.examples %}
+                        <div class="card mb-2">
+                            <div class="card-body py-2">
+                                {% for key, value in example.items() %}
+                                    <p><strong>{{ key }}:</strong> {{ value }}</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        {% if agent.mcp_enabled and agent.mcp_functions and agent.mcp_functions|length > 0 %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Funções MCP</h5>
+            </div>
+            <div class="card-body">
+                <div class="accordion" id="mcpFunctionsAccordion">
+                    {% for func in agent.mcp_functions %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading{{ loop.index }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ loop.index }}">
+                                {{ func.name }}
+                            </button>
+                        </h2>
+                        <div id="collapse{{ loop.index }}" class="accordion-collapse collapse" aria-labelledby="heading{{ loop.index }}" data-bs-parent="#mcpFunctionsAccordion">
+                            <div class="accordion-body">
+                                <p><strong>Descrição:</strong> {{ func.description }}</p>
+                                <p><strong>Parâmetros:</strong></p>
+                                <ul>
+                                    {% for param_name, param in func.parameters.items() %}
+                                        <li>
+                                            <strong>{{ param_name }}</strong> 
+                                            ({{ param.type }})
+                                            {% if param.required %}<span class="text-danger">*</span>{% endif %}
+                                            {% if param.description %}: {{ param.description }}{% endif %}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal para alterar status -->
+<div class="modal fade" id="statusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirmar Alteração de Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja {% if agent.active %}desativar{% else %}ativar{% endif %} o agente <strong>{{ agent.name }}</strong>?</p>
+                
+                {% if agent.active %}
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle-fill"></i> Desativar o agente impedirá que ele seja utilizado em novas conversas.
+                </div>
+                {% else %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle-fill"></i> Ativar o agente permitirá que ele seja utilizado em novas conversas.
+                </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" action="{{ url_for('agents.toggle_status', agent_id=agent.id) }}">
+                    <button type="submit" class="btn btn-{% if agent.active %}danger{% else %}success{% endif %}">
+                        {% if agent.active %}Desativar{% else %}Ativar{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.white-space-pre {
+    white-space: pre-line;
+}
+</style>
+{% endblock %}

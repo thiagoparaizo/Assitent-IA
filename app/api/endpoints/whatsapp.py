@@ -2,9 +2,10 @@ from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_current_active_user, get_whatsapp_service
+from app.api.deps import get_agent_service, get_current_active_user, get_tenant_id, get_whatsapp_service
 from app.schemas import whatsapp as schemas
 from app.db.models.user import User
+from app.services.agent import AgentService
 from app.services.whatsapp import WhatsAppService
 
 router = APIRouter()
@@ -19,7 +20,7 @@ async def get_devices(
     """
     Obtém a lista de dispositivos de um tenant
     """
-    if not current_user.is_superuser and current_user.tenant_id != tenant_id:
+    if not current_user.is_superuser and current_user.tenant_id != int(tenant_id):
         raise HTTPException(status_code=403, detail="Sem permissão para acessar este tenant")
     
     return await whatsapp_service.get_devices(tenant_id)
@@ -256,6 +257,24 @@ async def get_tracked_entities(
         raise HTTPException(status_code=403, detail="Sem permissão para acessar este dispositivo")
     
     return await whatsapp_service.get_tracked_entities(device_id)
+
+@router.post("/devices/{device_id}/assign/{agent_id}")
+async def assign_agent_to_device(
+    device_id: int,
+    agent_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Atribui um agente a um dispositivo específico."""
+    # Verificar permissões
+    # Verificar se o dispositivo pertence ao tenant
+    # Atribuir agente
+    result = await agent_service.assign_agent_to_device(agent_id, device_id)
+    if not result:
+        raise HTTPException(status_code=400, detail="Falha ao atribuir agente ao dispositivo")
+    
+    return {"status": "success", "message": "Agente atribuído com sucesso"}
 
 
 from typing import Generator
