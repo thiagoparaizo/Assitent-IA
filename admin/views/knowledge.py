@@ -151,11 +151,13 @@ def upload():
         if response.status_code == 200:
             categories = response.json()['categories']
     except requests.exceptions.RequestException:
+        #TODO ajustar
         categories = [
             {"id": "general", "name": "Geral"},
             {"id": "agendamento", "name": "Agendamento"},
             {"id": "procedimentos", "name": "Procedimentos"},
-            {"id": "financeiro", "name": "Financeiro"}
+            {"id": "financeiro", "name": "Financeiro"},
+            {"id": "pessoal", "name": "Pessoal"}
         ]
     
     return render_template('knowledge/upload.html', categories=categories)

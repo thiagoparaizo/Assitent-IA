@@ -18,7 +18,7 @@ from app.services.agent import AgentService
 from app.services.llm import LLMService
 from app.services.mcp import MCPService
 from app.services.orchestrator import AgentOrchestrator
-from app.services.rag import RAGService
+from app.services.rag_faiss import RAGServiceFAISS
 from app.services.whatsapp import WhatsAppService
 
 from app.services.config import SystemConfig, load_system_config
@@ -123,13 +123,13 @@ async def get_agent_service(
 async def get_rag_service(tenant_id: str = Depends(get_tenant_id)):
     """Obtém o serviço RAG."""
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    return RAGService(tenant_id=tenant_id, openai_api_key=openai_api_key)
+    return RAGServiceFAISS(tenant_id=tenant_id, openai_api_key=openai_api_key)
 
 # LLM Service
 async def get_llm_service():
     """Obtém o serviço LLM."""
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    return RAGService(api_key=openai_api_key)
+    return LLMService(api_key=openai_api_key)
 
 # MCP Service
 async def get_mcp_service():
@@ -139,7 +139,7 @@ async def get_mcp_service():
 # Orchestrator
 async def get_orchestrator(
     agent_service: AgentService = Depends(get_agent_service),
-    rag_service: RAGService = Depends(get_rag_service),
+    rag_service: RAGServiceFAISS = Depends(get_rag_service),
     redis_client = Depends(get_redis_client),
     openai_api_key: str = Depends(get_openai_api_key)
 ) -> AgentOrchestrator:
@@ -151,7 +151,7 @@ async def get_orchestrator(
 
 async def get_enhanced_orchestrator(
     agent_service: AgentService = Depends(get_agent_service),
-    rag_service: RAGService = Depends(get_rag_service),
+    rag_service: RAGServiceFAISS = Depends(get_rag_service),
     redis_client = Depends(get_redis_client),
     llm_service: LLMService = Depends(get_llm_service),
     config: SystemConfig = None

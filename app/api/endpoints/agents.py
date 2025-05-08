@@ -110,6 +110,24 @@ async def update_agent(
     # Garantir que o tenant_id não seja alterado
     agent_data["tenant_id"] = tenant_id
     
+    # Garantir que os campos opcionais estejam inicializados corretamente
+    if "specialties" in agent_data and agent_data["specialties"] is None:
+        agent_data["specialties"] = []
+        
+    if "list_escalation_agent_ids" in agent_data and agent_data["list_escalation_agent_ids"] is None:
+        agent_data["list_escalation_agent_ids"] = []
+    
+    # Processar a lista de agentes de escalação se presente
+    if "list_escalation_agent_ids" in agent_data:
+        # Validar que os IDs de agentes pertencem ao mesmo tenant
+        for esc_agent_id in agent_data["list_escalation_agent_ids"]:
+            esc_agent = await agent_service.get_agent(esc_agent_id)
+            if not esc_agent or esc_agent.tenant_id != int(tenant_id):
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Agente de escalação {esc_agent_id} não encontrado ou não pertence ao tenant"
+                )
+    
     try:
         updated_agent = agent_service.update_agent(agent_id, agent_data)
         return updated_agent
@@ -168,7 +186,7 @@ async def delete_agent(
     return {"message": "Agente removido com sucesso"}
 
 
-@router.post("/agents/{agent_id}/device/{device_id}/contacts")
+@router.post("/{agent_id}/device/{device_id}/contacts")
 async def manage_agent_contacts(
     agent_id: str,
     device_id: int,
@@ -199,7 +217,7 @@ async def manage_agent_contacts(
     
     return {"status": "success", "message": "Lista de contatos atualizada com sucesso"}
 
-@router.get("/agents/{agent_id}/device/{device_id}/contacts")
+@router.get("/{agent_id}/device/{device_id}/contacts")
 async def get_agent_contacts(
     agent_id: str,
     device_id: int,
@@ -209,7 +227,7 @@ async def get_agent_contacts(
 ):
     """Obtém a configuração de contatos para um agente em um dispositivo específico."""
     # Verificar permissões
-    agent = await agent_service.get_agent(agent_id)
+    agent = agent_service.get_agent(agent_id)
     if not agent or agent.tenant_id != int(tenant_id):
         raise HTTPException(status_code=404, detail="Agente não encontrado")
     
@@ -218,7 +236,7 @@ async def get_agent_contacts(
         ContactControl.agent_id == agent_id,
         ContactControl.device_id == device_id
     )
-    result = await agent_service.db.execute(query)
+    result = agent_service.db.execute(query)
     controls = result.scalars().all()
     
     # Agrupar por tipo
@@ -237,7 +255,82 @@ async def get_agent_contacts(
         "default_behavior": default_behavior,
         "contacts": contacts
     }
+   
+   
+@router.put("/{agent_id}/device/{device_id}/contacts/{contact_id}")
+def add_contact_to_list(
+    agent_id: str,
+    device_id: int,
+    contact_id: str,
+    data: Dict[str, Any] = Body(...),
+    tenant_id: str = Depends(get_tenant_id),
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Adiciona um contato à lista de um agente."""
+    # Verificar permissões
+    agent = agent_service.get_agent(agent_id)
+    if not agent or agent.tenant_id != int(tenant_id):
+        raise HTTPException(status_code=404, detail="Agente não encontrado")
     
+    # Determinar o tipo de lista
+    list_type = data.get("list_type", "blacklist")
+    list_type_enum = ContactListType.WHITELIST if list_type == "whitelist" else ContactListType.BLACKLIST
+    
+    # Adicionar o contato à lista
+    result = agent_service.add_contact_to_list(
+        agent_id=agent_id,
+        device_id=device_id,
+        contact_id=contact_id,
+        list_type=list_type_enum
+    )
+    
+    if not result:
+        raise HTTPException(status_code=400, detail="Falha ao adicionar contato à lista")
+    
+    return {"success": True, "message": "Contato adicionado com sucesso"} 
+  
+  
+@router.delete("/{agent_id}/device/{device_id}/contacts/{contact_id}")
+def remove_contact_from_list(
+    agent_id: str,
+    device_id: int,
+    contact_id: str,
+    tenant_id: str = Depends(get_tenant_id),
+    agent_service: AgentService = Depends(get_agent_service),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Remove um contato da lista de um agente."""
+    # Verificar permissões
+    agent = agent_service.get_agent(agent_id)
+    if not agent or agent.tenant_id != int(tenant_id):
+        raise HTTPException(status_code=404, detail="Agente não encontrado")
+    
+    # Determinar o tipo de lista atual
+    query = select(ContactControl).where(
+        ContactControl.agent_id == agent_id,
+        ContactControl.device_id == device_id,
+        ContactControl.contact_id == contact_id
+    )
+    result = agent_service.db.execute(query)
+    control = result.scalar_one_or_none()
+    
+    if not control:
+        raise HTTPException(status_code=404, detail="Contato não encontrado na lista")
+    
+    # Remover o contato da lista
+    success = agent_service.remove_contact_from_list(
+        agent_id=agent_id,
+        device_id=device_id,
+        contact_id=contact_id,
+        list_type=control.list_type
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail="Falha ao remover contato da lista")
+    
+    return {"success": True, "message": "Contato removido com sucesso"}
+  
 @router.get("/{agent_id}/devices")
 async def get_agent_devices(
     agent_id: str,
@@ -256,7 +349,7 @@ async def get_agent_devices(
         raise HTTPException(status_code=403, detail="Sem permissão para acessar este agente")
     
     # Buscar dispositivos associados
-    devices = agent_service.get_devices_for_agent(agent_id)
+    devices = await agent_service.get_devices_for_agent(agent_id)
     
     return devices
 
@@ -271,7 +364,7 @@ async def assign_device_to_agent(
 ):
     """Atribui ou desvincula um dispositivo de um agente."""
     # Verificar se o agente pertence ao tenant
-    agent = await agent_service.get_agent(agent_id)
+    agent = agent_service.get_agent(agent_id)
     
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agente {agent_id} não encontrado")
@@ -284,9 +377,9 @@ async def assign_device_to_agent(
     
     # Atribuir/desvinculação
     if active:
-        result = await agent_service.assign_agent_to_device(agent_id, device_id)
+        result = agent_service.assign_agent_to_device(agent_id, device_id)
     else:
-        result = await agent_service.unassign_agent_from_device(agent_id, device_id)
+        result = agent_service.unassign_agent_from_device(agent_id, device_id)
     
     if not result:
         raise HTTPException(status_code=400, detail="Falha ao atualizar associação do dispositivo")

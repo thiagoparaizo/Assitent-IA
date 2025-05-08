@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Detalhes da Conversa - Assistente Inteligente{% endblock %}
+{% block title %}Conversa Arquivada - Assistente Inteligente{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -9,6 +9,7 @@
             <ol class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
                 <li class="breadcrumb-item"><a href="{{ url_for('conversations.index') }}">Conversas</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('conversations.archived') }}">Arquivadas</a></li>
                 <li class="breadcrumb-item active">Detalhes</li>
             </ol>
         </nav>
@@ -17,7 +18,7 @@
 
 <div class="row mb-3">
     <div class="col-md-8">
-        <h1 class="h3">Detalhes da Conversa</h1>
+        <h1 class="h3">Conversa Arquivada</h1>
     </div>
     <div class="col-md-4 text-end">
         <a href="{{ url_for('conversations.user_conversations', user_id=conversation.user_id) }}" class="btn btn-outline-primary">
@@ -36,47 +37,47 @@
                 <p><strong>ID:</strong> <code>{{ conversation.conversation_id }}</code></p>
                 <p><strong>Usuário:</strong> {{ conversation.user_id }}</p>
                 <p><strong>Tenant:</strong> {{ conversation.tenant_id }}</p>
-                <p><strong>Agente Atual:</strong> {{ conversation.current_agent_id }}</p>
-                <p><strong>Total de Mensagens:</strong> {{ conversation.history|length }}</p>
-                <p><strong>Última Atualização:</strong> {{ conversation.last_updated|datetime }}</p>
+                <p><strong>Total de Mensagens:</strong> {{ conversation.message_count }}</p>
+                <p><strong>Data de Arquivamento:</strong> {{ conversation.archived_at|datetime }}</p>
+                <p><strong>Motivo do Arquivamento:</strong> 
+                    {% if conversation.archive_reason == 'max_length_exceeded' %}
+                    <span class="badge bg-warning">Limite de mensagens</span>
+                    {% elif conversation.archive_reason == 'conversation_timeout' %}
+                    <span class="badge bg-info">Timeout</span>
+                    {% elif conversation.archive_reason == 'expired' %}
+                    <span class="badge bg-secondary">Expirada</span>
+                    {% else %}
+                    <span class="badge bg-light text-dark">{{ conversation.archive_reason }}</span>
+                    {% endif %}
+                </p>
             </div>
         </div>
         
+        {% if conversation.meta_data %}
         <div class="card mb-4">
             <div class="card-header">
-                <h5 class="card-title mb-0">Resumo</h5>
+                <h5 class="card-title mb-0">Metadados</h5>
             </div>
             <div class="card-body">
-                {% if summary.brief_summary %}
-                <p>{{ summary.brief_summary }}</p>
-                {% else %}
-                <p>{{ summary.summary }}</p>
-                {% endif %}
-                
-                {% if summary.sentiment %}
-                <p><strong>Sentimento:</strong> 
-                    {% if summary.sentiment == 'positive' %}
-                    <span class="text-success">Positivo</span>
-                    {% elif summary.sentiment == 'negative' %}
-                    <span class="text-danger">Negativo</span>
-                    {% elif summary.sentiment == 'neutral' %}
-                    <span class="text-muted">Neutro</span>
-                    {% else %}
-                    {{ summary.sentiment }}
-                    {% endif %}
-                </p>
-                {% endif %}
-                
-                {% if summary.key_points %}
-                <p><strong>Pontos-chave:</strong></p>
-                <ul>
-                    {% for point in summary.key_points %}
-                    <li>{{ point }}</li>
+                <div class="accordion" id="meta_dataAccordion">
+                    {% for key, value in conversation.meta_data.items() %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading-{{ key }}">
+                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ key }}">
+                                {{ key }}
+                            </button>
+                        </h2>
+                        <div id="collapse-{{ key }}" class="accordion-collapse collapse" aria-labelledby="heading-{{ key }}" data-bs-parent="#meta_dataAccordion">
+                            <div class="accordion-body">
+                                <pre class="mb-0"><code>{{ value|tojson(indent=2) }}</code></pre>
+                            </div>
+                        </div>
+                    </div>
                     {% endfor %}
-                </ul>
-                {% endif %}
+                </div>
             </div>
         </div>
+        {% endif %}
     </div>
     
     <div class="col-md-8">

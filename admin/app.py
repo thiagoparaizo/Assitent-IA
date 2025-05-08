@@ -1,4 +1,5 @@
 # admin/app.py
+from datetime import datetime
 import time
 from flask import Flask, render_template, redirect, url_for, flash, request, session
 from flask_login import LoginManager, login_required, current_user, login_user, logout_user
@@ -14,8 +15,10 @@ from admin.views.tenants import tenants_bp
 from admin.views.whatsapp import whatsapp_bp
 from admin.views.conversations import conversations_bp
 from admin.views.webhooks import webhooks_bp
+from admin.views.user import user_bp
 from admin.models.user import User
 from admin.models.user_store import user_store
+
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -44,6 +47,7 @@ def create_app(config_class=Config):
     app.register_blueprint(whatsapp_bp)
     app.register_blueprint(conversations_bp)
     app.register_blueprint(webhooks_bp)
+    app.register_blueprint(user_bp)
     
     # Configurar contexto global
     @app.context_processor
@@ -63,32 +67,17 @@ def create_app(config_class=Config):
     if not os.path.exists(uploads_dir):
         os.makedirs(uploads_dir)
     
-    # @app.before_request
-    # def verify_token():
-    #     if request.endpoint and not request.endpoint.startswith('static') and \
-    #        not request.endpoint.startswith('auth.login') and \
-    #        not current_user.is_authenticated:
-    #         # Skip verification for login endpoint and static files
-    #         return
-
-    #     if current_user.is_authenticated and request.endpoint.startswith('api.'):
-    #         # Verify token for API calls
-    #         # If token is expired or invalid, redirect to login
-    #         try:
-    #             # Test token against API
-    #             response = requests.get(
-    #                 f"{Config.API_URL}/auth/test-token",
-    #                 headers={"Authorization": f"Bearer {current_user.token}"},
-    #                 timeout=5
-    #             )
-                
-    #             if response.status_code != 200:
-    #                 # Token is invalid
-    #                 logout_user()
-    #                 flash('Sua sessão expirou. Por favor, faça login novamente.', 'warning')
-    #                 return redirect(url_for('auth.login'))
-    #         except:
-    #             pass
+    
+    @app.template_filter('datetime')
+    def format_datetime(value, format='%d/%m/%Y %H:%M'):
+        if value is None:
+            return ""
+        if isinstance(value, (int, float)):
+            value = datetime.fromtimestamp(value)
+        try:
+            return value.strftime(format)
+        except:
+            return str(value)
     
     @app.before_request
     def check_auth_and_verify_token():

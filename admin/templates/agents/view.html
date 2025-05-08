@@ -90,6 +90,82 @@
                 {% endif %}
             </div>
         </div>
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Especialidades</h5>
+            </div>
+            <div class="card-body">
+                {% if agent.specialties and agent.specialties|length > 0 %}
+                    <div class="row">
+                        {% for specialty in agent.specialties %}
+                            <div class="col-md-6 mb-2">
+                                <div class="d-flex align-items-center">
+                                    <span class="badge bg-primary me-2">
+                                        <i class="bi bi-check"></i>
+                                    </span>
+                                    <span>
+                                        {% if specialty == "healthcare" %}Saúde
+                                        {% elif specialty == "medical_exams" %}Exames Médicos
+                                        {% elif specialty == "health_insurance" %}Planos de Saúde
+                                        {% elif specialty == "retail" %}Varejo
+                                        {% elif specialty == "order_tracking" %}Rastreamento de Pedidos
+                                        {% elif specialty == "returns" %}Trocas e Devoluções
+                                        {% elif specialty == "sports" %}Esportes e Lazer
+                                        {% elif specialty == "crafts" %}Artesanato
+                                        {% elif specialty == "professional_services" %}Serviços Profissionais
+                                        {% elif specialty == "finance" %}Finanças
+                                        {% elif specialty == "accounting" %}Contabilidade
+                                        {% elif specialty == "tourism" %}Turismo e Viagens
+                                        {% elif specialty == "hotel" %}Hotelaria
+                                        {% elif specialty == "education" %}Educação
+                                        {% elif specialty == "courses" %}Cursos
+                                        {% elif specialty == "real_estate" %}Imobiliário
+                                        {% elif specialty == "rental" %}Aluguel e Locação
+                                        {% elif specialty == "automotive" %}Automotivo
+                                        {% elif specialty == "maintenance" %}Manutenção
+                                        {% elif specialty == "logistics" %}Logística
+                                        {% elif specialty == "shipping" %}Envio e Entrega
+                                        {% elif specialty == "events" %}Eventos
+                                        {% elif specialty == "entertainment" %}Entretenimento
+                                        {% elif specialty == "pets" %}Pet Shop
+                                        {% elif specialty == "veterinary" %}Veterinária
+                                        {% elif specialty == "wellness" %}Bem-estar
+                                        {% elif specialty == "beauty" %}Beleza e Estética
+                                        {% elif specialty == "technology" %}Tecnologia
+                                        {% elif specialty == "it_support" %}Suporte de TI
+                                        {% elif specialty == "legal" %}Jurídico
+                                        {% elif specialty == "law" %}Advocacia
+                                        {% else %}{{ specialty|title }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">Nenhuma especialidade configurada. Este agente é um generalista.</p>
+                {% endif %}
+                
+                <!-- Exibir informações sobre capacidade de escalação -->
+                {% if agent.escalation_enabled %}
+                    <div class="mt-3">
+                        <h6 class="fw-bold">Capacidade de Escalação:</h6>
+                        <p><span class="badge bg-success">Ativo</span> Este agente pode escalar conversas para outros agentes.</p>
+                        
+                        {% if agent.list_escalation_agent_ids and agent.list_escalation_agent_ids|length > 0 %}
+                            <p>Pode escalar para:</p>
+                            <ul>
+                                {% for escalation_agent_id in agent.list_escalation_agent_ids %}
+                                    <li>{{ escalation_agent_id }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <p class="text-muted">Nenhum agente específico para escalação configurado.</p>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
     
     <div class="col-md-8">
@@ -175,6 +251,58 @@
             </div>
         </div>
         {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Configurações de Escalação</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h6>Escalação entre Agentes:</h6>
+                    {% if agent.escalation_enabled %}
+                        <span class="badge bg-success">Ativada</span>
+                        {% if agent.list_escalation_agent_ids and agent.list_escalation_agent_ids|length > 0 %}
+                            <div class="mt-2">
+                                <h6>Agentes disponíveis para escalação:</h6>
+                                <ul class="list-group">
+                                    {% for escalation_agent in escalation_agents %}
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <a href="{{ url_for('agents.view', agent_id=escalation_agent.id) }}">{{ escalation_agent.name }}</a>
+                                                <small class="text-muted d-block">{{ escalation_agent.description }}</small>
+                                            </div>
+                                            <span class="badge bg-{% if escalation_agent.type == 'general' %}primary{% elif escalation_agent.type == 'specialist' %}success{% elif escalation_agent.type == 'integration' %}info{% else %}warning{% endif %}">
+                                                {{ escalation_agent.type }}
+                                            </span>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning mt-2">
+                                Nenhum agente configurado para escalação.
+                            </div>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-secondary">Desativada</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Escalação para Humano:</h6>
+                    {% if agent.human_escalation_enabled %}
+                        <span class="badge bg-success">Ativada</span>
+                        {% if agent.human_escalation_contact %}
+                            <p class="mt-2">Contato: {{ agent.human_escalation_contact }}</p>
+                        {% endif %}
+                    {% else %}
+                        <span class="badge bg-secondary">Desativada</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+
     </div>
 </div>
 

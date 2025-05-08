@@ -1,13 +1,74 @@
-<!-- admin/templates/conversations/index.html -->
 {% extends 'base.html' %}
 
-{% block title %}Conversas - Assistente Inteligente{% endblock %}
+{% block title %}Conversas Ativas - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
+<div class="row">
     <div class="col-12">
-        <h1 class="h3">Conversas</h1>
-        <p class="text-muted">Esta funcionalidade está em desenvolvimento.</p>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Conversas Ativas</li>
+            </ol>
+        </nav>
     </div>
 </div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <h1 class="h3">Conversas Ativas</h1>
+    </div>
+    <div class="col-md-6 text-end">
+        <a href="{{ url_for('conversations.archived') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-archive"></i> Ver Conversas Arquivadas
+        </a>
+    </div>
+</div>
+
+{% if conversations %}
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>ID da Conversa</th>
+                        <th>Usuário</th>
+                        <th>Mensagens</th>
+                        <th>Última Atualização</th>
+                        <th>Agente</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conversation in conversations %}
+                    <tr>
+                        <td><code class="small">{{ conversation.conversation_id[:8] }}...</code></td>
+                        <td>
+                            <a href="{{ url_for('conversations.user_conversations', user_id=conversation.user_id) }}">
+                                {{ conversation.user_id }}
+                            </a>
+                        </td>
+                        <td>{{ conversation.message_count }}</td>
+                        <td>{{ conversation.last_updated|datetime }}</td>
+                        <td>{{ conversation.current_agent_id }}</td>
+                        <td>
+                            <a href="{{ url_for('conversations.view', conversation_id=conversation.conversation_id) }}" 
+                               class="btn btn-sm btn-primary">
+                                <i class="bi bi-eye"></i> Ver
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle-fill"></i> Nenhuma conversa ativa encontrada.
+</div>
+{% endif %}
+
 {% endblock %}

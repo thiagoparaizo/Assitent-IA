@@ -3,6 +3,7 @@ import hmac
 import logging
 import asyncio
 import os
+import re
 from typing import Dict, Any, Optional, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Path, Query
@@ -13,6 +14,7 @@ import time
 from datetime import datetime
 
 from app.api.deps import get_db, get_tenant_id, get_whatsapp_service
+from app.schemas.agent import AgentType
 from app.services.agent import AgentService
 from app.services.config import load_system_config
 from app.services.llm import LLMService
@@ -274,6 +276,7 @@ async def get_webhook_logs(
     
     return result
 
+# função principal que processa as mensagens recebidas do WhatsApp
 async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: WhatsAppService, db: Session):
     """
     Processa mensagens recebidas do WhatsApp usando o sistema de agentes inteligentes.
@@ -294,17 +297,60 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         
         event = data.get("event", {})
         
-        # Ignorar mensagens enviadas pelo próprio dispositivo
+        # Lidar com mensagens enviadas pelo próprio dispositivo para controle do agente
         if event.get("Info", {}).get("IsFromMe"):
-            logger.warning(f"Mensagem enviada pelo proprio dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
-            print(f"Mensagem enviada pelo proprio dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
+            # Extrair conteúdo da mensagem
+            message_content = event.get("Message", {}).get("Conversation")
+            
+            if not message_content:
+                # Tentar extrair de outros tipos de mensagem
+                if ext_text := event.get("Message", {}).get("ExtendedTextMessage", {}):
+                    message_content = ext_text.get("Text", "")
+            
+            # Verificar comandos de controle
+            if message_content:
+                message_content = message_content.strip()
+                
+                # Inicializar Redis
+                import redis.asyncio as redis
+                redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+                redis_client = redis.from_url(redis_url)
+                
+                # Chave para armazenar o estado do agente para esta conversa
+                agent_control_key = f"agent_control:{tenant_id}:{chat_jid}"
+                
+                if message_content == "@stop":
+                    # Desativar o agente para esta conversa
+                    await redis_client.set(agent_control_key, "disabled")
+                    await redis_client.expire(agent_control_key, 60 * 60 * 24 * 7)  # 7 dias
+                    
+                    # Log e resposta de confirmação
+                    logger.info(f"Agente desativado para conversa com {chat_jid}")
+                    await whatsapp_service.send_message(
+                        device_id=device_id,
+                        to=chat_jid,
+                        message="✅Dasativado "
+                    )
+                    return
+                
+                elif message_content == "@ok":
+                    # Reativar o agente para esta conversa
+                    await redis_client.delete(agent_control_key)
+                    
+                    # Log e resposta de confirmação
+                    logger.info(f"Agente reativado para conversa com {chat_jid}, removendo a chave {agent_control_key}")
+                    print(f"Agente reativado para conversa com {chat_jid}, removendo a chave {agent_control_key}")
+                    await whatsapp_service.send_message(
+                        device_id=device_id,
+                        to=chat_jid,
+                        message="✅Ativado"
+                    )
+                    return
+            
+            # Para outras mensagens do próprio dispositivo, ignorar normalmente
+            logger.warning(f"Mensagem enviada pelo próprio dispositivo {device_id} do tenant {tenant_id}. Será ignorada")
             return
         
-        # Extrair informações da mensagem
-        sender = event.get("Info", {}).get("Sender", {})
-        if 'User' in sender:
-            sender = sender['User']
-        chat_jid = event.get("Info", {}).get("Chat")
         message_content = event.get("Message", {}).get("Conversation")
         
         if not message_content:
@@ -318,16 +364,45 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             print(f"Mensagem sem conteudo de texto do dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
             return
         
+        # Inicializar cliente Redis
+        import redis.asyncio as redis
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        redis_client = redis.from_url(redis_url) # TODO pegar de um pool
+        
+        agent_control_key = f"agent_control:{tenant_id}:{chat_jid}"
+        agent_status = await redis_client.get(agent_control_key)
+        
+        if agent_status and agent_status.decode("utf-8") == "disabled":
+            logger.info(f"Mensagem ignorada: agente desativado para conversa com {chat_jid}")
+            return
         
         # Converter para objeto Agent
         agent_service = AgentService(db, None) # Instanciar sem Redis para conversão
-        agent = await agent_service.get_agent_for_contact(device_id, tenant_id, contact_id)
+        agent, should_response = await agent_service.get_agent_for_contact(device_id, tenant_id, contact_id)
+        
+        if agent:
+            logger.info(f"Agent (get_agent_for_contact): should_response: {should_response} | Agent: {agent.id} ({agent.name} - Tenant: {agent.tenant_id} | Device Id: {device_id} | Contact Id: {contact_id}")
+            print(f"Agent (get_agent_for_contact): should_response: {should_response} | Agent: {agent.id} ({agent.name} - Tenant: {agent.tenant_id} | Device Id: {device_id} | Contact Id: {contact_id}")
+        else:
+            logger.info(f"Agent (get_agent_for_contact): should_response: {should_response} | Agent: None | Device Id: {device_id} | Contact Id: {contact_id}")
+            print(f"Agent (get_agent_for_contact): should_response: {should_response} | Agent: None | Device Id: {device_id} | Contact Id: {contact_id}")
+        
+        if agent and should_response == False and agent.type == AgentType.PERSONAL:
+            logger.info(f"Agente PESSOAL sem permissão para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}. Ignorando mensagem mensagem direcionada ao agentet | Agent (get_agent_for_contact): should_response: {should_response} | Agent: {agent.id} ({agent.name}")
+            print(f"Agente PESSOAL sem permissão para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}. Ignorando mensagem mensagem direcionada ao agentet | Agent (get_agent_for_contact): should_response: {should_response} | Agent: {agent.id} ({agent.name}")
+            return
         
         if not agent:
             logger.warning(f"Nenhum agente encontrado para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}")
             print(f"Nenhum agente encontrado para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}")
-        
-        
+
+            if should_response == False:
+                # Ignorar mensagens sem agente
+                logger.warning(f"Mensagem sem agente para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
+                print(f"Mensagem sem agente para o contato {contact_id} do dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
+                return
+                
+            
             agent = await agent_service.get_agent_for_device(device_id, tenant_id)
         
             if not agent:
@@ -364,16 +439,12 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         if whatsapp_service == None:
             whatsapp_service = WhatsAppService()
         
-        # Inicializar cliente Redis
-        import redis.asyncio as redis
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        redis_client = redis.from_url(redis_url) # TODO pegar de um pool
-        
         # Configuração do sistema
         config = load_system_config()
         
         # Inicializar orquestrador
         orchestrator = AgentOrchestrator(agent_service, rag_service, redis_client, llm_service, config)
+        
         
         # Verificar se já existe uma conversa para este usuário
         conversation_key = f"whatsapp_conversation:{tenant_id}:{chat_jid}"
@@ -390,7 +461,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         # Se não existir, iniciar uma nova conversa
         if not conversation_id:
             # Usar chat_jid como identificador do usuário
-            conversation_id = await orchestrator.start_conversation(str(tenant_id), chat_jid)
+            conversation_id = await orchestrator.start_conversation(str(tenant_id), chat_jid, agent_id=agent.id)
             print(f"[DEBUG] Nova conversa criada: {conversation_id}")
             
             # Armazenar o ID da conversa para futuras mensagens
@@ -399,8 +470,26 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                 await redis_client.expire(conversation_key, 60 * 60 * 24)  # Expira em 24 horas
                 print(f"[DEBUG] ID armazenado no Redis com chave: {conversation_key}")
         
+        # Always update the mapping with a longer TTL
+        await orchestrator.map_user_to_conversation(str(tenant_id), chat_jid, conversation_id)
+        
+        # Also update the standard key for backward compatibility
+        conversation_key = f"whatsapp_conversation:{tenant_id}:{chat_jid}"
+        await redis_client.set(conversation_key, conversation_id)
+        await redis_client.expire(conversation_key, 60 * 60 * 24)  # 24 hours
+        
         # Processar a mensagem usando o orquestrador
-        result = await orchestrator.process_message(conversation_id, message_content)
+        result = await orchestrator.process_message(conversation_id, message_content, agent_id=agent.id, contact_id=contact_id)
+        
+        # Check if the conversation ID changed (due to timeout/limit reset)
+        if result.get("new_conversation_id") and result.get("new_conversation_id") != conversation_id:
+            # Update the mapping with the new conversation ID
+            new_id = result.get("new_conversation_id")
+            await orchestrator.map_user_to_conversation(str(tenant_id), chat_jid, new_id)
+            
+            # Update standard key too
+            await redis_client.set(conversation_key, new_id)
+            await redis_client.expire(conversation_key, 60 * 60 * 24)
         
         # Enviar resposta via WhatsApp
         if "response" in result:
@@ -415,30 +504,82 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         if "actions" in result:
             for action in result["actions"]:
                 if action["type"] == "human_escalation":
-                    # Enviar notificação para o contato de escalação
                     escalation_contact = action["contact"]
-                    conversation_summary = action["conversation_summary"]
+                    try:
+                        escalation_contact =format_whatsapp_number(escalation_contact)
+                        print(f"Contato de escalação: {escalation_contact}")
+                        
+                        # Extrair número do cliente a partir do chat_jid
+                        client_number = chat_jid.replace('@s.whatsapp.net', '')
+                        print(f"Número do cliente: {client_number}")
+                        
+                        # Montar link clicável para abrir chat com o cliente
+                        wa_link = f"https://wa.me/{client_number}"
+                        
+                        conversation_summary = action["conversation_summary"]
                     
-                    escalation_message = (
-                        f"🔔 *ESCALAÇÃO PARA ATENDIMENTO HUMANO*\n\n"
-                        f"Um cliente solicitou atendimento humano.\n\n"
-                        f"*Resumo da conversa:*\n{conversation_summary}\n\n"
-                        f"Por favor, entre em contato com o cliente."
-                    )
+                        escalation_message = (
+                            f"🔔 *ESCALAÇÃO PARA ATENDIMENTO HUMANO*\n\n"
+                            f"Um cliente solicitou atendimento humano.\n\n"
+                            f"*Resumo da conversa:*\n{conversation_summary}\n\n"
+                            f"Telefone do cliente: {client_number}\n"
+                            f"👉 Clique para abrir o WhatsApp: {wa_link}\n\n"
+                            f"Por favor, entre em contato com o cliente."
+                        )
+                        
+                        try:
+                            # Enviar para o contato de escalação
+                            await whatsapp_service.send_message(
+                                device_id=device_id,
+                                to=escalation_contact,
+                                message=escalation_message
+                            )
+                        
+                            # Informar ao cliente que a escalação foi realizada
+                            await whatsapp_service.send_message(
+                                device_id=device_id,
+                                to=chat_jid,
+                                message="Sua solicitação foi encaminhada para um atendente. Em breve alguém entrará em contato."
+                            )
+                        except Exception as e:
+                            logger.error(f"Erro ao enviar mensagem para o contato de escalação: {e}")
+                            print(f"Erro ao enviar mensagem para o contato de escalação: {e}")
+                            
+                            # TODO implementar mensagem de erro para um contato de administração
+                            # await whatsapp_service.send_message(
+                            #         device_id=device_id,
+                            #         to=chat_jid_administracao,
+                            #         message="Não foi possível encaminhar a solicitação do cliente {{chat_jid}} para um atendente {{escalation_contact}} agora. Verifique para mais detalhes."
+                            #     )
+                            
+                            # Informar ao cliente que a escalação foi realizada
+                            await whatsapp_service.send_message(
+                                device_id=device_id,
+                                to=chat_jid,
+                                message="Infelizmente, não foi possível encaminhar sua solicitação para um atendente agora. Peço que tente novamente mais tarde."
+                            )
+                        
+                    except ValueError as e:
+                        logger.error(f"Erro ao formatar o contato de escalação '{escalation_contact}': {e}")
+                        print(f"Erro ao formatar o contato de escalação '{escalation_contact}': {e}")
+                        
+                        # TODO implementar mensagem de erro para um contato de administração
+                        # await whatsapp_service.send_message(
+                        #         device_id=device_id,
+                        #         to=chat_jid_administracao,
+                        #         message=message="Não foi possível encaminhar a solicitação do cliente {{chat_jid}} para um atendente {{escalation_contact}} agora. Verifique para mais detalhes."
+                        #     )
+                        
+                        await whatsapp_service.send_message(
+                                device_id=device_id,
+                                to=chat_jid,
+                                message="Infelizmente, não foi possível encaminhar sua solicitação para um atendente agora. Peço que tente novamente mais tarde."
+                            )
+                        
                     
-                    # Enviar para o contato de escalação
-                    await whatsapp_service.send_message(
-                        device_id=device_id,
-                        to=escalation_contact,
-                        message=escalation_message
-                    )
+                    # Enviar notificação para o contato de escalação
                     
-                    # Informar ao cliente que a escalação foi realizada
-                    await whatsapp_service.send_message(
-                        device_id=device_id,
-                        to=chat_jid,
-                        message="Sua solicitação foi encaminhada para um atendente humano. Em breve alguém entrará em contato."
-                    )
+                    
         
         # Processar webhooks para este evento
         # (código existente para processamento de webhooks)
@@ -457,6 +598,25 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
     except Exception as e:
         logger.error(f"Erro ao processar mensagem do WhatsApp: {e}")
         logger.exception(e)
+        
+
+def format_whatsapp_number(raw_number):
+    # Remover tudo que não for número
+    digits = re.sub(r'\D', '', raw_number)
+
+    # Verificar se já começa com 55 (DDI Brasil)
+    if digits.startswith("55"):
+        number_without_ddi = digits[2:]
+    else:
+        number_without_ddi = digits
+
+    # Agora validar se sobrou exatamente 10 dígitos (2 do DDD + 8 do número)
+    if len(number_without_ddi) != 10:
+        raise ValueError("Número inválido. O número deve ter DDD (2 dígitos) + número (8 dígitos).")
+
+    # Montar no formato final
+    formatted_number = f"55{number_without_ddi}@s.whatsapp.net"
+    return formatted_number
 
 async def process_whatsapp_message_simplified(data: Dict[str, Any], whatsapp_service: WhatsAppService, db: Session):
     """

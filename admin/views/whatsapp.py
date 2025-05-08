@@ -205,7 +205,7 @@ def update_status(device_id):
         
     return redirect(url_for('whatsapp.view_device', device_id=device_id))
 
-@whatsapp_bp.route('/devices/<device_id>/disconnect', methods=['POST'])
+@whatsapp_bp.route('/devices/<device_id>/disconnect', methods=['POST', 'GET'])
 @login_required
 def disconnect(device_id):
     try:

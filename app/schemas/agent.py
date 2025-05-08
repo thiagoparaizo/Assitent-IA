@@ -11,6 +11,7 @@ class AgentType(str, Enum):
     SPECIALIST = "specialist"     # Agente especialista interno
     INTEGRATION = "integration"   # Agente para integrações externas (MCP)
     HUMAN = "human"               # Representação de agente humano
+    PERSONAL = "personal"         # Agente pessoal que se passa por um humano
 
 class AgentPromptBase(BaseModel):
     role: str
@@ -35,6 +36,9 @@ class AgentBase(BaseModel):
     rag_categories: Optional[List[str]] = None
     mcp_enabled: bool = False
     mcp_functions: Optional[List[Dict[str, Any]]] = None
+    escalation_enabled: bool = False
+    specialties: Optional[List[str]] = Field(default_factory=list)  # Lista vazia como padrão
+    list_escalation_agent_ids: Optional[List[str]] = Field(default_factory=list)
     human_escalation_enabled: bool = False
     human_escalation_contact: Optional[str] = None
     active: bool = False
@@ -49,6 +53,8 @@ class AgentUpdate(BaseModel):
     rag_categories: Optional[List[str]] = None
     mcp_enabled: Optional[bool] = None
     mcp_functions: Optional[List[Dict[str, Any]]] = None
+    escalation_enabled: bool = False
+    list_escalation_agent_ids: Optional[List[str]] = None
     human_escalation_enabled: Optional[bool] = None
     human_escalation_contact: Optional[str] = None
     active: Optional[bool] = None

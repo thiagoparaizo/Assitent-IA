@@ -103,38 +103,39 @@ def logout():
 @auth_bp.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
-    if request.method == 'POST':
-        # Get form data
-        current_password = request.form.get('current_password')
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
+    return redirect(url_for('user.profile'))
+    # if request.method == 'POST':
+    #     # Get form data
+    #     current_password = request.form.get('current_password')
+    #     new_password = request.form.get('new_password')
+    #     confirm_password = request.form.get('confirm_password')
         
-        # Validate passwords
-        if current_password and new_password:
-            if new_password != confirm_password:
-                flash('Nova senha e confirmação não correspondem.', 'danger')
-                return render_template('auth/profile.html')
+    #     # Validate passwords
+    #     if current_password and new_password:
+    #         if new_password != confirm_password:
+    #             flash('Nova senha e confirmação não correspondem.', 'danger')
+    #             return render_template('auth/profile.html')
             
-            # Try to change password via API
-            try:
-                response = requests.post(
-                    f"{Config.API_URL}/auth/change-password",
-                    headers={
-                        "Authorization": f"Bearer {current_user.token}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "current_password": current_password,
-                        "new_password": new_password
-                    },
-                    timeout=10
-                )
+    #         # Try to change password via API
+    #         try:
+    #             response = requests.post(
+    #                 f"{Config.API_URL}/auth/change-password",
+    #                 headers={
+    #                     "Authorization": f"Bearer {current_user.token}",
+    #                     "Content-Type": "application/json"
+    #                 },
+    #                 json={
+    #                     "current_password": current_password,
+    #                     "new_password": new_password
+    #                 },
+    #                 timeout=10
+    #             )
                 
-                if response.status_code == 200:
-                    flash('Senha alterada com sucesso!', 'success')
-                else:
-                    flash('Erro ao alterar senha. Verifique se a senha atual está correta.', 'danger')
-            except requests.exceptions.RequestException as e:
-                flash(f'Erro de conexão com o servidor: {str(e)}', 'danger')
+    #             if response.status_code == 200:
+    #                 flash('Senha alterada com sucesso!', 'success')
+    #             else:
+    #                 flash('Erro ao alterar senha. Verifique se a senha atual está correta.', 'danger')
+    #         except requests.exceptions.RequestException as e:
+    #             flash(f'Erro de conexão com o servidor: {str(e)}', 'danger')
         
-    return render_template('auth/profile.html')
+    # return render_template('auth/profile.html')

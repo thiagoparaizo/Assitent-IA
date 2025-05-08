@@ -109,10 +109,10 @@ class MemoryService:
         Returns:
             List of relevant memory entries
         """
-        # Generate embedding for the query
-        query_embedding = await self._get_embedding(query)
         
         if self.vector_db_url:
+            # Generate embedding for the query
+            query_embedding = await self._get_embedding(query) # TODO verificar essa lógica
             # Query vector database
             try:
                 params = {
@@ -185,7 +185,7 @@ class MemoryService:
         messages: List[Dict[str, Any]]
     ) -> ConversationSummary:
         """
-        Generates hierarchical summaries of a conversation.
+        Gera resumos hierárquicos de uma conversa.
         
         Args:
             conversation_id: The conversation ID
@@ -213,22 +213,22 @@ class MemoryService:
         
         # Generate brief summary (1-2 sentences)
         brief_summary_prompt = [
-            {"role": "system", "content": "You are an expert at summarizing conversations into 1-2 sentences capturing the essence."},
-            {"role": "user", "content": f"Summarize this conversation in 1-2 sentences:\n{conversation_text}"}
+            {"role": "system", "content": "Você é especialista em resumir conversas em 1 ou 2 frases, capturando a essência."},
+            {"role": "user", "content": f"Resuma esta conversa em 1-2 frases:\n{conversation_text}"}
         ]
         brief_summary = await self.llm.generate_response(brief_summary_prompt)
         
         # Generate detailed summary (paragraph)
         detailed_summary_prompt = [
-            {"role": "system", "content": "You are an expert at summarizing conversations into a detailed yet concise paragraph."},
-            {"role": "user", "content": f"Summarize this conversation in a detailed paragraph:\n{conversation_text}"}
+            {"role": "system", "content": "Você é especialista em resumir conversas em um parágrafo detalhado, porém conciso e objetivo."},
+            {"role": "user", "content": f"Resuma esta conversa em um parágrafo detalhado:\n{conversation_text}"}
         ]
         detailed_summary = await self.llm.generate_response(detailed_summary_prompt)
         
         # Extract key points
         key_points_prompt = [
-            {"role": "system", "content": "You are an expert at extracting key points from conversations."},
-            {"role": "user", "content": f"Extract 3-5 key points from this conversation as a JSON array:\n{conversation_text}"}
+            {"role": "system", "content": "Você é um especialista em extrair pontos-chave de conversas."},
+            {"role": "user", "content": f"Extraia 3 a 5 pontos-chave desta conversa como um JSON array:\n{conversation_text}"}
         ]
         key_points_json = await self.llm.generate_response(key_points_prompt)
         
@@ -236,14 +236,14 @@ class MemoryService:
         try:
             key_points = json.loads(key_points_json)
             if not isinstance(key_points, list):
-                key_points = ["Failed to extract key points properly"]
+                key_points = ["Falha ao extrair pontos-chave devidamente."]
         except:
-            key_points = ["Failed to extract key points"]
+            key_points = ["Falha ao extrair pontos-chave"]
         
         # Extract entities (people, products, etc.)
         entities_prompt = [
-            {"role": "system", "content": "You are an expert at extracting entities (people, products, locations, dates, issues) from conversations. Return as JSON."},
-            {"role": "user", "content": f"Extract entities from this conversation as a JSON object with categories as keys:\n{conversation_text}"}
+            {"role": "system", "content": "Você é especialista em extrair entidades (pessoas, produtos, locais, datas, problemas) de conversas. Retorne como JSON."},
+            {"role": "user", "content": f"Extraia entidades desta conversa como um objeto JSON com categorias como chaves:\n{conversation_text}"}
         ]
         entities_json = await self.llm.generate_response(entities_prompt)
         
@@ -257,8 +257,8 @@ class MemoryService:
         
         # Analyze sentiment
         sentiment_prompt = [
-            {"role": "system", "content": "Analyze the sentiment of this conversation. Just return one word: positive, negative, neutral, or mixed."},
-            {"role": "user", "content": f"Determine the sentiment of this conversation:\n{conversation_text}"}
+            {"role": "system", "content": "Analise o sentimento desta conversa. Responda apenas uma palavra: positivo, negativo, neutro ou misto."},
+            {"role": "user", "content": f"Determine o sentimento desta conversa:\n{conversation_text}"}
         ]
         sentiment = await self.llm.generate_response(sentiment_prompt)
         
@@ -390,8 +390,8 @@ class MemoryService:
         
         # Extract user preferences
         preferences_prompt = [
-            {"role": "system", "content": "Extract user preferences from this conversation as a JSON array. Only include clear preferences."},
-            {"role": "user", "content": f"Extract preferences from this conversation:\n{conversation_text}"}
+            {"role": "system", "content": "Extraia as preferências do usuário desta conversa como um array JSON. Inclua apenas preferências claras e objetivas."},
+            {"role": "user", "content": f"Extrair preferências desta conversa:\n{conversation_text}"}
         ]
         preferences_json = await self.llm.generate_response(preferences_prompt)
         

@@ -104,7 +104,8 @@ def create():
             {"id": "general", "name": "Geral"},
             {"id": "agendamento", "name": "Agendamento"},
             {"id": "procedimentos", "name": "Procedimentos"},
-            {"id": "financeiro", "name": "Financeiro"}
+            {"id": "financeiro", "name": "Financeiro"},
+            {"id": "pessoal", "name": "Pessoal"}
         ]
         
     return render_template('agents/create.html', categories=categories)
@@ -121,11 +122,35 @@ def view(agent_id):
         )
         response.raise_for_status()
         agent = response.json()
+        
+        # Buscar os agentes de escalação, se habilitado
+        escalation_agents = []
+        if agent.get('escalation_enabled') and agent.get('list_escalation_agent_ids'):
+            for esc_agent_id in agent['list_escalation_agent_ids']:
+                try:
+                    agent_response = requests.get(
+                        f"{Config.API_URL}/agents/{esc_agent_id}",
+                        headers=get_api_headers(),
+                        timeout=5
+                    )
+                    if agent_response.status_code == 200:
+                        escalation_agents.append(agent_response.json())
+                except Exception:
+                    pass
+                
+        # Garantir que os campos existam, mesmo que vazios
+        if 'specialties' not in agent or agent['specialties'] is None:
+            agent['specialties'] = []
+            
+        if 'list_escalation_agent_ids' not in agent or agent['list_escalation_agent_ids'] is None:
+            agent['list_escalation_agent_ids'] = []
+            
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao obter agente: {e}", "danger")
         return redirect(url_for('agents.index'))
         
-    return render_template('agents/view.html', agent=agent)
+    return render_template('agents/view.html', agent=agent,
+            escalation_agents=escalation_agents)
 
 @agents_bp.route('/<agent_id>/edit', methods=['GET', 'POST'])
 @login_required
@@ -147,8 +172,14 @@ def edit(agent_id):
             'mcp_functions': json.loads(request.form.get('mcp_functions', '[]')),
             'human_escalation_enabled': 'human_escalation_enabled' in request.form,
             'human_escalation_contact': request.form.get('human_escalation_contact'),
-            'active': 'active' in request.form
+            'active': 'active' in request.form,
+            'specialties': request.form.getlist('specialties'),
+            'escalation_enabled': 'escalation_enabled' in request.form,
+            'list_escalation_agent_ids': request.form.getlist('escalation_agent_ids'),
         }
+        
+        agent_data["escalation_enabled"] = 'escalation_enabled' in request.form
+        agent_data["list_escalation_agent_ids"] = request.form.getlist('list_escalation_agent_ids')
         
         # Enviar para API
         try:
@@ -159,6 +190,8 @@ def edit(agent_id):
                 timeout=10
             )
             response.raise_for_status()
+            
+            
             flash("Agente atualizado com sucesso!", "success")
             return redirect(url_for('agents.view', agent_id=agent_id))
         except requests.exceptions.HTTPError as e:
@@ -181,6 +214,16 @@ def edit(agent_id):
         )
         response.raise_for_status()
         agent = response.json()
+           
+        # Buscar todos os agentes do tenant para a lista de escalação
+        agents_response = requests.get(
+            f"{Config.API_URL}/agents/",
+            headers=get_api_headers(),
+            timeout=5
+        )
+        agents_response.raise_for_status()
+        available_agents = agents_response.json()
+        
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao obter agente: {e}", "danger")
         return redirect(url_for('agents.index'))
@@ -195,11 +238,13 @@ def edit(agent_id):
         response.raise_for_status()
         categories = response.json()['categories']
     except requests.exceptions.RequestException:
+        #TODO ajustar
         categories = [
             {"id": "general", "name": "Geral"},
             {"id": "agendamento", "name": "Agendamento"},
             {"id": "procedimentos", "name": "Procedimentos"},
-            {"id": "financeiro", "name": "Financeiro"}
+            {"id": "financeiro", "name": "Financeiro"},
+            {"id": "pessoal", "name": "Pessoal"}
         ]
     
     # Obter dispositivos disponíveis
@@ -253,7 +298,46 @@ def edit(agent_id):
         flash(f"Erro ao obter dispositivos: {e}", "warning")
         devices = []
         
-    return render_template('agents/edit.html', agent=agent, categories=categories, devices=devices)
+    print(f"agent_id: {agent_id}")
+    print(f"agent: {agent}")
+    print(f"categories: {categories}")
+    print(f"devices: {devices}")
+    
+    specialties_categories = {
+        "healthcare": "Saúde",
+        "medical_exams": "Exames Médicos",
+        "health_insurance": "Planos de Saúde",
+        "retail": "Varejo",
+        "order_tracking": "Rastreamento de Pedidos",
+        "returns": "Trocas e Devoluções",
+        "sports": "Esportes e Lazer",
+        "crafts": "Artesanato",
+        "professional_services": "Serviços Profissionais",
+        "finance": "Finanças",
+        "accounting": "Contabilidade",
+        "tourism": "Turismo e Viagens",
+        "hotel": "Hotelaria",
+        "education": "Educação",
+        "courses": "Cursos",
+        "real_estate": "Imobiliário",
+        "rental": "Aluguel e Locação",
+        "automotive": "Automotivo",
+        "maintenance": "Manutenção",
+        "logistics": "Logística",
+        "shipping": "Envio e Entrega",
+        "events": "Eventos",
+        "entertainment": "Entretenimento",
+        "pets": "Pet Shop",
+        "veterinary": "Veterinária",
+        "wellness": "Bem-estar",
+        "beauty": "Beleza e Estética",
+        "technology": "Tecnologia",
+        "it_support": "Suporte de TI",
+        "legal": "Jurídico",
+        "law": "Advocacia"
+    }
+        
+    return render_template('agents/edit.html', agent_id=agent_id, agent=agent, categories=categories, devices=devices, available_agents=available_agents, specialties_categories=specialties_categories)
 
 @agents_bp.route('/<agent_id>/toggle_status', methods=['POST'])
 @login_required
@@ -321,3 +405,100 @@ def test_prompt():
         return jsonify(response.json())
     except requests.exceptions.RequestException as e:
         return jsonify({'error': str(e)}), 500
+    
+@agents_bp.route('/<agent_id>/device/<int:device_id>/assign', methods=['POST'])
+@login_required
+def assign_device(agent_id, device_id):
+    """Atribuir ou desatribuir um dispositivo a um agente."""
+    try:
+        data = request.json
+        active = data.get('active', True)
+        
+        headers = get_api_headers()
+        
+        print(f"DEBUG - assign_device - agent_id: {agent_id}, device_id: {device_id}, active: {active}")
+        print(f"DEBUG - assign_device - API URL: {Config.API_URL}/agents/{agent_id}/device/{device_id}/assign")
+        print(f"DEBUG - assign_device - headers: {headers}")
+        print(f"DEBUG - assign_device - data: {data}")
+        
+        response = requests.post(
+            f"{Config.API_URL}/agents/{agent_id}/device/{device_id}/assign",
+            headers=headers,
+            json={"active": active},
+            timeout=10
+        )
+        
+        # Log the response details
+        print(f"DEBUG - assign_device - response status: {response.status_code}")
+        print(f"DEBUG - assign_device - response body: {response.text}")
+        
+        response.raise_for_status()
+        return jsonify({"success": True})
+    except requests.exceptions.HTTPError as e:
+        print(f"DEBUG - assign_device - HTTP error: {str(e)}")
+        error_detail = "Unknown error"
+        try:
+            error_data = e.response.json()
+            error_detail = error_data.get('detail', str(e))
+        except:
+            error_detail = f"HTTP Error {e.response.status_code}: {e.response.text}"
+        return jsonify({"success": False, "error": error_detail}), 500
+    except Exception as e:
+        print(f"DEBUG - assign_device - unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@agents_bp.route('/<agent_id>/device/<int:device_id>/contacts', methods=['POST'])
+@login_required
+def manage_contacts(agent_id, device_id):
+    """Gerenciar contatos para um dispositivo."""
+    try:
+        data = request.json
+        behavior = data.get('default_behavior')
+        contacts = data.get('contacts', [])
+        
+        response = requests.post(
+            f"{Config.API_URL}/agents/{agent_id}/device/{device_id}/contacts",
+            headers=get_api_headers(),
+            json={"default_behavior": behavior, "contacts": contacts},
+            timeout=10
+        )
+        response.raise_for_status()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@agents_bp.route('/<agent_id>/device/<int:device_id>/contacts/<contact_id>', methods=['PUT'])
+@login_required
+def add_contact(agent_id, device_id, contact_id):
+    """Adicionar um contato à lista."""
+    try:
+        data = request.json
+        list_type = data.get('list_type', 'blacklist')
+        
+        response = requests.put(
+            f"{Config.API_URL}/agents/{agent_id}/device/{device_id}/contacts/{contact_id}",
+            headers=get_api_headers(),
+            json={"list_type": list_type},
+            timeout=10
+        )
+        response.raise_for_status()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@agents_bp.route('/<agent_id>/device/<int:device_id>/contacts/<contact_id>', methods=['DELETE'])
+@login_required
+def remove_contact(agent_id, device_id, contact_id):
+    """Remover um contato da lista."""
+    try:
+        response = requests.delete(
+            f"{Config.API_URL}/agents/{agent_id}/device/{device_id}/contacts/{contact_id}",
+            headers=get_api_headers(),
+            timeout=10
+        )
+        response.raise_for_status()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500

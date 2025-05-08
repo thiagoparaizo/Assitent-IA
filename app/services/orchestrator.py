@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Any, Tuple
 import json
 import time
 import uuid
+
 from pydantic import BaseModel
 
 from app.services.memory import MemoryService, MemoryEntry, MemoryType, ConversationSummary
@@ -16,6 +17,9 @@ import logging
 
 from app.services.agent import Agent, AgentType
 from app.services.rag import RAGService
+
+
+logger = logging.getLogger(__name__)
 
 class ConversationState(BaseModel):
     conversation_id: str
@@ -101,16 +105,19 @@ class AgentOrchestrator:
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
         
-    async def start_conversation(self, tenant_id: str, user_id: str) -> str:
+    async def start_conversation(self, tenant_id: str, user_id: str, agent_id: Optional[str] = None) -> str:
         """Inicia uma nova conversa."""
-        # Buscar agente primário do tenant
-        agents = await self.agent_service.get_agents_by_tenant(tenant_id)
-        general_agents = [a for a in agents if a.type == AgentType.GENERAL]
         
-        if not general_agents:
-            raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
-        
-        primary_agent = general_agents[0]
+        if not agent_id:
+            # Buscar agente primário do tenant
+            agents = await self.agent_service.get_agents_by_tenant(tenant_id)
+            general_agents = [a for a in agents if a.type == AgentType.GENERAL]
+            
+            if not general_agents:
+                raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
+            
+            primary_agent = general_agents[0]
+            agent_id = primary_agent.id
         
         # Criar estado da conversa
         conversation_id = str(uuid.uuid4())
@@ -118,7 +125,7 @@ class AgentOrchestrator:
             conversation_id=conversation_id,
             tenant_id=tenant_id,
             user_id=user_id,
-            current_agent_id=primary_agent.id,
+            current_agent_id=agent_id,
             history=[],
             last_updated=time.time()
         )
@@ -128,37 +135,127 @@ class AgentOrchestrator:
         
         return conversation_id
     
-    async def process_message(self, conversation_id: str, message: str) -> Dict[str, Any]:
+    async def process_message(self, conversation_id: str, message: str, agent_id: str, contact_id: str) -> Dict[str, Any]:
         """Processes a message within a conversation."""
         # Get the system config for this tenant
         state = await self.get_conversation_state(conversation_id)
+        
+        # Variables to track if we created a new conversation
+        new_conversation_created = False
+        new_conversation_id = None
+        reset_reason = None
+        
         if not state:
-            raise ValueError(f"Conversation {conversation_id} not found")
+            logger.info(f"Conversation {conversation_id} not found, creating a new one")
+            print(f"Conversation {conversation_id} not found, creating a new one")
+            
+            # Para criar uma nova conversa, precisamos do tenant_id e do user_id
+            # Tente extrair do formato conversation_id, se possível
+            # Ou recupere de outro lugar, se necessário
+
+            # Por enquanto, use uma abordagem de espaço reservado - você precisará adaptar isso
+            # à sua implementação específica
+            parts = conversation_id.split(":")
+            if len(parts) >= 3:
+                # Assuming format like "conversation:tenant_id:user_id"
+                tenant_id = parts[1]
+                user_id = parts[2]
+            else:
+                # Fallback - might need to be changed for your implementation
+                tenant_id = "default"
+                user_id = "unknown"
+                
+            # Create new conversation
+            new_conversation_id = await self.start_conversation(tenant_id, user_id, agent_id)
+            logger.info(f"Created new conversation {new_conversation_id} as {conversation_id} was not found")
+            
+            # Get the new state
+            state = await self.get_conversation_state(new_conversation_id)
+            new_conversation_created = True
+            reset_reason = "expired"
+            
+            if not state:
+                raise ValueError(f"Failed to create new conversation state")
+            
+            # Add system message
+            state.history.append({
+                "role": "system",
+                "content": "Sua conversa anterior expirou ou não foi encontrada. Iniciamos uma nova conversa para você.",
+                "timestamp": time.time()
+            })
+            
+            # Update metadata
+            state.metadata["previous_conversation_id"] = conversation_id
+            state.metadata["reset_reason"] = "expired_or_not_found"
+        
+        
         
         # Apply tenant-specific config overrides
         tenant_config = self.config.apply_tenant_overrides(state.tenant_id)
         
         # Check conversation length limit
         if len(state.history) >= tenant_config.max_conversation_length:
-            return {
-                "response": "I'm sorry, but this conversation has reached its maximum length. Please start a new conversation.",
-                "conversation_id": conversation_id,
-                "error": "max_length_exceeded"
-            }
+            logger.info(f"Conversation {conversation_id} reached message limit. Creating new conversation.")
+            print(f"Conversation {conversation_id} reached message limit. Creating new conversation.")
+            # Set reason for archiving
+            state.metadata["archive_reason"] = "max_length_exceeded"
+            
+            # Archive the current conversation
+            await self._archive_conversation(state)
+            
+            # Create new conversation
+            new_conversation_id = await self.start_conversation(state.tenant_id, state.user_id, agent_id)
+            
+            # Get the new state
+            state = await self.get_conversation_state(new_conversation_id)
+            new_conversation_created = True
+            reset_reason = "max_length"
+            
+            # Add system message explaining what happened
+            state.history.append({
+                "role": "system",
+                "content": "Sua conversa anterior atingiu o limite de mensagens. Iniciamos uma nova conversa para você.",
+                "timestamp": time.time()
+            })
+            
+            # Update metadata
+            state.metadata["previous_conversation_id"] = conversation_id
+            state.metadata["reset_reason"] = "max_length_exceeded"
         
         # Check conversation timeout
         last_update_time = state.last_updated
         current_time = time.time()
         time_diff_minutes = (current_time - last_update_time) / 60
         
-        if time_diff_minutes > tenant_config.conversation_timeout_minutes:
-            return {
-                "response": "I'm sorry, but this conversation has timed out due to inactivity. Please start a new conversation.",
-                "conversation_id": conversation_id,
-                "error": "conversation_timeout"
-            }
+        if time_diff_minutes > tenant_config.conversation_timeout_minutes: #verificar se o agente for pessoal, não expirar conversa
+            logger.info(f"Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
+            print(f"Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
+            # Set reason for archiving
+            state.metadata["archive_reason"] = "conversation_timeout"
+            
+            # Archive the current conversation
+            await self._archive_conversation(state)
+            
+            # Create new conversation
+            new_conversation_id = await self.start_conversation(state.tenant_id, state.user_id, agent_id)
+            
+            # Get the new state
+            state = await self.get_conversation_state(new_conversation_id)
+            new_conversation_created = True
+            reset_reason = "timeout"
+            
+            # Add system message explaining what happened
+            state.history.append({
+                "role": "system",
+                "content": "Sua conversa anterior expirou devido à inatividade. Iniciamos uma nova conversa para você.",
+                "timestamp": time.time()
+            })
+            
+            # Update metadata
+            state.metadata["previous_conversation_id"] = conversation_id
+            state.metadata["reset_reason"] = "conversation_timeout"
         
-        # Add message to history
+        # Add the user message to history
         state.history.append({
             "role": "user",
             "content": message,
@@ -203,32 +300,40 @@ class AgentOrchestrator:
                 # Também podemos adicionar um log para acompanhamento
                 logging.info(f"Detectada necessidade de escalação automática na conversa {conversation_id}")
         
-        # Rest of the processing logic remains similar...
-        # Evaluate whether we should transfer to another agent
-        agent_scores = await self.evaluate_agent_transfer(state, message)
-        
-        # Get the best agent (might be the current one)
-        best_agent_score = agent_scores[0]
-        transfer_threshold = state.metadata.get(
-            "transfer_threshold", 
-            tenant_config.agent_transfer.default_threshold
-        )
+       
         
         # Determine if we should transfer
         current_agent_id = state.current_agent_id
         transfer_to_id = None
         transfer_reason = None
         
-        # Check if best agent is different from current and meets threshold
-        if best_agent_score.agent_id != current_agent_id and best_agent_score.score > transfer_threshold:
-            transfer_to_id = best_agent_score.agent_id
-            transfer_reason = best_agent_score.reason
+        if current_agent.escalation_enabled:
+            logger.info(f"Current agent {current_agent_id} is escalation enabled.")
+            print(f"Current agent {current_agent_id} is escalation enabled.")
+            # Rest of the processing logic remains similar...
+            # Evaluate whether we should transfer to another agent
+            agent_scores = await self.evaluate_agent_transfer(state, message)
             
-            # Update transfer count
-            state.metadata["transfer_count"] = state.metadata.get("transfer_count", 0) + 1
+            # Get the best agent (might be the current one)
+            best_agent_score = agent_scores[0]
+            transfer_threshold = state.metadata.get(
+                "transfer_threshold", 
+                tenant_config.agent_transfer.default_threshold
+            )
+            
+            # Check if best agent is different from current and meets threshold
+            if best_agent_score.agent_id != current_agent_id and best_agent_score.score > transfer_threshold:
+                transfer_to_id = best_agent_score.agent_id
+                transfer_reason = best_agent_score.reason
+                
+                # Update transfer count
+                state.metadata["transfer_count"] = state.metadata.get("transfer_count", 0) + 1
+        else:
+            logger.info(f"Current agent {current_agent_id} is not escalation enabled.")
+            print(f"Current agent {current_agent_id} is not escalation enabled.")
         
         # Get current agent (either the same or after transfer)
-        if transfer_to_id:
+        if transfer_to_id is not None:
             # Log the transfer decision
             logging.info(f"Transferring conversation {conversation_id} from agent {current_agent_id} to {transfer_to_id}: {transfer_reason}")
             
@@ -302,7 +407,7 @@ class AgentOrchestrator:
             state.metadata["last_summary_at"] = time.time()
         
         # Prepare prompt with history, context, and memories
-        prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context)
+        prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id)
         
         # Get response from LLM
         response = await self.llm.generate_response(prompt)
@@ -347,18 +452,25 @@ class AgentOrchestrator:
         await self.save_conversation_state(state)
         
         # Return result
-        return {
+        result = {
             "response": processed_response["response"],
             "conversation_id": conversation_id,
             "current_agent": current_agent.name,
             "actions": processed_response.get("actions", []),
-            "transfer_info": {
+            "new_conversation_id": new_conversation_id if new_conversation_created else None,
+            "conversation_reset": new_conversation_created,
+            "reset_reason": reset_reason
+        }
+        
+        if transfer_to_id:
+            result["transfer_info"] = {
                 "transferred": transfer_to_id is not None,
                 "from_agent": None if not transfer_to_id else current_agent_id,
                 "to_agent": transfer_to_id,
                 "reason": transfer_reason
-            } if transfer_to_id else None
-        }
+            }
+        
+        return result
     
     async def _process_agent_response(self, response: str, state: ConversationState, current_agent: Agent, config: SystemConfig) -> Dict[str, Any]:
         """
@@ -376,14 +488,17 @@ class AgentOrchestrator:
         """
         
         # Padrão para capturar comandos
-        comando_pattern = r'<comando>(.*?)</comando>'
-        # Encontrar todos os comandos
-        comandos = re.findall(comando_pattern, response)
-        # Remover os comandos da resposta visível
-        resposta_limpa = re.sub(comando_pattern, '', response)
-    
+        comando_pattern = r'<comando>.*?</comando>'
+
+        # Encontrar todos os comandos (caso queira os comandos para uso posterior, usar o grupo)
+        comandos = re.findall(r'<comando>(.*?)</comando>', response, flags=re.DOTALL)
+
+        # Remover os comandos da resposta visível (inclusive as tags)
+        resposta_limpa = re.sub(comando_pattern, '', response, flags=re.DOTALL).strip()
+        resposta_limpa = '\n'.join(line for line in resposta_limpa.splitlines() if line.strip())
+
         result = {
-            "response": response,
+            "response": resposta_limpa,
             "next_agent_id": current_agent.id,
             "actions": []
         }
@@ -466,35 +581,55 @@ class AgentOrchestrator:
                 
                 # Look for specialists
                 try:
-                    agents = await self.agent_service.get_agents_by_tenant(state.tenant_id)
-                    specialists = [a for a in agents if a.type == AgentType.SPECIALIST and specialization.lower() in a.name.lower()]
+                    # Buscar agentes relacionados para escalação
+                    related_agents = await self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
+                        tenant_id=state.tenant_id,
+                        current_agent_id=current_agent.id
+                    )
                     
-                    if specialists:
-                        result["next_agent_id"] = specialists[0].id
-                        result["actions"].append({
-                            "type": "specialist_consultation",
-                            "specialist_id": specialists[0].id,
-                            "specialization": specialization,
-                            "context": response
-                        })
+                    # Procurar um especialista apropriado
+                    if related_agents:
+                        # Escolher o agente com base na especialização mencionada
+                        # Poderia implementar um algoritmo de correspondência melhor
+                        best_match = None
+                        for agent in related_agents:
+                            if (specialization.lower() in agent.name.lower() or
+                                specialization.lower() in agent.description.lower()):
+                                best_match = agent
+                                break
                         
-                        # Clean response
-                        result["response"] = result["response"].replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
+                        # Se não encontrou por nome, usar o primeiro disponível
+                        if not best_match and related_agents:
+                            best_match = related_agents[0]
                         
-                        logging.info(f"Specialist consultation requested: {specialization}, found: {specialists[0].name}")
-                    else:
-                        logging.warning(f"Specialist consultation requested but no matching specialist found: {specialization}")
+                        if best_match:
+                            result["next_agent_id"] = best_match.id
+                            result["actions"].append({
+                                "type": "specialist_consultation",
+                                "specialist_id": best_match.id,
+                                "specialization": specialization,
+                                "context": response
+                            })
+                            
+                            # Limpar resposta
+                            result["response"] = result["response"].replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
+                            
+                            logger.info(f"Escalação para especialista solicitada: {specialization}, encaminhado para: {best_match.name}")
+                            return result
                 except Exception as e:
                     logging.error(f"Error finding specialist: {e}")
         
         return result
     
-    def _prepare_prompt(self, state: ConversationState, agent: Agent, rag_context: List[Any], memory_context: List[Dict[str, Any]] = None) -> List[Dict[str, str]]:
+    def _prepare_prompt(self, state: ConversationState, agent: Agent, rag_context: List[Any], memory_context: List[Dict[str, Any]] = None, contact_id: str = None) -> List[Dict[str, str]]:
         """
         Prepares the prompt for the LLM, including history, RAG context, and memories.
         """
         # Start with system prompt from agent configuration
         system_prompt = agent.generate_system_prompt()
+        
+        if contact_id:
+            system_prompt += f"\n\n## Contact ID: {contact_id}\n"
         
         # Add RAG context if available
         if rag_context:
@@ -685,18 +820,20 @@ class AgentOrchestrator:
         return await self.memory_service.get_user_profile(tenant_id, user_id)
 
     # Add method to start conversation with memory loading
-    async def start_conversation(self, tenant_id: str, user_id: str) -> str:
+    async def start_conversation(self, tenant_id: str, user_id: str, agent_id: Optional[str] = None) -> str:
         """
         Starts a new conversation with memory context.
         """
-        # Original implementation
-        agents = self.agent_service.get_agents_by_tenant(tenant_id)
-        general_agents = [a for a in agents if a.type == AgentType.GENERAL]
-        
-        if not general_agents:
-            raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
-        
-        primary_agent = general_agents[0]
+        if not agent_id:
+            # Original implementation
+            agents = self.agent_service.get_agents_by_tenant(tenant_id)
+            general_agents = [a for a in agents if a.type == AgentType.GENERAL]
+            
+            if not general_agents:
+                raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
+            
+            primary_agent = general_agents[0]
+            agent_id = primary_agent.id
         
         # Create conversation state
         conversation_id = str(uuid.uuid4())
@@ -704,7 +841,7 @@ class AgentOrchestrator:
             conversation_id=conversation_id,
             tenant_id=tenant_id,
             user_id=user_id,
-            current_agent_id=primary_agent.id,
+            current_agent_id=agent_id,
             history=[],
             last_updated=time.time()
         )
@@ -766,7 +903,7 @@ class AgentOrchestrator:
         # Get transfer config
         transfer_config = self.config.agent_transfer
         
-        # Check if transfers are enabled
+        # Check if transfers are enabled #TODO inlcuir verificação de transfer no agent atual
         if not transfer_config.enabled:
             # Return only current agent with max score
             current_agent = self.agent_service.get_agent(state.current_agent_id)
@@ -816,7 +953,8 @@ class AgentOrchestrator:
         recent_messages = state.history[-5:] if len(state.history) >= 5 else state.history[:]
         
         # Get all agents for this tenant
-        all_agents = self.agent_service.get_agents_by_tenant(state.tenant_id)
+        all_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(state.tenant_id, state.current_agent_id) # TODO trocar por get_agents_by_tenant_and_relationship_with_current_agent
+        
         
         # Initialize scores
         agent_scores = []
@@ -898,23 +1036,104 @@ class AgentOrchestrator:
         all_text = current_message + " " + " ".join([msg["content"] for msg in recent_messages 
                                                 if msg["role"] in ["user", "assistant"]])
         
-        # Extract categories - we'll use a simpler approach first, can be enhanced with ML
+        # Inicializar um dicionário maior de categorias
         categories = {
+            # Categorias existentes
             "appointment": 0.0,
             "product_info": 0.0,
             "technical_issue": 0.0,
             "billing": 0.0,
             "complaint": 0.0,
-            "general": 0.0
+            "general": 0.0,
+            
+            # Novas categorias
+            "healthcare": 0.0,
+            "retail": 0.0,
+            "sports": 0.0,
+            "crafts": 0.0,
+            "professional": 0.0,
+            "finance": 0.0,
+            "tourism": 0.0,
+            "education": 0.0,
+            "real_estate": 0.0,
+            "automotive": 0.0,
+            "logistics": 0.0,
+            "events": 0.0,
+            "pets": 0.0,
+            "wellness": 0.0,
+            "technology": 0.0,
+            "legal": 0.0,
+            "escalation": 0.0  # Para detectar necessidade de escalação
         }
         
-        # Simple keyword matching (can be replaced with embedding similarity later)
+        # Palavras-chave expandidas por categoria
         keywords = {
-            "appointment": ["appointment", "schedule", "book", "reservation", "meeting", "reschedule", "cancel"],
-            "product_info": ["product", "information", "details", "specs", "how does", "features"],
-            "technical_issue": ["problem", "issue", "error", "not working", "broken", "help", "fix"],
-            "billing": ["bill", "payment", "charge", "refund", "price", "cost", "subscription"],
-            "complaint": ["unhappy", "disappointed", "complaint", "manager", "supervisor", "unsatisfied", "poor"],
+            "appointment": ["appointment", "schedule", "book", "reservation", "meeting", "reschedule", "cancel", 
+                            "agendar", "marcar", "horário", "consulta", "reservar", "cancelar"],
+                            
+            "product_info": ["product", "information", "details", "specs", "how does", "features", 
+                            "produto", "informação", "detalhes", "especificações", "funcionalidades"],
+                            
+            "technical_issue": ["problem", "issue", "error", "not working", "broken", "help", "fix", 
+                                "problema", "erro", "não funciona", "quebrado", "ajuda", "consertar"],
+                                
+            "billing": ["bill", "payment", "charge", "refund", "price", "cost", "subscription",
+                        "conta", "pagamento", "cobrança", "reembolso", "preço", "custo", "assinatura"],
+                        
+            "complaint": ["unhappy", "disappointed", "complaint", "manager", "supervisor", "unsatisfied", "poor",
+                        "insatisfeito", "decepcionado", "reclamação", "gerente", "supervisor", "ruim"],
+                        
+            # Novas categorias de saúde
+            "healthcare": ["doctor", "medical", "health", "clinic", "hospital", "patient", "treatment",
+                        "médico", "saúde", "clínica", "hospital", "paciente", "tratamento", "receita"],
+                        
+            "retail": ["store", "shop", "purchase", "buy", "shipping", "item", "product", "stock",
+                    "loja", "compra", "comprar", "entrega", "item", "produto", "estoque"],
+                    
+            "sports": ["sport", "gym", "fitness", "training", "coach", "workout", "exercise",
+                    "esporte", "academia", "fitness", "treino", "treinador", "exercício"],
+                    
+            "crafts": ["craft", "handmade", "custom", "art", "creative", "design", "personalized",
+                    "artesanato", "feito à mão", "personalizado", "arte", "criativo", "design"],
+                    
+            "professional": ["service", "professional", "consulting", "contract", "project", "business",
+                            "serviço", "profissional", "consultoria", "contrato", "projeto", "negócio"],
+                            
+            "finance": ["bank", "financial", "investment", "account", "money", "loan", "credit",
+                        "banco", "financeiro", "investimento", "conta", "dinheiro", "empréstimo", "crédito"],
+                        
+            "tourism": ["travel", "trip", "tourist", "vacation", "holiday", "tour", "booking",
+                        "viagem", "turista", "férias", "feriado", "passeio", "reserva"],
+                        
+            "education": ["school", "course", "class", "student", "teacher", "learn", "study",
+                        "escola", "curso", "aula", "aluno", "professor", "aprender", "estudar"],
+                        
+            "real_estate": ["property", "house", "apartment", "rent", "buy", "real estate", "lease",
+                            "imóvel", "casa", "apartamento", "alugar", "comprar", "imobiliária", "locação"],
+                            
+            "automotive": ["car", "vehicle", "auto", "repair", "maintenance", "garage", "mechanic",
+                        "carro", "veículo", "automóvel", "reparo", "manutenção", "oficina", "mecânico"],
+                        
+            "logistics": ["delivery", "shipping", "package", "tracking", "courier", "shipment", "transport",
+                        "entrega", "envio", "pacote", "rastreamento", "correio", "transporte"],
+                        
+            "events": ["event", "party", "concert", "show", "ticket", "booking", "reservation",
+                    "evento", "festa", "concerto", "show", "ingresso", "reserva"],
+                    
+            "pets": ["pet", "animal", "dog", "cat", "veterinary", "grooming", "care",
+                    "pet", "animal", "cachorro", "gato", "veterinário", "banho", "cuidado"],
+                    
+            "wellness": ["spa", "massage", "beauty", "treatment", "relaxation", "therapy", "well-being",
+                        "spa", "massagem", "beleza", "tratamento", "relaxamento", "terapia", "bem-estar"],
+                        
+            "technology": ["computer", "software", "hardware", "tech", "IT", "system", "digital",
+                        "computador", "software", "hardware", "tecnologia", "TI", "sistema", "digital"],
+                        
+            "legal": ["lawyer", "legal", "law", "attorney", "rights", "contract", "lawsuit",
+                    "advogado", "jurídico", "lei", "direito", "contrato", "processo"],
+                    
+            "escalation": ["speak to manager", "talk to human", "need supervisor", "escalate", "real person",
+                        "falar com gerente", "atendente humano", "preciso supervisor", "escalar", "pessoa real"]
         }
         
         # Calculate raw scores based on keyword presence
@@ -936,7 +1155,7 @@ class AgentOrchestrator:
         return categories
 
     async def _calculate_agent_score(self, agent, message: str, conversation_focus: Dict[str, float], 
-                                    recent_messages: List[Dict[str, Any]]) -> Tuple[float, str]:
+                                recent_messages: List[Dict[str, Any]]) -> Tuple[float, str]:
         """
         Calculates a score for how well an agent can handle the current conversation.
         
@@ -946,7 +1165,19 @@ class AgentOrchestrator:
         score = 0.0
         reasons = []
         
-        # 1. Check if agent type matches conversation focus
+        # 1. Check if agent has explicit specialties that match conversation focus
+        agent_explicit_specialties = agent.get_specialties_list() if hasattr(agent, 'get_specialties_list') else []
+        if agent_explicit_specialties:
+            explicit_match_score = 0.0
+            for specialty in agent_explicit_specialties:
+                if specialty.lower() in conversation_focus:
+                    explicit_match_score += conversation_focus[specialty.lower()] * 0.5
+                    
+            if explicit_match_score > 0:
+                score += explicit_match_score
+                reasons.append(f"Especialidade explícita: {explicit_match_score:.2f}")
+        
+        # 2. Check if agent type matches conversation focus
         agent_specialties = self._get_agent_specialties(agent)
         
         focus_score = 0.0
@@ -956,32 +1187,43 @@ class AgentOrchestrator:
         
         score += focus_score
         if focus_score > 0.3:
-            reasons.append(f"Topic relevance: {focus_score:.2f}")
+            reasons.append(f"Relevância do tópico: {focus_score:.2f}")
         
-        # 2. Check if the agent has the right RAG categories for this conversation
+        # 3. Check if the agent has the right RAG categories for this conversation
         if agent.rag_categories and message:
             rag_score = await self._calculate_rag_relevance(agent, message)
             score += rag_score
             if rag_score > 0.2:
-                reasons.append(f"Knowledge base: {rag_score:.2f}")
+                reasons.append(f"Base de conhecimento: {rag_score:.2f}")
         
-        # 3. Check agent's MCP capabilities if needed in this conversation
+        # 4. Check agent's MCP capabilities if needed in this conversation
         if "API_CALL" in message or "SYSTEM" in message:
             mcp_score = 0.3 if agent.mcp_enabled else 0.0
             score += mcp_score
             if mcp_score > 0:
-                reasons.append("MCP capability needed")
+                reasons.append("Capacidade MCP necessária")
         
-        # 4. Check for human escalation needs
-        escalation_indicators = ["speak to human", "real person", "manager", "supervisor", "unhappy", "complaint"]
+        # 5. Check for human escalation needs
+        escalation_indicators = [
+            "speak to human", "real person", "manager", "supervisor", "unhappy", "complaint",
+            "falar com humano", "pessoa real", "gerente", "supervisor", "insatisfeito", "reclamação",
+            "atendente", "responsável"
+        ]
+        
         if any(indicator in message.lower() for indicator in escalation_indicators):
             human_score = 0.5 if agent.type == AgentType.HUMAN or agent.human_escalation_enabled else 0.0
             score += human_score
             if human_score > 0:
-                reasons.append("Human escalation likely needed")
+                reasons.append("Provável necessidade de escalação humana")
+        
+        # 6. Check for agent's escalation capability if enabled
+        if hasattr(agent, 'escalation_enabled') and agent.escalation_enabled and 'escalation' in conversation_focus:
+            escalation_score = 0.4
+            score += escalation_score
+            reasons.append("Capacidade de escalação disponível")
         
         # Generate final reason text
-        reason = ", ".join(reasons) if reasons else "No strong match"
+        reason = ", ".join(reasons) if reasons else "Sem forte correspondência"
         
         return score, reason
 
@@ -992,17 +1234,98 @@ class AgentOrchestrator:
         Returns:
             Dictionary mapping categories to specialty scores
         """
+        # Base specialties (mantendo as originais e adicionando novas)
         specialties = {
+            # Categorias originais
             "appointment": 0.0,
             "product_info": 0.0,
             "technical_issue": 0.0,
             "billing": 0.0,
             "complaint": 0.0,
-            "general": 0.0
+            "general": 0.0,
+            
+            # Novas categorias de saúde
+            "healthcare": 0.0,
+            "medical_exams": 0.0,
+            "health_insurance": 0.0,
+            
+            # Categorias de varejo e e-commerce
+            "retail": 0.0,
+            "order_tracking": 0.0,
+            "returns": 0.0,
+            "after_sales": 0.0,
+            
+            # Categorias de esportes e lazer
+            "sports": 0.0,
+            "equipment_rental": 0.0,
+            "class_booking": 0.0,
+            
+            # Pequenos negócios e artesanato
+            "small_business": 0.0,
+            "crafts": 0.0,
+            "custom_orders": 0.0,
+            
+            # Serviços profissionais
+            "professional_services": 0.0,
+            "consulting": 0.0,
+            "quotes": 0.0,
+            
+            # Finanças e contabilidade
+            "finance": 0.0,
+            "accounting": 0.0,
+            "invoicing": 0.0,
+            "tax": 0.0,
+            
+            # Turismo e hotelaria
+            "tourism": 0.0,
+            "hotel": 0.0,
+            "reservations": 0.0,
+            "travel": 0.0,
+            
+            # Educação e cursos
+            "education": 0.0,
+            "courses": 0.0,
+            "student_support": 0.0,
+            
+            # Imobiliário
+            "real_estate": 0.0,
+            "property": 0.0,
+            "rental": 0.0,
+            
+            # Automotivo
+            "automotive": 0.0,
+            "vehicles": 0.0,
+            "maintenance": 0.0,
+            
+            # Logística e transporte
+            "logistics": 0.0,
+            "shipping": 0.0,
+            "delivery": 0.0,
+            
+            # Eventos e entretenimento
+            "events": 0.0,
+            "entertainment": 0.0,
+            "tickets": 0.0,
+            
+            # Pet shop
+            "pets": 0.0,
+            "veterinary": 0.0,
+            
+            # Bem-estar e estética
+            "wellness": 0.0,
+            "beauty": 0.0,
+            
+            # Tecnologia
+            "technology": 0.0,
+            "it_support": 0.0,
+            
+            # Jurídico
+            "legal": 0.0,
+            "law": 0.0
         }
         
         # Default score based on agent type
-        if agent.type == AgentType.GENERAL:
+        if agent.type == AgentType.GENERAL: 
             specialties["general"] = 0.8
         elif agent.type == AgentType.HUMAN:
             specialties["complaint"] = 0.9
@@ -1010,14 +1333,92 @@ class AgentOrchestrator:
         # Extract specialties from name and description
         agent_text = f"{agent.name} {agent.description}".lower()
         
+        # Dicionário expandido de palavras-chave por especialidade
         specialty_keywords = {
-            "appointment": ["appointment", "schedule", "booking", "calendar"],
-            "product_info": ["product", "catalog", "information", "details", "specs"],
-            "technical_issue": ["technical", "support", "help", "troubleshoot", "issue"],
-            "billing": ["billing", "payment", "invoice", "financial", "refund"],
-            "complaint": ["complaint", "escalation", "resolution", "satisfaction"],
+            # Categorias originais
+            "appointment": ["appointment", "schedule", "booking", "calendar", "agendamento", "agendar", "marcar", "horário", "reservar"],
+            "product_info": ["product", "catalog", "information", "details", "specs", "produto", "catálogo", "informação", "detalhes", "especificações"],
+            "technical_issue": ["technical", "support", "help", "troubleshoot", "issue", "técnico", "suporte", "ajuda", "problema", "defeito"],
+            "billing": ["billing", "payment", "invoice", "financial", "refund", "pagamento", "fatura", "cobrança", "financeiro", "reembolso"],
+            "complaint": ["complaint", "escalation", "resolution", "satisfaction", "reclamação", "problema", "insatisfação", "resolução"],
+            
+            # Saúde e Bem-Estar
+            "healthcare": ["saúde", "médico", "clínica", "hospital", "tratamento", "consulta", "health", "doctor", "clinic", "treatment"],
+            "medical_exams": ["exame", "laboratório", "resultado", "médico", "test", "laboratory", "exam", "results"],
+            "health_insurance": ["plano de saúde", "convênio", "seguro saúde", "cobertura", "insurance", "coverage", "health plan"],
+            
+            # Varejo e E-commerce
+            "retail": ["loja", "compra", "produto", "estoque", "promoção", "store", "purchase", "retail", "sale"],
+            "order_tracking": ["pedido", "rastreamento", "entrega", "status", "order", "tracking", "delivery", "status"],
+            "returns": ["troca", "devolução", "reembolso", "garantia", "return", "exchange", "refund", "warranty"],
+            
+            # Esportes e Lazer
+            "sports": ["esporte", "academia", "treino", "atividade", "sports", "gym", "training", "activity"],
+            "equipment_rental": ["aluguel", "equipamento", "material", "empréstimo", "rental", "equipment", "gear", "loan"],
+            "class_booking": ["aula", "turma", "professor", "instrutor", "class", "teacher", "instructor", "course"],
+            
+            # Pequenos Negócios e Artesanato
+            "small_business": ["negócio", "empresa", "empreendedor", "business", "company", "entrepreneur"],
+            "crafts": ["artesanato", "feito à mão", "artesanal", "craft", "handmade", "artisanal"],
+            "custom_orders": ["personalizado", "sob medida", "encomenda", "custom", "personalized", "bespoke", "order"],
+            
+            # Serviços Profissionais
+            "professional_services": ["serviço", "profissional", "contrato", "service", "professional", "contract"],
+            "consulting": ["consultoria", "assessoria", "especialista", "consulting", "advisory", "specialist"],
+            "quotes": ["orçamento", "proposta", "cotação", "quote", "proposal", "estimate"],
+            
+            # Finanças e Contabilidade
+            "finance": ["financeiro", "banco", "investimento", "finance", "bank", "investment"],
+            "accounting": ["contabilidade", "contador", "fiscal", "accounting", "accountant", "tax"],
+            "invoicing": ["nota fiscal", "fatura", "boleto", "invoice", "bill", "receipt"],
+            
+            # Turismo e Hotelaria
+            "tourism": ["turismo", "viagem", "passeio", "tourism", "travel", "tour"],
+            "hotel": ["hotel", "pousada", "hospedagem", "acomodação", "lodging", "accommodation"],
+            "reservations": ["reserva", "booking", "check-in", "check-out"],
+            
+            # Educação e Cursos
+            "education": ["educação", "escola", "faculdade", "universidade", "education", "school", "college", "university"],
+            "courses": ["curso", "treinamento", "aula", "workshop", "course", "training", "class", "workshop"],
+            "student_support": ["aluno", "estudante", "matrícula", "student", "enrollment", "academic"],
+            
+            # Imobiliário
+            "real_estate": ["imobiliária", "imóvel", "propriedade", "real estate", "property"],
+            "property": ["casa", "apartamento", "comercial", "terreno", "house", "apartment", "commercial", "land"],
+            "rental": ["aluguel", "locação", "inquilino", "rental", "lease", "tenant"],
+            
+            # Automotivo
+            "automotive": ["automóvel", "carro", "veículo", "automotive", "car", "vehicle"],
+            "vehicles": ["modelo", "marca", "ano", "quilometragem", "model", "brand", "year", "mileage"],
+            "maintenance": ["oficina", "mecânico", "revisão", "conserto", "garage", "mechanic", "service", "repair"],
+            
+            # Logística e Transporte
+            "logistics": ["logística", "transporte", "envio", "logistics", "transport", "shipping"],
+            "shipping": ["frete", "entrega", "remessa", "transportadora", "shipping", "delivery", "courier"],
+            
+            # Eventos e Entretenimento
+            "events": ["evento", "festa", "conferência", "show", "event", "party", "conference", "show"],
+            "entertainment": ["entretenimento", "lazer", "diversão", "entertainment", "leisure", "fun"],
+            "tickets": ["ingresso", "bilhete", "reserva", "ticket", "reservation"],
+            
+            # Pet shop
+            "pets": ["pet", "animal", "cachorro", "gato", "dog", "cat", "animal"],
+            "veterinary": ["veterinário", "clínica", "vacina", "pet", "veterinary", "clinic", "vaccine"],
+            
+            # Bem-estar e Estética
+            "wellness": ["bem-estar", "saúde", "spa", "massagem", "wellness", "health", "spa", "massage"],
+            "beauty": ["beleza", "estética", "tratamento", "beauty", "esthetic", "treatment"],
+            
+            # Tecnologia
+            "technology": ["tecnologia", "computador", "sistema", "software", "technology", "computer", "system", "software"],
+            "it_support": ["suporte", "técnico", "manutenção", "support", "technical", "maintenance"],
+            
+            # Jurídico
+            "legal": ["jurídico", "legal", "direito", "legal", "law", "rights"],
+            "law": ["advogado", "processo", "contrato", "lawyer", "lawsuit", "contract"]
         }
         
+        # Calcular pontuação para cada especialidade
         for category, keywords in specialty_keywords.items():
             for keyword in keywords:
                 if keyword in agent_text:
@@ -1191,4 +1592,86 @@ class AgentOrchestrator:
         conversations.sort(key=lambda x: x.get("last_updated", 0), reverse=True)
         
         return conversations[:limit]
+    
+    async def _archive_conversation(self, state: ConversationState) -> None:
+        """
+        Arquiva uma conversa para armazenamento persistente no PostgreSQL.
+        
+        Args:
+            state: O estado da conversa a ser arquivado
+        """
+        try:
+            from app.db.models.archived_conversation import ArchivedConversation
+            from app.db.session import SessionLocal
+            
+            # Criar uma sessão do banco de dados
+            db = SessionLocal()
+            
+            try:
+                # Criar o objeto do modelo
+                archived_conversation = ArchivedConversation(
+                    conversation_id=state.conversation_id,
+                    tenant_id=state.tenant_id,
+                    user_id=state.user_id,
+                    history=state.history,  # PostgreSQL JSONB pode armazenar diretamente
+                    meta_data=state.metadata,  # PostgreSQL JSONB pode armazenar diretamente
+                    message_count=len(state.history),
+                    archive_reason=state.metadata.get("archive_reason", "unknown"),
+                    archived_at=datetime.utcnow()
+                )
+                
+                # Adicionar e salvar no banco de dados
+                db.add(archived_conversation)
+                db.commit()
+                
+                logger.info(f"Conversa {state.conversation_id} arquivada com sucesso no banco de dados")
+                print(f"Conversa {state.conversation_id} arquivada com sucesso no banco de dados")
+            finally:
+                db.close()
+                
+        except Exception as e:
+            print(f"Erro ao arquivar conversa {state.conversation_id}: {e}")
+            logger.error(f"Falha ao arquivar conversa {state.conversation_id}: {e}")
+            logger.exception(e)  # Registra o stack trace completo
+            # Continuar com o fluxo mesmo se o arquivamento falhar
+            
+    async def map_user_to_conversation(self, tenant_id: str, user_id: str, conversation_id: str) -> None:
+        """
+        Mapeia um usuário para sua conversa atual com um TTL mais longo que a própria conversa.
+        
+        Args:
+            tenant_id: O ID do tenant
+            user_id: O ID do usuário (normalmente um JID do WhatsApp)
+            conversation_id: O ID da conversa
+        """
+        if not self.redis:
+            return
+            
+        mapping_key = f"user_conversation_map:{tenant_id}:{user_id}"
+        await self.redis.set(mapping_key, conversation_id)
+        # Usar um TTL muito mais longo para este mapeamento (7 dias)
+        await self.redis.expire(mapping_key, 60 * 60 * 24 * 7)
+        
+    async def get_user_conversation_id(self, tenant_id: str, user_id: str) -> Optional[str]:
+        """
+        Obtém o ID da conversa atual para um usuário.
+        
+        Args:
+            tenant_id: O ID do tenant
+            user_id: O ID do usuário
+            
+        Returns:
+            O ID da conversa ou None se não encontrado
+        """
+        if not self.redis:
+            return None
+            
+        mapping_key = f"user_conversation_map:{tenant_id}:{user_id}" 
+        data = await self.redis.get(mapping_key)
+        
+        if data:
+            if isinstance(data, bytes):
+                return data.decode('utf-8')
+            return data
+        return None
 

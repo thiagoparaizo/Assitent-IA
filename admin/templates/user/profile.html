@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+
+{% block title %}Perfil do Usuário - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item active">Perfil do Usuário</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Informações Pessoais</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Nome:</strong> {{ current_user.full_name }}</p>
+                <p><strong>E-mail:</strong> {{ current_user.email }}</p>
+                <p><strong>Tenant ID:</strong> {{ current_user.tenant_id }}</p>
+                <p><strong>Tipo de Usuário:</strong> 
+                    {% if current_user.is_superuser %}
+                    <span class="badge bg-primary">Administrador</span>
+                    {% else %}
+                    <span class="badge bg-secondary">Usuário Padrão</span>
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Alterar Senha</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('user.profile') }}">
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Senha Atual</label>
+                        <input type="password" class="form-control" id="current_password" name="current_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Nova Senha</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirmar Nova Senha</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Alterar Senha</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

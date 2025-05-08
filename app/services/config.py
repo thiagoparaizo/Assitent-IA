@@ -82,7 +82,7 @@ class SystemConfig(BaseModel):
         if os.getenv("MEMORY_ENABLED"):
             self.memory.enabled = os.getenv("MEMORY_ENABLED").lower() == "true"
         if os.getenv("VECTOR_DB_URL"):
-            self.memory.vector_db_url = os.getenv("VECTOR_DB_URL")
+            self.memory.vector_db_url = os.getenv("VECTOR_DB_URL") # verificar
             
         # RAG
         if os.getenv("RAG_ENABLED"):

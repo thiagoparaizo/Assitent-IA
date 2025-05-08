@@ -4,7 +4,7 @@ import uuid
 import json
 from enum import Enum
 from datetime import datetime
-from fastapi import HTTPException, logger
+from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import delete, select
@@ -14,12 +14,17 @@ from app.db.models.agent import Agent as AgentModel
 from app.db.models.contact_control import ContactControl, ContactListType
 from app.db.models.device_agent import DeviceAgent
 from app.schemas.agent import Agent, AgentPrompt, AgentType
+from app.services.whatsapp import WhatsAppService
+import logging
+
+logger = logging.getLogger(__name__)
 
 class AgentType(str, Enum):
     GENERAL = "general"           # Assistente principal para clientes
     SPECIALIST = "specialist"     # Agente especialista interno
     INTEGRATION = "integration"   # Agente para integrações externas (MCP)
     HUMAN = "human"               # Representação de agente humano
+    PERSONAL = "personal"         # Agente pessoal que se passa por um humano
 
 class AgentPrompt(BaseModel):
     role: str
@@ -165,6 +170,55 @@ class AgentService:
         # Converter para schema
         return [self._db_to_schema(db_agent) for db_agent in db_agents]
     
+    # Obter agentes com relação com o agente atual # TODO validar
+    # def get_agents_by_tenant_and_relationship_with_current_agent(self, tenant_id: str, current_agent_id: str) -> List[Agent]:
+    #     """Obtém todos os agentes relacionados ao agente atual para escalação."""
+    #     # Buscar o agente atual
+    #     current_agent = self.get_agent(current_agent_id)
+    #     if not current_agent or not current_agent.escalation_enabled or not current_agent.list_escalation_agent_ids:
+    #         return []
+        
+    #     # Obter a lista de IDs de agentes para escalação
+    #     escalation_agent_ids = current_agent.list_escalation_agent_ids
+    #     if isinstance(escalation_agent_ids, str):
+    #         # Se for JSON string
+    #         escalation_agent_ids = json.loads(escalation_agent_ids)
+        
+    #     # Buscar os agentes relacionados
+    #     related_agents = []
+    #     for agent_id in escalation_agent_ids:
+    #         agent = self.get_agent(agent_id)
+    #         if agent and agent.tenant_id == int(tenant_id) and agent.active:
+    #             related_agents.append(agent)
+        
+    #     return related_agents
+    def get_agents_by_tenant_and_relationship_with_current_agent(self, tenant_id: str, current_agent_id: str) -> List[Agent]:
+        """Obtém todos os agentes relacionados ao agente atual para escalação."""
+        # Buscar o agente atual
+        current_agent = self.get_agent(current_agent_id)
+        if not current_agent or not current_agent.escalation_enabled or not current_agent.list_escalation_agent_ids:
+            return []
+        
+        # Obter a lista de IDs de agentes para escalação
+        escalation_agent_ids = current_agent.list_escalation_agent_ids
+        if isinstance(escalation_agent_ids, str):
+            # Se for JSON string
+            escalation_agent_ids = json.loads(escalation_agent_ids)
+        
+        # Buscar todos os agentes relacionados em uma única consulta
+        query = select(AgentModel).where(
+            AgentModel.tenant_id == int(tenant_id),
+            AgentModel.id.in_(escalation_agent_ids),
+            AgentModel.active == True
+        )
+        
+        result = self.db.execute(query)
+        db_agents = result.scalars().all()
+        
+        # Converter para schema
+        return [self._db_to_schema(db_agent) for db_agent in db_agents]
+    
+    
     def update_agent(self, agent_id: str, agent_data: Dict[str, Any]) -> Optional[Agent]:
         """Atualiza um agente existente."""
         # Buscar agente existente
@@ -245,11 +299,15 @@ class AgentService:
         prompt = AgentPrompt(**prompt_dict)
         
         # Converter rag_categories e mcp_functions de JSON para listas/dicts
-        rag_categories = json.loads(db_agent.rag_categories) if db_agent.rag_categories else None
-        mcp_functions = json.loads(db_agent.mcp_functions) if db_agent.mcp_functions else None
+        rag_categories = json.loads(db_agent.rag_categories) if db_agent.rag_categories else []
+        mcp_functions = json.loads(db_agent.mcp_functions) if db_agent.mcp_functions else []
         
         # Certifique-se de que o ID seja uma string
         agent_id = str(db_agent.id)
+        
+        # Garantir que especialidades e agentes de escalação existam
+        specialties = json.loads(db_agent.specialties) if db_agent.specialties else []
+        list_escalation_agent_ids = json.loads(db_agent.list_escalation_agent_ids) if db_agent.list_escalation_agent_ids else []
         
         # Criar objeto Agent
         return Agent(
@@ -258,7 +316,9 @@ class AgentService:
             tenant_id=db_agent.tenant_id,
             type=AgentType(db_agent.type),
             description=db_agent.description,
-            prompt=prompt_dict,  # Use o dicionário em vez do objeto AgentPrompt
+            prompt=prompt_dict,
+            specialties=specialties,
+            list_escalation_agent_ids=list_escalation_agent_ids,
             rag_categories=rag_categories,
             mcp_enabled=db_agent.mcp_enabled,
             mcp_functions=mcp_functions,
@@ -290,10 +350,10 @@ class AgentService:
         
         return True
     
-    async def assign_agent_to_device(self, agent_id: str, device_id: int) -> bool:
+    def assign_agent_to_device(self, agent_id: str, device_id: int) -> bool:
         """Atribui um agente a um dispositivo específico."""
         # Verificar se o agente existe
-        agent = await self.get_agent(agent_id)
+        agent = self.get_agent(agent_id)
         if not agent:
             return False
         
@@ -302,7 +362,7 @@ class AgentService:
             DeviceAgent.device_id == device_id,
             DeviceAgent.is_active == True
         )
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         existing_mappings = result.scalars().all()
         
         for mapping in existing_mappings:
@@ -316,7 +376,7 @@ class AgentService:
         )
         
         self.db.add(new_mapping)
-        await self.db.commit()
+        self.db.commit()
         return True
 
     async def get_agent_for_device(self, device_id: int, tenant_id: str) -> Optional[Agent]:
@@ -330,21 +390,21 @@ class AgentService:
             DeviceAgent.is_active == True,
             AgentModel.tenant_id == tenant_id
         )
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         mapping = result.scalar_one_or_none()
         
         if mapping:
             # Retornar o agente mapeado para este dispositivo
-            return await self.get_agent(mapping.agent_id)
+            return self.get_agent(mapping.agent_id)
         
         # Fallback: buscar agente geral do tenant
-        general_agents = await self.get_agents_by_tenant_and_type(tenant_id, AgentType.GENERAL)
-        if general_agents:
-            return general_agents[0]
+        # general_agents = await self.get_agents_by_tenant_and_type(tenant_id, AgentType.GENERAL)
+        # if general_agents:
+        #     return general_agents[0]
         
         return None
     
-    async def get_agent_for_contact(self, device_id: int, tenant_id: str, contact_id: str) -> Optional[Agent]:
+    async def get_agent_for_contact(self, device_id: int, tenant_id: str, contact_id: str):
         """
         Determina qual agente deve responder a um contato específico em um dispositivo.
         
@@ -360,13 +420,18 @@ class AgentService:
             AgentModel.tenant_id == tenant_id,
             AgentModel.active == True
         )
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         device_agents = result.scalars().all()
         
         if not device_agents:
+            logger.info("Nenhum agente mapeado para este dispositivo")
+            print("Nenhum agente mapeado para este dispositivo")
+            
             # Nenhum agente mapeado para este dispositivo, usar fallback
-            general_agents = await self.get_agents_by_tenant_and_type(tenant_id, AgentType.GENERAL)
-            return general_agents[0] if general_agents else None
+            #general_agents = self.get_agents_by_tenant_and_type(tenant_id, AgentType.GENERAL)
+            return None, False
+        
+        should_response = False
         
         # Verificar cada agente mapeado para o dispositivo
         for device_agent in device_agents:
@@ -377,7 +442,7 @@ class AgentService:
                 ContactControl.agent_id == agent_id,
                 ContactControl.device_id == device_id
             )
-            contact_result = await self.db.execute(contact_query)
+            contact_result = self.db.execute(contact_query)
             contacts = contact_result.scalars().all()
             
             # Agrupar por tipo de lista
@@ -385,26 +450,23 @@ class AgentService:
             blacklist = [c.contact_id for c in contacts if c.list_type == ContactListType.BLACKLIST]
             
             # Determinar se este agente deve responder
-            should_respond = False
-            
             if whitelist:
                 # Se existe uma whitelist, o contato deve estar nela
-                should_respond = contact_id in whitelist
+                should_response = contact_id in whitelist
             elif blacklist:
                 # Se existe uma blacklist, o contato NÃO deve estar nela
-                should_respond = contact_id not in blacklist
+                should_response = contact_id not in blacklist
             else:
                 # Se não há listas, o agente responde a todos
-                should_respond = True
+                should_response = True
+                return self.get_agent(agent_id), should_response
             
-            if should_respond:
-                # Este agente deve responder a este contato
-                return await self.get_agent(agent_id)
+            
         
         # Nenhum agente específico deve responder a este contato
         # Usar o agente geral do tenant como fallback
-        general_agents = await self.get_agents_by_tenant_and_type(tenant_id, AgentType.GENERAL)
-        return general_agents[0] if general_agents else None
+        # na verdade, não retornar nada aqui
+        return self.get_agent(agent_id), should_response
 
     async def manage_contact_list(self, agent_id: str, device_id: int, contacts: List[str], 
                                 list_type: ContactListType) -> bool:
@@ -419,7 +481,7 @@ class AgentService:
                 ContactControl.device_id == device_id,
                 ContactControl.list_type == list_type
             )
-            await self.db.execute(delete_query)
+            self.db.execute(delete_query)
             
             # Adicionar novos controles
             for contact_id in contacts:
@@ -431,14 +493,14 @@ class AgentService:
                 )
                 self.db.add(control)
             
-            await self.db.commit()
+            self.db.commit()
             return True
         except Exception as e:
             logger.error(f"Erro ao gerenciar lista de contatos: {e}")
-            await self.db.rollback()
+            self.db.rollback()
             return False
 
-    async def add_contact_to_list(self, agent_id: str, device_id: int, contact_id: str, 
+    def add_contact_to_list(self, agent_id: str, device_id: int, contact_id: str, 
                                 list_type: ContactListType) -> bool:
         """
         Adiciona um contato à lista especificada (whitelist ou blacklist).
@@ -451,7 +513,7 @@ class AgentService:
                 ContactControl.contact_id == contact_id,
                 ContactControl.list_type == list_type
             )
-            result = await self.db.execute(query)
+            result = self.db.execute(query)
             existing = result.scalar_one_or_none()
             
             if not existing:
@@ -462,15 +524,15 @@ class AgentService:
                     list_type=list_type
                 )
                 self.db.add(control)
-                await self.db.commit()
+                self.db.commit()
             
             return True
         except Exception as e:
             logger.error(f"Erro ao adicionar contato à lista: {e}")
-            await self.db.rollback()
+            self.db.rollback()
             return False
 
-    async def remove_contact_from_list(self, agent_id: str, device_id: int, contact_id: str, 
+    def remove_contact_from_list(self, agent_id: str, device_id: int, contact_id: str, 
                                     list_type: ContactListType) -> bool:
         """
         Remove um contato da lista especificada.
@@ -482,12 +544,12 @@ class AgentService:
                 ContactControl.contact_id == contact_id,
                 ContactControl.list_type == list_type
             )
-            await self.db.execute(delete_query)
-            await self.db.commit()
+            self.db.execute(delete_query)
+            self.db.commit()
             return True
         except Exception as e:
             logger.error(f"Erro ao remover contato da lista: {e}")
-            await self.db.rollback()
+            self.db.rollback()
             return False
         
     async def get_devices_for_agent(self, agent_id: str) -> List[Dict[str, Any]]:
@@ -499,7 +561,7 @@ class AgentService:
             DeviceAgent.agent_id == agent_id,
             DeviceAgent.is_active == True
         )
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         mappings = result.scalars().all()
         
         # Buscar detalhes dos dispositivos
@@ -519,7 +581,7 @@ class AgentService:
         
         return devices
 
-    async def unassign_agent_from_device(self, agent_id: str, device_id: int) -> bool:
+    def unassign_agent_from_device(self, agent_id: str, device_id: int) -> bool:
         """
         Remove a associação de um agente com um dispositivo.
         """
@@ -529,13 +591,13 @@ class AgentService:
             DeviceAgent.device_id == device_id,
             DeviceAgent.is_active == True
         )
-        result = await self.db.execute(query)
+        result = self.db.execute(query)
         mapping = result.scalar_one_or_none()
         
         if mapping:
             # Desativar mapeamento
             mapping.is_active = False
-            await self.db.commit()
+            self.db.commit()
             return True
         
         return False

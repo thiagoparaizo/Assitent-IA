@@ -32,6 +32,7 @@ class LLMService:
             "max_tokens": 1000
         }
         
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://api.openai.com/v1/chat/completions",

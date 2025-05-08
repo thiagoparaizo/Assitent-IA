@@ -2,6 +2,9 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from app.api.router import api_router
 from app.core.config import settings
 
@@ -10,6 +13,9 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     version="0.1.0",
 )
+
+# iniciar as variaveis de ambiente dotenv
+
 
 # Configurar CORS
 app.add_middleware(

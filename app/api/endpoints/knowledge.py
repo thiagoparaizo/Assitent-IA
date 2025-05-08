@@ -170,8 +170,8 @@ async def list_categories(
             for category, count in categories.items()
         ]
         
-        # Adicionar categorias fixas se não existirem
-        fixed_categories = ["general", "agendamento", "procedimentos", "financeiro"]
+        # Adicionar categorias fixas se não existirem # TODO ajustar
+        fixed_categories = ["general", "agendamento", "procedimentos", "financeiro", "pessoal"]
         existing_categories = [c["id"] for c in formatted_categories]
         
         for category in fixed_categories:

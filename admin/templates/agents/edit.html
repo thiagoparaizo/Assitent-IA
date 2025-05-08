@@ -34,6 +34,9 @@
                             <button class="nav-link" id="prompt-tab" data-bs-toggle="tab" data-bs-target="#prompt-info" type="button" role="tab">Prompt</button>
                         </li>
                         <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="specialties-tab" data-bs-toggle="tab" data-bs-target="#specialties-info" type="button" role="tab">Especialidades</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
                             <button class="nav-link" id="rag-tab" data-bs-toggle="tab" data-bs-target="#rag-info" type="button" role="tab">Conhecimento (RAG)</button>
                         </li>
                         <li class="nav-item" role="presentation">
@@ -41,6 +44,9 @@
                         </li>
                         <li class="nav-item" role="presentation">
                             <button class="nav-link" id="escalation-tab" data-bs-toggle="tab" data-bs-target="#escalation-info" type="button" role="tab">Escalação</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="agent-escalation-tab" data-bs-toggle="tab" data-bs-target="#agent-escalation-info" type="button" role="tab">Escalação entre Agentes</button>
                         </li>
                     </ul>
                     
@@ -61,6 +67,9 @@
                                     <option value="specialist" {% if agent.type == 'specialist' %}selected{% endif %}>Especialista</option>
                                     <option value="integration" {% if agent.type == 'integration' %}selected{% endif %}>Integração</option>
                                     <option value="human" {% if agent.type == 'human' %}selected{% endif %}>Humano</option>
+                                    <option value="personal" {% if agent.type == 'personal' %}selected{% endif %}>Pessoal</option>
+
+                                    
                                 </select>
                                 <input type="hidden" name="type" value="{{ agent.type }}">
                                 <div class="form-text">
@@ -152,6 +161,28 @@
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Configuração de Especialidade do Agente -->
+                        <div class="tab-pane fade" id="specialties-info" role="tabpanel">
+                            <div class="mb-3">
+                                <label class="form-label">Especialidades do Agente</label>
+                                <div class="row">
+                                    {% for category, display_name in specialties_categories.items() %}
+                                    <div class="col-md-4 mb-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" name="specialties" 
+                                                   value="{{ category }}" id="specialty-{{ category }}"
+                                                   {% if agent.specialties and category in agent.specialties %}checked{% endif %}>
+                                            <label class="form-check-label" for="specialty-{{ category }}">
+                                                {{ display_name }}
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="form-text">Selecione as especialidades que este agente possui. Isso ajudará o sistema a direcionar conversas para o agente mais adequado.</div>
+                            </div>
+                        </div>
                         
                         <!-- Configuração de RAG -->
                         <div class="tab-pane fade" id="rag-info" role="tabpanel">
@@ -161,7 +192,7 @@
                                     {% for category in categories %}
                                     <label class="list-group-item">
                                         <input class="form-check-input me-1" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                               {% if category.id in agent.rag_categories %}checked{% endif %}>
+                                        {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
                                         {{ category.name }}
                                         <small class="text-muted d-block">{{ category.description }}</small>
                                     </label>
@@ -252,6 +283,40 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="tab-pane fade" id="agent-escalation-info" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="escalation_enabled" name="escalation_enabled" 
+                                           {% if agent.escalation_enabled %}checked{% endif %}>
+                                    <label class="form-check-label" for="escalation_enabled">Habilitar Escalação entre Agentes</label>
+                                </div>
+                                <div class="form-text">Permite que este agente escale conversas para outros agentes especializados.</div>
+                            </div>
+                            
+                            <div id="escalation-agents-section" style="display: {% if agent.escalation_enabled %}block{% else %}none{% endif %};">
+                                <div class="mb-3">
+                                    <label class="form-label">Agentes disponíveis para escalação</label>
+                                    <div class="list-group">
+                                        {% for available_agent in available_agents %}
+                                            {% if available_agent.id != agent.id %}  <!-- Não mostrar o agente atual na lista -->
+                                            <label class="list-group-item">
+                                                <input class="form-check-input me-1" type="checkbox" name="list_escalation_agent_ids" value="{{ available_agent.id }}" 
+                                                       {% if agent.list_escalation_agent_ids and available_agent.id in agent.list_escalation_agent_ids %}checked{% endif %}>
+                                                {{ available_agent.name }}
+                                                <small class="text-muted d-block">{{ available_agent.description }}</small>
+                                                <span class="badge bg-{% if available_agent.type == 'general' %}primary{% elif available_agent.type == 'specialist' %}success{% elif available_agent.type == 'integration' %}info{% else %}warning{% endif %}">
+                                                    {{ available_agent.type }}
+                                                </span>
+                                            </label>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                    <div class="form-text">Selecione os agentes para os quais este agente pode escalar conversas.</div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                     
                     <div class="d-flex justify-content-between mt-4">
@@ -409,6 +474,14 @@
     // Inicializar eventos para controle de dispositivos e contatos
     document.addEventListener('DOMContentLoaded', function() {
         // Ativar/desativar dispositivo para o agente
+        
+        document.getElementById('escalation_enabled').addEventListener('change', function() {
+            const escalationSection = document.getElementById('escalation-agents-section');
+            escalationSection.style.display = this.checked ? 'block' : 'none';
+        });
+
+        const agentId = "{{agent.id}}";
+        
         document.querySelectorAll('.device-status').forEach(checkbox => {
             checkbox.addEventListener('change', function() {
                 const deviceId = this.dataset.deviceId;
@@ -519,11 +592,12 @@
         // Funções para comunicação com a API
         async function assignAgentToDevice(deviceId, active) {
             try {
-                const response = await fetch(`/api/v1/agents/${agentId}/device/${deviceId}/assign`, {
+                console.log('assignAgentToDevice > agentId: ' + agentId + ', deviceId: ' + deviceId);
+                
+                const response = await fetch(`/agents/${agentId}/device/${deviceId}/assign`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/json'  
                     },
                     body: JSON.stringify({ active })
                 });
@@ -541,12 +615,13 @@
                 const contacts = Array.from(contactList.querySelectorAll('.contact-item')).map(
                     item => item.querySelector('div').textContent
                 );
+        
+                console.log('updateContactBehavior > agentId: ' + agentId + ', deviceId: ' + deviceId + ', contacts: ' + contacts);
                 
-                const response = await fetch(`/api/v1/agents/${agentId}/device/${deviceId}/contacts`, {
+                const response = await fetch(`/agents/${agentId}/device/${deviceId}/contacts`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         default_behavior: behavior,
@@ -562,12 +637,14 @@
         
         async function addContactToList(deviceId, contactId) {
             const behavior = document.querySelector(`input[name="contact-behavior-${deviceId}"]:checked`).value;
+            
+            console.log('addContactToList > agentId: ' + agentId + ', deviceId: ' + deviceId + ', contactId: ' + contactId + ', behavior: ' + behavior);
+            
             try {
-                const response = await fetch(`/api/v1/agents/${agentId}/device/${deviceId}/contacts/${contactId}`, {
+                const response = await fetch(`/agents/${agentId}/device/${deviceId}/contacts/${contactId}`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
                         list_type: behavior
@@ -582,11 +659,12 @@
         
         async function removeContactFromList(deviceId, contactId) {
             try {
-                const response = await fetch(`/api/v1/agents/${agentId}/device/${deviceId}/contacts/${contactId}`, {
+                console.log('removeContactFromList > agentId: ' + agentId + ', deviceId: ' + deviceId + ', contactId: ' + contactId);
+                
+                const response = await fetch(`/agents/${agentId}/device/${deviceId}/contacts/${contactId}`, {
                     method: 'DELETE',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
+                        'Content-Type': 'application/json'
                     }
                 });
                 return response.ok;

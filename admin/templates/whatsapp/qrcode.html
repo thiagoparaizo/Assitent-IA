@@ -27,9 +27,8 @@
                 <h5 class="card-title mb-4">{{ device.name }}</h5>
                 
                 <div class="qr-code-container mb-4">
-                    {% if qr_data.qr_code %}
-                    <img src="data:image/png;base64,{{ qr_data.qr_code }}" class="img-fluid qr-code" alt="QR Code">
-                    {% else %}
+                    <div id="qrcode"></div>
+                    {% if not qr_data.qr_code %}
                     <div class="alert alert-warning">
                         QR Code não disponível. Tente atualizar a página.
                     </div>
@@ -68,7 +67,28 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
 <script>
+
+    const qrCodeData = "{{ qr_data.qr_code|safe }}";
+
+    if (qrCodeData) {
+        // Gerar o QR code
+        const qrContainer = document.getElementById('qrcode');
+        
+        // Limpar container
+        qrContainer.innerHTML = '';
+        
+        const typeNumber = 0;
+        const errorCorrectionLevel = 'L';
+        const qr = qrcode(typeNumber, errorCorrectionLevel);
+        qr.addData(qrCodeData);
+        qr.make();
+        
+        qrContainer.innerHTML = qr.createImgTag(5);
+        
+    }
+
     // Atualizar QR code automaticamente a cada 30 segundos
     let refreshInterval;
     
@@ -79,7 +99,7 @@
     }
     
     // Iniciar atualização automática
-    startAutoRefresh();
+    //startAutoRefresh();
     
     // Botão de atualização manual
     document.getElementById('refresh-qr').addEventListener('click', function() {
