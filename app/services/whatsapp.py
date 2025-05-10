@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import httpx
 from fastapi import HTTPException
@@ -42,9 +42,11 @@ class WhatsAppService:
                 )
                 
                 response.raise_for_status()
+                logger.debug(f"Resposta do serviço WhatsApp: {response.text}")
                 return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"Erro HTTP ao acessar o serviço WhatsApp: {e}")
+            print(f"Erro HTTP ao acessar o serviço WhatsApp: {e}")  
             try:
                 error_detail = e.response.json().get("error", str(e))
             except:
@@ -53,9 +55,12 @@ class WhatsAppService:
             raise HTTPException(status_code=e.response.status_code, detail=error_detail)
         except httpx.RequestError as e:
             logger.error(f"Erro de requisição ao acessar o serviço WhatsApp: {e}")
+            print(f"Erro de requisição ao acessar o serviço WhatsApp: {e}")
             raise HTTPException(status_code=503, detail=f"Serviço WhatsApp indisponível: {str(e)}")
+        
         except Exception as e:
             logger.error(f"Erro inesperado ao acessar o serviço WhatsApp: {e}")
+            print(f"Erro inesperado ao acessar o serviço WhatsApp: {e}")
             raise HTTPException(status_code=500, detail=f"Erro interno: {str(e)}")
     
     # Endpoints de dispositivos
@@ -128,27 +133,63 @@ class WhatsAppService:
     
     # Endpoints de mensagens
     
-    async def get_contact_messages(self, device_id: int, contact_id: str, filter: str = "day") -> List[dict]:
-        """Obtém mensagens de um contato específico"""
-        return await self._request(
-            "GET", 
-            f"/api/devices/{device_id}/contact/{contact_id}/messages", 
-            params={"filter": filter}
-        )
+    async def get_contact_messages(self, device_id: int, contact_id: str, filter: str = "day") -> List[Dict[str, Any]]:
+        """
+        Obtém mensagens de um contato específico
+        """
+        try:
+            messages = await self._request(
+                "GET", 
+                f"/api/devices/{device_id}/contact/{contact_id}/messages", 
+                params={"filter": filter}
+            )
+            
+            # Se a resposta for null, retornar uma lista vazia
+            if messages is None:
+                return []
+            
+            return messages
+        except Exception as e:
+            print(f"Erro ao obter mensagens do contato: {e}")
+            return []
     
-    async def get_group_messages(self, device_id: int, group_id: str, filter: str = "day") -> List[dict]:
-        """Obtém mensagens de um grupo específico"""
-        return await self._request(
-            "GET", 
-            f"/api/devices/{device_id}/group/{group_id}/messages", 
-            params={"filter": filter}
-        )
+    async def get_group_messages(self, device_id: int, group_id: str, filter: str = "day") -> List[Dict[str, Any]]:
+        """
+        Obtém mensagens de um grupo específico
+        """
+        try:
+            messages = await self._request(
+                "GET", 
+                f"/api/devices/{device_id}/group/{group_id}/messages", 
+                params={"filter": filter}
+            )
+            
+            # Se a resposta for null, retornar uma lista vazia
+            if messages is None:
+                return []
+            
+            return messages
+        except Exception as e:
+            print(f"Erro ao obter mensagens do grupo: {e}")
+            return []
     
     # Endpoints de tracked entities
     
-    async def get_tracked_entities(self, device_id: int) -> List[dict]:
-        """Obtém a lista de entidades rastreadas"""
-        return await self._request("GET", f"/api/devices/{device_id}/tracked")
+    async def get_tracked_entities(self, device_id: int) -> List[Dict[str, Any]]:
+        """
+        Obtém a lista de entidades rastreadas
+        """
+        try:
+            entities = await self._request(
+                "GET", 
+                f"/api/devices/{device_id}/tracked"
+            )
+            return entities
+        except Exception as e:
+            logger.error(f"Erro ao obter entidades rastreadas: {e}")
+            print(f"Erro ao obter entidades rastreadas: {e}")
+        # Retornar uma lista vazia em caso de erro para evitar crash
+        return []
     
     async def set_tracked_entity(
         self, 

@@ -78,6 +78,19 @@ def create_app(config_class=Config):
             return value.strftime(format)
         except:
             return str(value)
+        
+    @app.template_filter('sort_by_name')
+    def sort_by_name(contacts_dict):
+        # Converter para lista de tuplas (jid, contact)
+        contacts_list = list(contacts_dict.items())
+        
+        # Definir uma função para obter o nome de exibição
+        def get_display_name(item):
+            jid, contact = item
+            return contact.get("FullName") or contact.get("FirstName") or contact.get("BusinessName") or jid
+        
+        # Ordenar a lista
+        return sorted(contacts_list, key=get_display_name)
     
     @app.before_request
     def check_auth_and_verify_token():
@@ -115,7 +128,7 @@ def create_app(config_class=Config):
             if should_verify:
                 try:
                     # Test token against API
-                    response = requests.get(
+                    response = requests.post(
                         f"{Config.API_URL}/auth/test-token",
                         headers={"Authorization": f"Bearer {current_user.token}"},
                         timeout=5
@@ -126,8 +139,14 @@ def create_app(config_class=Config):
                         logout_user()
                         flash('Sua sessão expirou. Por favor, faça login novamente.', 'warning')
                         return redirect(url_for('auth.login'))
-                except:
+                except requests.exceptions.RequestException as e:
+                    # Tratar erros de rede/conexão
+                    print(f"Erro ao verificar token: {e}")
                     # On error, continue but don't update last_verify
+                    session['last_token_verify'] = last_verify
+                except Exception as e:
+                    # Tratar outros erros inesperados
+                    print(f"Erro inesperado ao verificar token: {e}")
                     session['last_token_verify'] = last_verify
     
     return app  

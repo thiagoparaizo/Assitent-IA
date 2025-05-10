@@ -166,7 +166,7 @@ def view(tenant_id):
             try:
                 agents_response = requests.get(
                     #f"{Config.API_URL}/agents/?tenant_id={tenant_id}",
-                    f"{Config.API_URL}/agents/list/?tenant_id={tenant_id}",
+                   f"{Config.API_URL}/agents/",
                     headers=get_api_headers(),
                     timeout=3
                 )
@@ -180,8 +180,8 @@ def view(tenant_id):
             # Get tenant webhooks
             try:
                 webhooks_response = requests.get(
-                    f"{Config.API_URL}/webhook",
-                    headers={'Authorization': f'Bearer {Config.API_TOKEN}', 'X-Tenant-ID': str(tenant_id)},
+                    f"{Config.API_URL}/webhook?tenant_id={tenant_id}",
+                    headers=get_api_headers(),
                     timeout=3
                 )
                 if webhooks_response.status_code == 200:

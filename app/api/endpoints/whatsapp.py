@@ -194,7 +194,33 @@ async def get_contact_messages(
     if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
         raise HTTPException(status_code=403, detail="Sem permissão para acessar as mensagens deste dispositivo")
     
-    return await whatsapp_service.get_contact_messages(device_id, contact_id, filter)
+    # Obter mensagens do serviço, que retorna no formato Go
+    go_messages = await whatsapp_service.get_contact_messages(device_id, contact_id, filter)
+    
+    # Tratamento para quando não há mensagens (retorno null do serviço Go)
+    if go_messages is None:
+        return []
+    
+    # Transformar as mensagens para o formato Python
+    transformed_messages = []
+    for msg in go_messages:
+        transformed = {
+            "id": msg.get("ID"),
+            "device_id": msg.get("DeviceID"),
+            "jid": msg.get("JID"),
+            "message_id": msg.get("MessageID"),
+            "sender": msg.get("Sender"),
+            "is_from_me": msg.get("IsFromMe", False),
+            "is_group": msg.get("IsGroup", False),
+            "content": msg.get("Content", ""),
+            "media_url": msg.get("MediaURL", ""),
+            "media_type": msg.get("MediaType", ""),
+            "timestamp": msg.get("Timestamp"),
+            "received_at": msg.get("ReceivedAt")
+        }
+        transformed_messages.append(transformed)
+    
+    return transformed_messages
 
 
 @router.get("/devices/{device_id}/group/{group_id}/messages", response_model=List[schemas.Message])
@@ -214,7 +240,33 @@ async def get_group_messages(
     if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
         raise HTTPException(status_code=403, detail="Sem permissão para acessar as mensagens deste dispositivo")
     
-    return await whatsapp_service.get_group_messages(device_id, group_id, filter)
+    # Obter mensagens do serviço, que retorna no formato Go
+    go_messages = await whatsapp_service.get_group_messages(device_id, group_id, filter)
+    
+    # Tratamento para quando não há mensagens (retorno null do serviço Go)
+    if go_messages is None:
+        return []
+    
+    # Transformar as mensagens para o formato Python
+    transformed_messages = []
+    for msg in go_messages:
+        transformed = {
+            "id": msg.get("ID"),
+            "device_id": msg.get("DeviceID"),
+            "jid": msg.get("JID"),
+            "message_id": msg.get("MessageID"),
+            "sender": msg.get("Sender"),
+            "is_from_me": msg.get("IsFromMe", False),
+            "is_group": msg.get("IsGroup", False),
+            "content": msg.get("Content", ""),
+            "media_url": msg.get("MediaURL", ""),
+            "media_type": msg.get("MediaType", ""),
+            "timestamp": msg.get("Timestamp"),
+            "received_at": msg.get("ReceivedAt")
+        }
+        transformed_messages.append(transformed)
+    
+    return transformed_messages
 
 
 @router.post("/devices/{device_id}/group/{group_id}/send", response_model=dict)
@@ -256,7 +308,103 @@ async def get_tracked_entities(
     if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
         raise HTTPException(status_code=403, detail="Sem permissão para acessar este dispositivo")
     
-    return await whatsapp_service.get_tracked_entities(device_id)
+    orig_entities = await whatsapp_service.get_tracked_entities(device_id)
+    
+    # Transformar as entidades para corresponder ao modelo TrackedEntity
+    transformed_entities = []
+    for entity in orig_entities:
+        transformed = {
+            "id": entity.get("ID"),
+            "device_id": entity.get("DeviceID"),
+            "jid": entity.get("JID"),
+            "is_tracked": entity.get("IsTracked", True),
+            "track_media": entity.get("TrackMedia", True),
+            "allowed_media_types": entity.get("AllowedMediaTypes", []),
+            "created_at": entity.get("CreatedAt"),
+            "updated_at": entity.get("UpdatedAt")
+        }
+        transformed_entities.append(transformed)
+    
+    return transformed_entities
+
+# Adicionar ao arquivo app/api/endpoints/whatsapp.py
+
+@router.post("/devices/{device_id}/tracked", response_model=schemas.TrackedEntity)
+async def set_tracked_entity(
+    device_id: int,
+    entity_data: schemas.TrackedEntityCreate,
+    current_user: User = Depends(get_current_active_user),
+    whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
+):
+    """
+    Configura uma entidade para ser rastreada
+    """
+    # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
+    device = await whatsapp_service.get_device(device_id)
+    
+    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Sem permissão para configurar rastreamento neste dispositivo")
+    
+    # Transformar os dados para o formato esperado pelo serviço Go
+    go_data = {
+        "jid": entity_data.jid,
+        "is_tracked": entity_data.is_tracked,
+        "track_media": entity_data.track_media,
+        "allowed_media_types": entity_data.allowed_media_types
+    }
+    
+    # Chamar o serviço
+    result = await whatsapp_service.set_tracked_entity(
+        device_id=device_id,
+        jid=entity_data.jid,
+        is_tracked=entity_data.is_tracked,
+        track_media=entity_data.track_media,
+        allowed_media_types=entity_data.allowed_media_types
+    )
+    
+    # Transformar o resultado de volta para o formato esperado pelo schema
+    transformed = {
+        "id": result.get("ID"),
+        "device_id": result.get("DeviceID"),
+        "jid": result.get("JID"),
+        "is_tracked": result.get("IsTracked", True),
+        "track_media": result.get("TrackMedia", True),
+        "allowed_media_types": result.get("AllowedMediaTypes", []),
+        "created_at": result.get("CreatedAt"),
+        "updated_at": result.get("UpdatedAt")
+    }
+    
+    return transformed
+
+@router.delete("/devices/{device_id}/tracked/{jid}")
+async def delete_tracked_entity(
+    device_id: int,
+    jid: str,
+    current_user: User = Depends(get_current_active_user),
+    whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
+):
+    """
+    Remove uma entidade rastreada
+    """
+    # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
+    device = await whatsapp_service.get_device(device_id)
+    
+    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Sem permissão para remover rastreamento neste dispositivo")
+    
+    result = await whatsapp_service.delete_tracked_entity(device_id, jid)
+    
+    # Transformar o resultado, se necessário
+    transformed_result = {}
+    if isinstance(result, dict):
+        if "status" in result:
+            transformed_result["status"] = result.get("status")
+        if "message" in result:
+            transformed_result["message"] = result.get("message")
+    else:
+        transformed_result = {"status": "success", "message": "Entidade removida do rastreamento com sucesso"}
+    
+    return transformed_result
 
 @router.post("/devices/{device_id}/assign/{agent_id}")
 async def assign_agent_to_device(
@@ -275,6 +423,25 @@ async def assign_agent_to_device(
         raise HTTPException(status_code=400, detail="Falha ao atribuir agente ao dispositivo")
     
     return {"status": "success", "message": "Agente atribuído com sucesso"}
+
+@router.get("/devices/{device_id}/contact/{contact_id}/messages")
+async def get_contact_messages(
+    device_id: int,
+    contact_id: str,
+    filter: str = Query("day", description="Filtro de tempo: new, day, week, month"),
+    current_user: User = Depends(get_current_active_user),
+    whatsapp_service: WhatsAppService = Depends(get_whatsapp_service),
+):
+    """
+    Obtém mensagens de um contato específico
+    """
+    # Verificar permissão - deve buscar o dispositivo antes para verificar o tenant_id
+    device = await whatsapp_service.get_device(device_id)
+    
+    if not current_user.is_superuser and current_user.tenant_id != device["tenant_id"]:
+        raise HTTPException(status_code=403, detail="Sem permissão para acessar as mensagens deste dispositivo")
+    
+    return await whatsapp_service.get_contact_messages(device_id, contact_id, filter)
 
 
 from typing import Generator

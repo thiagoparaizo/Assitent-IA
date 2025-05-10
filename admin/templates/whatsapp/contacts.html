@@ -1,0 +1,326 @@
+{% extends 'base.html' %}
+
+{% block title %}Contatos - {{ device.name }} - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<!-- Content remains unchanged -->
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.devices') }}">Dispositivos WhatsApp</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.view_device', device_id=device_id) }}">{{ device.name }}</a></li>
+                <li class="breadcrumb-item active">Contatos</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h1 class="h3">Contatos de {{ device.name }}</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('whatsapp.view_device', device_id=device_id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar para o Dispositivo
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Lista de Contatos</h5>
+        <span class="badge bg-secondary">Total: {{ contacts|length }}</span>
+    </div>
+    <div class="card-body">
+        {% if contacts %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="contacts-table">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Número / JID</th>
+                        <th>Detalhes</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for jid, contact in contacts.items() %}
+                    <tr>
+                        <td>
+                            {% if contact.FullName %}
+                                {{ contact.FullName }}
+                            {% elif contact.FirstName %}
+                                {{ contact.FirstName }}
+                            {% elif contact.BusinessName %}
+                                {{ contact.BusinessName }}
+                            {% else %}
+                                <span class="text-muted">Sem nome</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <code class="small">{{ jid }}</code>
+                            {% if jid.startswith('+') %}
+                                <br><small class="text-muted">{{ jid|replace('@s.whatsapp.net', '') }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-outline-info" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#contactInfoModal"
+                                    data-jid="{{ jid }}"
+                                    data-fullname="{{ contact.FullName }}"
+                                    data-firstname="{{ contact.FirstName }}"
+                                    data-businessname="{{ contact.BusinessName }}"
+                                    data-pushname="{{ contact.PushName }}">
+                                <i class="bi bi-info-circle"></i> Detalhes
+                            </button>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('whatsapp.get_messages', device_id=device_id, chat_type='contact', chat_id=jid) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-chat-text"></i> Ver Mensagens
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-success track-contact" data-jid="{{ jid }}" data-name="{% if contact.FullName %}{{ contact.FullName }}{% elif contact.FirstName %}{{ contact.FirstName }}{% else %}{{ jid }}{% endif %}">
+                                    <i class="bi bi-bookmark-plus"></i> Rastrear
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary send-message-btn" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#sendMessageModal"
+                                        data-jid="{{ jid }}"
+                                        data-name="{% if contact.FullName %}{{ contact.FullName }}{% elif contact.FirstName %}{{ contact.FirstName }}{% else %}{{ jid }}{% endif %}">
+                                    <i class="bi bi-envelope"></i> Enviar
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Nenhum contato encontrado para este dispositivo.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal de detalhes do contato -->
+<div class="modal fade" id="contactInfoModal" tabindex="-1" aria-labelledby="contactInfoModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="contactInfoModalLabel">Detalhes do Contato</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <strong>JID:</strong> <code id="contact-jid"></code>
+                </div>
+                <div class="mb-3">
+                    <strong>Nome Completo:</strong> <span id="contact-fullname" class="text-muted">Não disponível</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Primeiro Nome:</strong> <span id="contact-firstname" class="text-muted">Não disponível</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Nome Comercial:</strong> <span id="contact-businessname" class="text-muted">Não disponível</span>
+                </div>
+                <div class="mb-3">
+                    <strong>Nome de Exibição:</strong> <span id="contact-pushname" class="text-muted">Não disponível</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de envio de mensagem -->
+<div class="modal fade" id="sendMessageModal" tabindex="-1" aria-labelledby="sendMessageModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="sendMessageModalLabel">Enviar Mensagem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="send-message-form" method="post" action="{{ url_for('whatsapp.send_message', device_id=device_id) }}">
+                <div class="modal-body">
+                    <input type="hidden" id="message-to" name="to">
+                    <div class="mb-3">
+                        <label for="message-recipient" class="form-label">Destinatário:</label>
+                        <input type="text" class="form-control" id="message-recipient" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="message-content" class="form-label">Mensagem:</label>
+                        <textarea class="form-control" id="message-content" name="message" rows="5" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Enviar Mensagem</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css">
+<style>
+    .dt-buttons {
+        margin-bottom: 15px;
+    }
+    .dataTables_filter {
+        margin-bottom: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- jQuery primeiro, depois DataTables -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.bootstrap5.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.html5.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/2.2.2/js/buttons.print.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicializar DataTable
+        $('#contacts-table').DataTable({
+            "language": {
+                "emptyTable": "Nenhum registro encontrado",
+                "info": "Mostrando de _START_ até _END_ de _TOTAL_ registros",
+                "infoEmpty": "Mostrando 0 até 0 de 0 registros",
+                "infoFiltered": "(Filtrados de _MAX_ registros)",
+                "infoThousands": ".",
+                "loadingRecords": "Carregando...",
+                "processing": "Processando...",
+                "zeroRecords": "Nenhum registro encontrado",
+                "search": "Pesquisar",
+                "paginate": {
+                    "next": "Próximo",
+                    "previous": "Anterior",
+                    "first": "Primeiro",
+                    "last": "Último"
+                },
+                "lengthMenu": "Exibir _MENU_ resultados por página"
+            },
+            "pageLength": 15,
+            "lengthMenu": [[10, 15, 25, 50, -1], [10, 15, 25, 50, "Todos"]],
+            "dom": 'Bfrtip',
+            "buttons": [
+                {
+                    extend: 'excel',
+                    text: '<i class="bi bi-file-excel"></i> Excel',
+                    className: 'btn btn-sm btn-success',
+                    exportOptions: {
+                        columns: [0, 1, 2]
+                    }
+                },
+                {
+                    extend: 'csv',
+                    text: '<i class="bi bi-file-text"></i> CSV',
+                    className: 'btn btn-sm btn-primary',
+                    exportOptions: {
+                        columns: [0, 1, 2]
+                    }
+                },
+                {
+                    extend: 'print',
+                    text: '<i class="bi bi-printer"></i> Imprimir',
+                    className: 'btn btn-sm btn-info',
+                    exportOptions: {
+                        columns: [0, 1, 2]
+                    }
+                }
+            ]
+        });
+		
+		$('.track-contact').click(function() {
+            const jid = $(this).data('jid');
+            const name = $(this).data('name');
+            
+            // Redirecionar para a página de configuração de rastreamento
+            window.location.href = "{{ url_for('whatsapp.get_tracked_entities', device_id=device_id) }}?add=" + encodeURIComponent(jid) + "&name=" + encodeURIComponent(name);
+        });
+        
+        // Modal de detalhes do contato
+        const contactInfoModal = document.getElementById('contactInfoModal');
+        if (contactInfoModal) {
+            contactInfoModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                
+                // Extrair informações do data-* attributes
+                const jid = button.getAttribute('data-jid');
+                const fullName = button.getAttribute('data-fullname');
+                const firstName = button.getAttribute('data-firstname');
+                const businessName = button.getAttribute('data-businessname');
+                const pushName = button.getAttribute('data-pushname');
+                
+                // Atualizar o conteúdo do modal
+                document.getElementById('contact-jid').textContent = jid;
+                
+                if (fullName) {
+                    document.getElementById('contact-fullname').textContent = fullName;
+                    document.getElementById('contact-fullname').classList.remove('text-muted');
+                }
+                
+                if (firstName) {
+                    document.getElementById('contact-firstname').textContent = firstName;
+                    document.getElementById('contact-firstname').classList.remove('text-muted');
+                }
+                
+                if (businessName) {
+                    document.getElementById('contact-businessname').textContent = businessName;
+                    document.getElementById('contact-businessname').classList.remove('text-muted');
+                }
+                
+                if (pushName) {
+                    document.getElementById('contact-pushname').textContent = pushName;
+                    document.getElementById('contact-pushname').classList.remove('text-muted');
+                }
+            });
+        }
+        
+        // Modal de envio de mensagem
+        const sendMessageModal = document.getElementById('sendMessageModal');
+        if (sendMessageModal) {
+            sendMessageModal.addEventListener('show.bs.modal', function(event) {
+                const button = event.relatedTarget;
+                
+                // Extrair informações do data-* attributes
+                const jid = button.getAttribute('data-jid');
+                const name = button.getAttribute('data-name');
+                
+                // Atualizar o conteúdo do modal
+                document.getElementById('message-to').value = jid;
+                document.getElementById('message-recipient').value = name;
+            });
+        }
+        
+        // Validação do formulário de mensagem
+        const sendMessageForm = document.getElementById('send-message-form');
+        if (sendMessageForm) {
+            sendMessageForm.addEventListener('submit', function(event) {
+                const messageContent = document.getElementById('message-content').value.trim();
+                
+                if (messageContent === '') {
+                    event.preventDefault();
+                    alert('Por favor, digite uma mensagem.');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

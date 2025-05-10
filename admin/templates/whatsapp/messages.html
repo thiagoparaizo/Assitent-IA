@@ -1,0 +1,166 @@
+{% extends 'base.html' %}
+
+{% block title %}Mensagens - {{ chat_name }} - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.devices') }}">Dispositivos WhatsApp</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.view_device', device_id=device_id) }}">{{ device.name }}</a></li>
+                {% if chat_type == 'contact' %}
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.get_contacts', device_id=device_id) }}">Contatos</a></li>
+                {% else %}
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.get_groups', device_id=device_id) }}">Grupos</a></li>
+                {% endif %}
+                <li class="breadcrumb-item active">Mensagens</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h1 class="h3">
+            Mensagens de 
+            {% if chat_type == 'contact' %}
+                Contato: {{ chat_name }}
+            {% else %}
+                Grupo: {{ chat_name }}
+            {% endif %}
+        </h1>
+    </div>
+    <div class="col-md-4 text-end">
+        {% if chat_type == 'contact' %}
+        <a href="{{ url_for('whatsapp.get_contacts', device_id=device_id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar para Contatos
+        </a>
+        {% else %}
+        <a href="{{ url_for('whatsapp.get_groups', device_id=device_id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar para Grupos
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header">
+        <h5 class="card-title mb-0">Filtros</h5>
+    </div>
+    <div class="card-body">
+        <div class="btn-group w-100" role="group">
+            <a href="{{ url_for('whatsapp.get_messages', device_id=device_id, chat_type=chat_type, chat_id=chat_id, filter='day') }}" 
+               class="btn btn-outline-primary {% if filter == 'day' %}active{% endif %}">
+                Hoje
+            </a>
+            <a href="{{ url_for('whatsapp.get_messages', device_id=device_id, chat_type=chat_type, chat_id=chat_id, filter='week') }}"
+            class="btn btn-outline-primary {% if filter == 'week' %}active{% endif %}">
+            Esta Semana
+        </a>
+        <a href="{{ url_for('whatsapp.get_messages', device_id=device_id, chat_type=chat_type, chat_id=chat_id, filter='month') }}"
+           class="btn btn-outline-primary {% if filter == 'month' %}active{% endif %}">
+            Este Mês
+        </a>
+    </div>
+</div>
+</div>
+
+<div class="card">
+<div class="card-header d-flex justify-content-between align-items-center">
+    <h5 class="card-title mb-0">Histórico de Mensagens</h5>
+    <span class="badge bg-secondary">Total: {{ messages|length }}</span>
+</div>
+<div class="card-body">
+    {% if messages %}
+    <div class="chat-container">
+        {% for message in messages|sort(attribute='timestamp') %}
+        <div class="message-bubble mb-3 {% if message.is_from_me %}outgoing{% else %}incoming{% endif %}">
+            <div class="message-header d-flex justify-content-between">
+                <strong>
+                    {% if message.is_from_me %}
+                    <i class="bi bi-person-circle text-primary"></i> Você
+                    {% else %}
+                    <i class="bi bi-person-circle text-secondary"></i> 
+                    {{ message.sender }}
+                    {% endif %}
+                </strong>
+                <small class="text-muted">{{ message.timestamp|datetime }}</small>
+            </div>
+            <div class="message-content mt-1 p-2 rounded {% if message.is_from_me %}bg-primary text-white{% else %}bg-light{% endif %}">
+                {% if message.media_type %}
+                <div class="media-container mb-2">
+                    {% if message.media_type == 'image' %}
+                    <img src="{{ url_for('static', filename='media/' + message.media_url) }}" class="img-fluid rounded" alt="Imagem" style="max-height: 200px;">
+                    {% elif message.media_type == 'video' %}
+                    <video controls class="img-fluid rounded" style="max-height: 200px;">
+                        <source src="{{ url_for('static', filename='media/' + message.media_url) }}" type="video/mp4">
+                        Seu navegador não suporta a reprodução de vídeos.
+                    </video>
+                    {% elif message.media_type == 'audio' %}
+                    <audio controls>
+                        <source src="{{ url_for('static', filename='media/' + message.media_url) }}" type="audio/ogg">
+                        Seu navegador não suporta a reprodução de áudio.
+                    </audio>
+                    {% elif message.media_type == 'document' %}
+                    <div class="document-container p-2 border rounded">
+                        <i class="bi bi-file-earmark-text fs-4"></i>
+                        <a href="{{ url_for('static', filename='media/' + message.media_url) }}" target="_blank" class="ms-2">Baixar documento</a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+                
+                {% if message.content %}
+                <p class="mb-0">{{ message.content }}</p>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> Nenhuma mensagem encontrada para este período.
+    </div>
+    {% endif %}
+</div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.chat-container {
+    max-height: 600px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-bubble {
+    max-width: 80%;
+    margin-bottom: 10px;
+}
+
+.message-bubble.incoming {
+    align-self: flex-start;
+}
+
+.message-bubble.outgoing {
+    align-self: flex-end;
+}
+
+.message-content {
+    border-radius: 10px;
+    word-break: break-word;
+}
+
+.message-bubble.incoming .message-content {
+    background-color: #f1f0f0;
+}
+
+.message-bubble.outgoing .message-content {
+    background-color: #dcf8c6;
+}
+</style>
+{% endblock %}

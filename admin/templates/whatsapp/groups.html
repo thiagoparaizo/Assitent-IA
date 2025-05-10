@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+
+{% block title %}Grupos - {{ device.name }} - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.devices') }}">Dispositivos WhatsApp</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('whatsapp.view_device', device_id=device_id) }}">{{ device.name }}</a></li>
+                <li class="breadcrumb-item active">Grupos</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-8">
+        <h1 class="h3">Grupos de {{ device.name }}</h1>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{{ url_for('whatsapp.view_device', device_id=device_id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Voltar para o Dispositivo
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">Lista de Grupos</h5>
+        <span class="badge bg-secondary">Total: {{ groups|length }}</span>
+    </div>
+    <div class="card-body">
+        {% if groups %}
+        <div class="table-responsive">
+            <table class="table table-striped table-hover" id="groups-table">
+                <thead>
+                    <tr>
+                        <th>Nome do Grupo</th>
+                        <th>JID</th>
+                        <th>Participantes</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in groups %}
+                    <tr>
+                        <td>{{ group.Name }}</td>
+                        <td><code class="small">{{ group.JID }}</code></td>
+                        <td>{{ group.Participants|length }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('whatsapp.get_messages', device_id=device_id, chat_type='group', chat_id=group.JID) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-chat-text"></i> Ver Mensagens
+                                </a>
+                                <a href="{{ url_for('whatsapp.get_tracked_entities', device_id=device_id) }}?add={{ group.JID|urlencode }}&name={{ group.Name|urlencode }}" class="btn btn-sm btn-outline-success">
+                                    <i class="bi bi-bookmark-plus"></i> Rastrear
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-info view-group-details" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#groupInfoModal"
+                                        data-group-name="{{ group.Name }}"
+                                        data-group-jid="{{ group.JID }}"
+                                        data-group-created="{{ group.GroupCreated }}"
+                                        data-group-owner="{{ group.OwnerJID }}"
+                                        data-group-locked="{{ group.IsLocked }}"
+                                        data-group-announce="{{ group.IsAnnounce }}"
+                                        data-group-ephemeral="{{ group.IsEphemeral }}"
+                                        data-group-participants="{{ group.Participants|length }}">
+                                    <i class="bi bi-info-circle"></i> Detalhes
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> Nenhum grupo encontrado para este dispositivo.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Modal com detalhes do grupo -->
+<div class="modal fade" id="groupInfoModal" tabindex="-1" aria-labelledby="groupInfoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="groupInfoModalLabel">Detalhes do Grupo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Nome:</strong> <span id="group-name"></span></p>
+                        <p><strong>JID:</strong> <code id="group-jid"></code></p>
+                        <p><strong>Criado em:</strong> <span id="group-created"></span></p>
+                        <p><strong>Criado por:</strong> <span id="group-owner"></span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Total de Participantes:</strong> <span id="group-participant-count"></span></p>
+                        <p><strong>Configurações:</strong></p>
+                        <ul>
+                            <li>Bloqueado: <span id="group-locked"></span></li>
+                            <li>Somente Admin: <span id="group-announce"></span></li>
+                            <li>Mensagens Temporárias: <span id="group-ephemeral"></span></li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <hr>
+                <h6>Participantes</h6>
+                <div id="participants-container">
+                    <!-- Lista de participantes será carregada via AJAX -->
+                    <p class="text-center">
+                        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                        Carregando participantes...
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- jQuery primeiro, depois DataTables -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicializar DataTable para pesquisa e paginação
+        if (typeof $.fn.DataTable !== 'undefined') {
+            $('#groups-table').DataTable({
+                "language": {
+                    "url": "//cdn.datatables.net/plug-ins/1.10.25/i18n/Portuguese-Brasil.json"
+                },
+                "pageLength": 10
+            });
+        }
+        
+        // Modal de detalhes do grupo
+        const modal = document.getElementById('groupInfoModal');
+        
+        if (modal) {
+            modal.addEventListener('show.bs.modal', function(event) {
+                // Botão que acionou o modal
+                const button = event.relatedTarget;
+                
+                // Extrair informações do data-* attributes
+                const groupName = button.getAttribute('data-group-name');
+                const groupJid = button.getAttribute('data-group-jid');
+                const groupCreated = button.getAttribute('data-group-created');
+                const groupOwner = button.getAttribute('data-group-owner');
+                const groupLocked = button.getAttribute('data-group-locked') === 'true' ? 'Sim' : 'Não';
+                const groupAnnounce = button.getAttribute('data-group-announce') === 'true' ? 'Sim' : 'Não';
+                const groupEphemeral = button.getAttribute('data-group-ephemeral') === 'true' ? 'Sim' : 'Não';
+                const participantCount = button.getAttribute('data-group-participants');
+                
+                // Atualizar o conteúdo do modal
+                modal.querySelector('#group-name').textContent = groupName;
+                modal.querySelector('#group-jid').textContent = groupJid;
+                modal.querySelector('#group-created').textContent = new Date(groupCreated).toLocaleString();
+                modal.querySelector('#group-owner').textContent = groupOwner;
+                modal.querySelector('#group-participant-count').textContent = participantCount;
+                modal.querySelector('#group-locked').textContent = groupLocked;
+                modal.querySelector('#group-announce').textContent = groupAnnounce;
+                modal.querySelector('#group-ephemeral').textContent = groupEphemeral;
+                
+                // Obter lista de participantes via AJAX
+                fetch(`{{ url_for('whatsapp.get_group_participants', device_id=device_id) }}?group_id=${encodeURIComponent(groupJid)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const participantsContainer = modal.querySelector('#participants-container');
+                        
+                        if (data.participants && data.participants.length > 0) {
+                            let html = '<div class="table-responsive"><table class="table table-sm">';
+                            html += '<thead><tr><th>Número</th><th>Admin</th><th>Super Admin</th></tr></thead><tbody>';
+                            
+                            data.participants.forEach(participant => {
+                                html += `<tr>
+                                    <td>${participant.PhoneNumber}</td>
+                                    <td>${participant.IsAdmin ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+                                    <td>${participant.IsSuperAdmin ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle text-danger"></i>'}</td>
+                                </tr>`;
+                            });
+                            
+                            html += '</tbody></table></div>';
+                            participantsContainer.innerHTML = html;
+                        } else {
+                            participantsContainer.innerHTML = '<div class="alert alert-info">Nenhum participante encontrado.</div>';
+                        }
+                    })
+                    .catch(error => {
+                        const participantsContainer = modal.querySelector('#participants-container');
+                        participantsContainer.innerHTML = `<div class="alert alert-danger">Erro ao carregar participantes: ${error.message}</div>`;
+                    });
+            });
+        }
+    });
+</script>
+{% endblock %}
