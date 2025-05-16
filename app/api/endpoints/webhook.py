@@ -329,7 +329,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                     await whatsapp_service.send_message(
                         device_id=device_id,
                         to=chat_jid,
-                        message="✅Dasativado "
+                        message="⏸️"
                     )
                     return
                 
@@ -343,7 +343,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                     await whatsapp_service.send_message(
                         device_id=device_id,
                         to=chat_jid,
-                        message="✅Ativado"
+                        message="✅"
                     )
                     return
             

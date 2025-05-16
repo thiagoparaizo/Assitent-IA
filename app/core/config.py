@@ -8,12 +8,12 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Assistant API"
+    PROJECT_NAME: str = os.getenv("PROJECT_NAME", "AI Assistant API")
     API_V1_STR: str = "/api/v1"
-    DEBUG: bool = True
+    DEBUG: bool = os.getenv("DEBUG", False)
     
     # Segurança
-    SECRET_KEY: str = "your-secret-key-here-2025-abc"  # Alterar em produção!
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here-2025-abc")  # Alterar em produção!
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 dias
     #LOGIN_DISABLED: bool = True # TODO ajustar
     
@@ -21,26 +21,26 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[Union[str, AnyHttpUrl]] = ["http://localhost:3000", "http://localhost:5000"]
     
     # Banco de dados
-    POSTGRES_SERVER: str = "localhost"
-    POSTGRES_PORT: str = "5432"
-    POSTGRES_USER: str = "postgres"
-    POSTGRES_PASSWORD: str = "postgres"
-    POSTGRES_DB: str = "assistant"
+    POSTGRES_SERVER: str = os.getenv("POSTGRES_SERVER", "localhost")
+    POSTGRES_PORT: str = os.getenv("POSTGRES_PORT", "5432")
+    POSTGRES_USER: str = os.getenv("POSTGRES_USER", "postgres")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "postgres")
+    POSTGRES_DB: str = os.getenv("POSTGRES_DB", "assistant")
     SQLALCHEMY_DATABASE_URI: PostgresDsn = None
     
     # Serviço WhatsApp
-    WHATSAPP_SERVICE_URL: str = "http://localhost:8080"
-    WHATSAPP_SERVICE_AUTH_USERNAME: str = ""
-    WHATSAPP_SERVICE_AUTH_PASSWORD: str = ""
+    WHATSAPP_SERVICE_URL: str = os.getenv("WHATSAPP_SERVICE_URL", "http://localhost:8080")
+    WHATSAPP_SERVICE_AUTH_USERNAME: str = os.getenv("WHATSAPP_SERVICE_AUTH_USERNAME", "")
+    WHATSAPP_SERVICE_AUTH_PASSWORD: str = os.getenv("WHATSAPP_SERVICE_AUTH_PASSWORD", "")
     
     # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     
     # RAG
-    VECTOR_DB_PATH: str = "./storage/vectordb"
+    VECTOR_DB_PATH: str = os.getenv("VECTOR_DB_PATH", "./storage/vectordb")
     
     # LLMs API_KEYs
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
     def assemble_db_connection(cls, v: str, values: dict) -> str:
