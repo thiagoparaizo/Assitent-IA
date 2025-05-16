@@ -11,8 +11,9 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.db.models.webhook import Webhook, WebhookLog
+from app.services.rag_faiss import RAGServiceFAISS
 from app.services.whatsapp import WhatsAppService
-from app.services.rag import RAGService
+#from app.services.rag import RAGService
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Optio
         # Se temos um tenant_id e conteúdo de mensagem, vamos processar
         if tenant_id and message_content:
             # Initialize RAG service with the correct tenant_id
-            rag_service = RAGService(tenant_id=tenant_id)
+            rag_service = RAGServiceFAISS(tenant_id=tenant_id)
             
             # Try to detect category based on content
             category = detect_category(message_content)

@@ -16,7 +16,7 @@ from app.services.config import SystemConfig, load_system_config
 import logging
 
 from app.services.agent import Agent, AgentType
-from app.services.rag import RAGService
+#from app.services.rag import RAGService
 
 
 logger = logging.getLogger(__name__)
