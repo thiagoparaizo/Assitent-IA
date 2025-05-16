@@ -10,10 +10,13 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 langchain==0.0.312
 langchain-community==0.0.10
+langchain-openai>=0.0.5
 openai==1.2.4
 chromadb==0.4.18
 redis==5.0.0
 aioredis==2.0.1
+faiss-cpu>=1.7.4
 pypdf==3.17.0
 docx2txt==0.8
 python-multipart==0.0.6
+alembic>=1.13.1
