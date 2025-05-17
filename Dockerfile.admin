@@ -5,18 +5,20 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Instalar dependências
-COPY admin/requirements.txt /tmp/
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY admin/requirements.txt /app/admin/
+RUN pip install --no-cache-dir -r /app/admin/requirements.txt
 
-# Copiar código
-COPY admin/ /app/
+# Copiar todo o código admin
+COPY admin/ /app/admin/
+
+# Configurar o PYTHONPATH para incluir o diretório raiz
+ENV PYTHONPATH=/app
+
+# Definir o diretório de trabalho para o admin
+WORKDIR /app/admin
 
 # Expor porta
 EXPOSE 5000
-
-# Definir variáveis de ambiente
-ENV FLASK_APP=app.py 
-ENV PYTHONPATH=/app
 
 # Executar aplicação
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", "app:create_app()"]
