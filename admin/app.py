@@ -21,6 +21,12 @@ from admin.models.user_store import user_store
 
 
 def create_app(config_class=Config):
+    import os
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Templates directory: {os.path.join(os.getcwd(), 'templates')}")
+    print(f"Files in templates: {os.listdir('templates')}")
+    print(f"Files in templates/auth: {os.listdir('templates/auth')}")
+    
     app = Flask(__name__)
     app.config.from_object(config_class)
     
