@@ -1,20 +1,21 @@
 # Dockerfile.admin
 FROM python:3.11-slim
 
+# Configurar diretório de trabalho
 WORKDIR /app
 
 # Instalar dependências
-COPY admin/requirements.txt /app/admin/
-RUN pip install --no-cache-dir -r /app/admin/requirements.txt
+COPY admin/requirements.txt /tmp/
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 # Copiar código
-COPY admin/ /app/admin/
-COPY admin/app.py /app/
+COPY admin/ /app/
 
 # Expor porta
 EXPOSE 5000
 
-# Modificar PYTHONPATH para incluir o diretório raiz
+# Definir variáveis de ambiente
+ENV FLASK_APP=app.py 
 ENV PYTHONPATH=/app
 
 # Executar aplicação
