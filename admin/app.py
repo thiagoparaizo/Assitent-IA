@@ -23,9 +23,19 @@ from admin.models.user_store import user_store
 def create_app(config_class=Config):
     import os
     print(f"Current directory: {os.getcwd()}")
-    print(f"Templates directory: {os.path.join(os.getcwd(), 'templates')}")
-    print(f"Files in templates: {os.listdir('templates')}")
-    print(f"Files in templates/auth: {os.listdir('templates/auth')}")
+    templates_dir = os.path.join(os.getcwd(), 'templates')
+    print(f"Templates directory: {templates_dir}")
+    
+    # Verificar se o diretório existe antes de tentar listá-lo
+    if os.path.exists(templates_dir) and os.path.isdir(templates_dir):
+        print(f"Files in templates: {os.listdir(templates_dir)}")
+        auth_dir = os.path.join(templates_dir, 'auth')
+        if os.path.exists(auth_dir) and os.path.isdir(auth_dir):
+            print(f"Files in templates/auth: {os.listdir(auth_dir)}")
+        else:
+            print(f"Directory templates/auth does not exist or is not accessible")
+    else:
+        print(f"Directory {templates_dir} does not exist or is not accessible")
     
     app = Flask(__name__)
     app.config.from_object(config_class)
