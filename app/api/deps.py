@@ -25,6 +25,8 @@ from app.services.config import SystemConfig, load_system_config
 from app.services.memory import MemoryService
 from app.services.orchestrator import AgentOrchestrator
 
+from app.core.redis import get_redis
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login")
 
 
@@ -106,8 +108,9 @@ def get_openai_api_key() -> str:
 # Redis client
 async def get_redis_client():
     """Obtém cliente Redis."""
-    redis_url = settings.REDIS_URL
-    return redis.from_url(redis_url)
+    #redis_url = settings.REDIS_URL
+    #return redis.from_url(redis_url)
+    return await get_redis()
 
 # Agent Service
 async def get_agent_service(

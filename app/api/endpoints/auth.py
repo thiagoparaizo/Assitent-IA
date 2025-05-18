@@ -131,7 +131,7 @@ def create_test_user(db: Session = Depends(get_db)):
         hashed_password=get_password_hash("password"),
         full_name="Usuário ADMIN de Teste",
         is_active=True,
-        is_superuser=False,
+        is_superuser=True,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )

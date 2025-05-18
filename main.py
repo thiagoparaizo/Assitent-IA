@@ -8,11 +8,21 @@ load_dotenv()
 from app.api.router import api_router
 from app.core.config import settings
 
+from app.core.redis import init_redis_pool, close_redis_connections
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     version="0.1.0",
 )
+
+@app.on_event("startup")
+async def startup_db_client():
+    await init_redis_pool()
+
+@app.on_event("shutdown")
+async def shutdown_db_client():
+    await close_redis_connections()
 
 # iniciar as variaveis de ambiente dotenv
 

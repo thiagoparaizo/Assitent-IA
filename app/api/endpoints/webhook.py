@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 
 from app.api.deps import get_db, get_tenant_id, get_whatsapp_service
+from app.core.redis import get_redis
 from app.schemas.agent import AgentType
 from app.services.agent import AgentService
 from app.services.config import load_system_config
@@ -312,9 +313,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                 message_content = message_content.strip()
                 
                 # Inicializar Redis
-                import redis.asyncio as redis
-                redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-                redis_client = redis.from_url(redis_url)
+                redis_client = await get_redis()
                 
                 # Chave para armazenar o estado do agente para esta conversa
                 agent_control_key = f"agent_control:{tenant_id}:{chat_jid}"
@@ -365,9 +364,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             return
         
         # Inicializar cliente Redis
-        import redis.asyncio as redis
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-        redis_client = redis.from_url(redis_url) # TODO pegar de um pool
+        redis_client = await get_redis()
         
         agent_control_key = f"agent_control:{tenant_id}:{chat_jid}"
         agent_status = await redis_client.get(agent_control_key)
