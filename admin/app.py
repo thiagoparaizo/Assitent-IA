@@ -18,6 +18,8 @@ from admin.views.webhooks import webhooks_bp
 from admin.views.user import user_bp
 from admin.models.user import User
 from admin.models.user_store import user_store
+from admin.views.llm import llm_bp
+
 
 
 def create_app(config_class=Config):
@@ -64,6 +66,7 @@ def create_app(config_class=Config):
     app.register_blueprint(conversations_bp)
     app.register_blueprint(webhooks_bp)
     app.register_blueprint(user_bp)
+    app.register_blueprint(llm_bp)
     
     # Configurar contexto global
     @app.context_processor

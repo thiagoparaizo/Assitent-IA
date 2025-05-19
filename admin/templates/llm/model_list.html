@@ -1,0 +1,184 @@
+<!-- admin/templates/llm/model_list.html -->
+{% extends 'base.html' %}
+
+{% block title %}Modelos LLM - Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Gerenciamento de Modelos LLM</h1>
+        <a href="{{ url_for('llm.create_model') }}" class="btn btn-primary">
+            <i class="bi bi-plus"></i> Novo Modelo
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title">Filtros</h5>
+            </div>
+            <div class="card-body">
+                <form id="filter-form" method="get" action="{{ url_for('llm.list_models') }}" class="row g-3">
+                    <div class="col-md-4">
+                        <label for="provider_filter" class="form-label">Provedor</label>
+                        <select class="form-select" id="provider_filter" name="provider_id">
+                            <option value="">Todos os provedores</option>
+                            {% for provider in providers %}
+                            <option value="{{ provider.id }}" {% if request.args.get('provider_id')|int == provider.id %}selected{% endif %}>
+                                {{ provider.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="features_filter" class="form-label">Recursos</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="functions_filter" name="functions" 
+                                   {% if request.args.get('functions') %}checked{% endif %}>
+                            <label class="form-check-label" for="functions_filter">
+                                Suporta Function Calling
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="vision_filter" name="vision" 
+                                   {% if request.args.get('vision') %}checked{% endif %}>
+                            <label class="form-check-label" for="vision_filter">
+                                Suporta Vision
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <label for="status_filter" class="form-label">Status</label>
+                        <select class="form-select" id="status_filter" name="status">
+                            <option value="">Todos</option>
+                            <option value="active" {% if request.args.get('status') == 'active' %}selected{% endif %}>Ativos</option>
+                            <option value="inactive" {% if request.args.get('status') == 'inactive' %}selected{% endif %}>Inativos</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-12 d-flex justify-content-end">
+                        <a href="{{ url_for('llm.list_models') }}" class="btn btn-outline-secondary me-2">Limpar</a>
+                        <button type="submit" class="btn btn-primary">Filtrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title">Modelos LLM Disponíveis</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Provedor</th>
+                        <th>ID do Modelo</th>
+                        <th>Tokens</th>
+                        <th>Recursos</th>
+                        <th>Custo/1K</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for model in models %}
+                    <tr>
+                        <td>{{ model.name }}</td>
+                        <td>{{ model.provider_name }}</td>
+                        <td><code>{{ model.model_id }}</code></td>
+                        <td>{{ model.max_tokens or 'N/A' }}</td>
+                        <td>
+                            {% if model.supports_functions %}<span class="badge bg-info me-1">Functions</span>{% endif %}
+                            {% if model.supports_vision %}<span class="badge bg-info">Vision</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if model.cost_per_1k_tokens %}
+                            ${{ "%.4f"|format(model.cost_per_1k_tokens) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if model.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('llm.edit_model', model_id=model.id) }}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#deleteModelModal"
+                                        data-model-id="{{ model.id }}"
+                                        data-model-name="{{ model.name }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmação de exclusão -->
+<div class="modal fade" id="deleteModelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o modelo <strong id="model-name-to-delete"></strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" id="delete-model-form" action="">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- Script para configurar o modal -->
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configurar modal de exclusão
+        document.getElementById('deleteModelModal').addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const modelId = button.getAttribute('data-model-id');
+            const modelName = button.getAttribute('data-model-name');
+            
+            document.getElementById('model-name-to-delete').textContent = modelName;
+            document.getElementById('delete-model-form').action = '/llm/models/' + modelId + '/delete';
+        });
+        
+        // Submit do formulário de filtro ao alterar um valor
+        document.querySelectorAll('#filter-form select, #filter-form input[type="checkbox"]').forEach(element => {
+            element.addEventListener('change', function() {
+                document.getElementById('filter-form').submit();
+            });
+        });
+    });
+</script>
+{% endblock %}

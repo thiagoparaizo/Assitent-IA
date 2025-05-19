@@ -1,0 +1,124 @@
+<!-- admin/templates/llm/provider_edit.html -->
+{% extends 'base.html' %}
+
+{% block title %}Editar Provedor LLM{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('llm.index') }}">Provedores LLM</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('llm.view_provider', provider_id=provider.id) }}">{{ provider.name }}</a></li>
+                <li class="breadcrumb-item active">Editar</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Editar Provedor LLM</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('llm.edit_provider', provider_id=provider.id) }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ provider.name }}" required>
+                        <div class="form-text">Nome de exibição para este provedor LLM.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="provider_type" class="form-label">Tipo de Provedor</label>
+                        <input type="text" class="form-control" id="provider_type" value="{{ provider_type_name }}" disabled>
+                        <div class="form-text">O tipo de provedor não pode ser alterado após a criação.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ provider.description or '' }}</textarea>
+                        <div class="form-text">Descrição opcional para este provedor.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="base_url" class="form-label">URL Base</label>
+                        <input type="text" class="form-control" id="base_url" name="base_url" value="{{ provider.base_url or '' }}">
+                        <div class="form-text">URL base para APIs self-hosted ou personalizadas. Deixe em branco para usar a URL padrão.</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if provider.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Ativo</label>
+                        <div class="form-text">Um provedor inativo não poderá ser usado pelos tenants.</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('llm.view_provider', provider_id=provider.id) }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Zona de Perigo</h5>
+            </div>
+            <div class="card-body">
+                <p>Ações irreversíveis para este provedor LLM.</p>
+                <p class="text-danger">Atenção: remover um provedor também excluirá todos os modelos associados a ele.</p>
+                <button type="button" class="btn btn-danger w-100"
+                        data-bs-toggle="modal" 
+                        data-bs-target="#deleteProviderModal"
+                        data-provider-id="{{ provider.id }}"
+                        data-provider-name="{{ provider.name }}">
+                    <i class="bi bi-trash"></i> Excluir Provedor
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteProviderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o provedor <strong id="provider-name-to-delete">{{ provider.name }}</strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita. Todos os modelos associados a este provedor serão excluídos.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" action="{{ url_for('llm.delete_provider', provider_id=provider.id) }}">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configurar modal de exclusão
+        document.getElementById('deleteProviderModal').addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const providerName = button.getAttribute('data-provider-name');
+            
+            document.getElementById('provider-name-to-delete').textContent = providerName;
+        });
+    });
+</script>
+{% endblock %}

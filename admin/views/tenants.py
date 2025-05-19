@@ -238,7 +238,10 @@ def edit(tenant_id):
         tenant_data = {
             'name': request.form.get('name'),
             'description': request.form.get('description'),
-            'is_active': 'is_active' in request.form
+            'is_active': 'is_active' in request.form,
+            'default_llm_provider_id': request.form.get('default_llm_provider_id') or None,
+            'default_llm_model_id': request.form.get('default_llm_model_id') or None,
+            'llm_api_key': request.form.get('llm_api_key') or None
         }
         
         try:
@@ -264,6 +267,23 @@ def edit(tenant_id):
                 flash(f"Erro ao atualizar tenant: {error_detail}", "danger")
         except requests.exceptions.RequestException as e:
             flash(f"Erro ao conectar com a API: {str(e)}", "danger")
+    
+    # Obter a lista de provedores LLM disponíveis
+    llm_providers = []
+    try:
+        providers_response = requests.get(
+            f"{Config.API_URL}/llm/providers",
+            headers=get_api_headers(),
+            timeout=5
+        )
+        
+        if providers_response.status_code == 200:
+            # Filtrar apenas provedores ativos
+            all_providers = providers_response.json()
+            llm_providers = [p for p in all_providers if p.get('is_active', False)]
+    except:
+        # Se não for possível obter os provedores, continuar com lista vazia
+        pass
     
     # Add additional metrics
     try:
@@ -304,7 +324,7 @@ def edit(tenant_id):
         tenant['device_count'] = 0
         tenant['agent_count'] = 0
     
-    return render_template('tenants/edit.html', tenant=tenant)
+    return render_template('tenants/edit.html', tenant=tenant, llm_providers=llm_providers)
 
 @tenants_bp.route('/<int:tenant_id>/delete', methods=['POST'])
 @login_required
@@ -338,3 +358,26 @@ def delete(tenant_id):
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
     
     return redirect(url_for('tenants.index'))
+
+@tenants_bp.route('/api/llm/models')
+@login_required
+def api_get_llm_models():
+    """API para buscar modelos LLM para um provedor específico (usado em formulários)."""
+    provider_id = request.args.get('provider_id', type=int)
+    
+    if not provider_id:
+        return jsonify([])
+    
+    try:
+        response = requests.get(
+            f"{Config.API_URL}/llm/models?provider_id={provider_id}",
+            headers=get_api_headers(),
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return jsonify(response.json())
+        else:
+            return jsonify({"error": f"Status {response.status_code}"}), 400
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500

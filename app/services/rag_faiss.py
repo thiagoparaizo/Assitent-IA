@@ -1,3 +1,4 @@
+# \app\services\rag_faiss.py
 import os
 from typing import Any, Dict, List, Optional
 import httpx
@@ -7,6 +8,8 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.document_loaders import TextLoader, PyPDFLoader
 from langchain.schema import Document
 from app.core.config import Settings, settings
+from app.services.llm.factory import LLMServiceFactory
+from app.db.session import SessionLocal
 
 class RAGServiceFAISS:
     """
@@ -16,6 +19,7 @@ class RAGServiceFAISS:
     def __init__(self, tenant_id: int = None, vector_db_path: str = None, openai_api_key: str = None):
         self.tenant_id = tenant_id
         self.base_vector_db_path = vector_db_path or settings.VECTOR_DB_PATH
+        self.db = SessionLocal()
         
         # Se temos um tenant_id, personalizar o caminho
         if tenant_id:
@@ -26,31 +30,82 @@ class RAGServiceFAISS:
         # Criar diretório para o vectorstore se não existir
         os.makedirs(self.vector_db_path, exist_ok=True)
         
-        # Inicializar o embedding model
-        self.embeddings = OpenAIEmbeddings(api_key=openai_api_key or settings.OPENAI_API_KEY)
+        # Inicializar o embedding model de forma assíncrona
+        # Não inicializamos imediatamente para permitir a inicialização
+        # adequada com o LLM do tenant
+        self.embeddings = None
         self.vectorstore = None
         
         # Verificar se já existe um index para este tenant
         index_file = os.path.join(self.vector_db_path, "index.faiss")
         if os.path.exists(index_file):
-            self.load_vectorstore()
+            # Adiaremos o carregamento até precisarmos usar o vectorstore
+            # para garantir que usamos os embeddings corretos
+            pass
+        
+    async def _init_embeddings(self):
+        """
+        Inicializa o modelo de embeddings com base nas configurações do tenant
+        """
+        if self.embeddings is not None:
+            return
+        
+        # Usar o factory para criar o serviço LLM correto para o tenant
+        llm_service = await LLMServiceFactory.create_service(self.db, tenant_id=self.tenant_id)
+        
+        # Para compatibilidade com o FAISS existente, criamos um adaptador
+        # que implementa a interface esperada pelo FAISS
+        class EmbeddingAdapter:
+            def __init__(self, llm_service):
+                self.llm_service = llm_service
+            
+            async def embed_documents(self, texts):
+                embeddings = []
+                for text in texts:
+                    embedding = await self.llm_service.get_embeddings(text)
+                    embeddings.append(embedding)
+                return embeddings
+            
+            async def embed_query(self, text):
+                return await self.llm_service.get_embeddings(text)
+            
+            # Método síncrono necessário para FAISS
+            def embed_documents(self, texts):
+                import asyncio
+                return asyncio.run(self._async_embed_documents(texts))
+            
+            async def _async_embed_documents(self, texts):
+                return await self.embed_documents(texts)
+            
+            # Método síncrono necessário para FAISS
+            def embed_query(self, text):
+                import asyncio
+                return asyncio.run(self._async_embed_query(text))
+                
+            async def _async_embed_query(self, text):
+                return await self.embed_query(text)
+        
+        self.embeddings = EmbeddingAdapter(llm_service)
     
-    def load_vectorstore(self):
+    async def load_vectorstore(self):
         """
         Carrega o vectorstore existente
         """
+        # Garantir que o modelo de embeddings está inicializado
+        await self._init_embeddings()
+        
         try:
             self.vectorstore = FAISS.load_local(
                 self.vector_db_path, 
                 self.embeddings, 
                 "index",
-                allow_dangerous_deserialization=True  # Adicione esta opção
+                allow_dangerous_deserialization=True
             )
         except Exception as e:
             print(f"Erro ao carregar vectorstore: {e}")
             self.vectorstore = None
     
-    def index_documents(self, documents_dir: str, category: str = None, tenant_id: int = None) -> int:
+    async def index_documents(self, documents_dir: str, category: str = None, tenant_id: int = None) -> int:
         """
         Indexa documentos de um diretório para o vectorstore
         """
@@ -60,12 +115,18 @@ class RAGServiceFAISS:
             self.vector_db_path = os.path.join(self.base_vector_db_path, f"tenant_{tenant_id}")
             os.makedirs(self.vector_db_path, exist_ok=True)
             
+            # Limpar embeddings para reinicializar com o tenant correto
+            self.embeddings = None
+            
             # Recarregar vectorstore com o novo caminho
             index_file = os.path.join(self.vector_db_path, "index.faiss")
             if os.path.exists(index_file):
-                self.load_vectorstore()
+                await self.load_vectorstore()
             else:
                 self.vectorstore = None
+        
+        # Garantir que o modelo de embeddings está inicializado
+        await self._init_embeddings()
         
         # Dicionário de carregadores por extensão
         loaders = {
@@ -113,7 +174,7 @@ class RAGServiceFAISS:
                 self.vectorstore.save_local(self.vector_db_path, "index", allow_dangerous_deserialization=True)
             else:
                 # Atualizar o vectorstore existente
-                # Aqui está a correção: criar um novo vectorstore temporário
+                # Criar um novo vectorstore temporário
                 temp_vectorstore = FAISS.from_documents(texts, self.embeddings)
                 
                 # Mesclar com o vectorstore existente
@@ -126,10 +187,13 @@ class RAGServiceFAISS:
         
         return 0
         
-    def add_text(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    async def add_text(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> None:
         """
         Adiciona um texto ao vectorstore
         """
+        # Garantir que o modelo de embeddings está inicializado
+        await self._init_embeddings()
+        
         # Garantir que tenant_id esteja nos metadados
         if metadata is None:
             metadata = {}
@@ -157,8 +221,12 @@ class RAGServiceFAISS:
         """
         Busca documentos relevantes para uma pergunta
         """
+        # Garantir que o vectorstore está carregado
         if self.vectorstore is None:
-            return []
+            await self.load_vectorstore()
+            
+            if self.vectorstore is None:
+                return []
         
         # FAISS não suporta filtragem direta como o Chroma
         # Vamos buscar mais resultados e filtrar depois
@@ -209,40 +277,24 @@ class RAGServiceFAISS:
         # Montar o contexto para a requisição
         context_text = "\n\n".join([f"Documento {i+1}:\n{doc['content']}" for i, doc in enumerate(context)])
         
-        # Preparar prompt para a API do OpenAI
-        prompt = f"""
-        Contexto: {context_text}
+        # Usar o factory para obter o serviço LLM apropriado para o tenant
+        llm_service = await LLMServiceFactory.create_service(self.db, tenant_id=self.tenant_id)
         
-        Com base no contexto acima, responda à seguinte pergunta de forma clara e direta:
-        Pergunta: {question}
+        # Preparar mensagens para o LLM
+        messages = [
+            {"role": "system", "content": "Você é um assistente de uma clínica odontológica. Responda de forma clara, precisa e amigável."},
+            {"role": "user", "content": f"""
+            Contexto: {context_text}
+            
+            Com base no contexto acima, responda à seguinte pergunta de forma clara e direta:
+            Pergunta: {question}
+            """}
+        ]
         
-        Resposta:
-        """
-        
-        # Fazer requisição para a API do OpenAI
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    json={
-                        "model": "gpt-3.5-turbo",
-                        "messages": [
-                            {"role": "system", "content": "Você é um assistente de uma clínica odontológica. Responda de forma clara, precisa e amigável."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "max_tokens":.500
-                    },
-                    timeout=30.0
-                )
-                
-                response.raise_for_status()
-                data = response.json()
-                
-                return data["choices"][0]["message"]["content"].strip()
+            # Gerar resposta usando o serviço LLM escolhido para o tenant
+            response = await llm_service.generate_response(messages)
+            return response
         except Exception as e:
             print(f"Erro ao gerar resposta: {e}")
             return "Desculpe, não foi possível gerar uma resposta neste momento."

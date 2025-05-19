@@ -1,0 +1,22 @@
+
+Token decodificado com sucesso, sub: 679ca34e-10c2-4d52-94ba-482f1007265a
+Usuário autenticado: admin@gmail.com
+INFO:     127.0.0.1:58152 - "GET /api/v1/agents/count?tenant_id=1 HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "c:\Users\thiago.paraizo\AppData\Local\Programs\Python\Python312\lib\site-packages\sqlalchemy\engine\base.py", line 1964, in _exec_single_context
+    self.dialect.do_execute(
+  File "c:\Users\thiago.paraizo\AppData\Local\Programs\Python\Python312\lib\site-packages\sqlalchemy\engine\default.py", line 945, in do_execute
+    cursor.execute(statement, parameters)
+psycopg2.errors.InvalidTextRepresentation: invalid input syntax for type uuid: "count"
+LINE 3: WHERE agents.id = 'count'::UUID
+
+sqlalchemy.exc.DataError: (psycopg2.errors.InvalidTextRepresentation) invalid input syntax for type uuid: "count"
+LINE 3: WHERE agents.id = 'count'::UUID
+                          ^
+
+[SQL: SELECT agents.id, agents.name, agents.tenant_id, agents.type, agents.specialties, agents.description, agents.prompt, agents.rag_categories, agents.mcp_enabled, agents.mcp_functions, agents.escalation_enabled, agents.list_escalation_agent_ids, agents.human_escalation_enabled, agents.human_escalation_contact, agents.active, agents.created_at, agents.updated_at
+FROM agents
+WHERE agents.id = %(id_1)s::UUID]
+[parameters: {'id_1': 'count'}]
+(Background on this error at: https://sqlalche.me/e/20/9h9h)

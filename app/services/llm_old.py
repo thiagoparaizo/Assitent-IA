@@ -3,7 +3,7 @@
 from typing import Dict, Any, List, Optional
 import httpx
 
-class LLMService:
+class LLMServiceOld:
     """Serviço para geração de texto com LLMs."""
     
     def __init__(self, api_key: str, model: str = "gpt-4"):

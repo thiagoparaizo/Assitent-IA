@@ -1,0 +1,158 @@
+<!-- admin/templates/llm/model_edit.html -->
+{% extends 'base.html' %}
+
+{% block title %}Editar Modelo LLM{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('llm.list_models') }}">Modelos LLM</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('llm.view_provider', provider_id=model.provider_id) }}">{{ model.provider_name }}</a></li>
+                <li class="breadcrumb-item active">Editar {{ model.name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Editar Modelo LLM</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('llm.edit_model', model_id=model.id) }}">
+                    <div class="mb-3">
+                        <label for="provider_id" class="form-label">Provedor</label>
+                        <input type="text" class="form-control" id="provider_name" value="{{ model.provider_name }}" disabled>
+                        <div class="form-text">O provedor não pode ser alterado após a criação do modelo.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" value="{{ model.name }}" required>
+                        <div class="form-text">Nome de exibição para este modelo.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="model_id" class="form-label">ID do Modelo<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="model_id" name="model_id" value="{{ model.model_id }}" required>
+                        <div class="form-text">Identificador do modelo usado na API (por exemplo, "gpt-4", "gemini-pro").</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="max_tokens" class="form-label">Limite Máximo de Tokens</label>
+                        <input type="number" class="form-control" id="max_tokens" name="max_tokens" min="1" value="{{ model.max_tokens or '' }}">
+                        <div class="form-text">Número máximo de tokens suportado pelo modelo. Deixe em branco se desconhecido.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="default_temperature" class="form-label">Temperatura Padrão</label>
+                        <input type="number" class="form-control" id="default_temperature" name="default_temperature" 
+                               min="0" max="2" step="0.1" value="{{ model.default_temperature }}">
+                        <div class="form-text">Temperatura padrão para geração (0-2). Valores mais altos = mais criatividade.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="cost_per_1k_tokens" class="form-label">Custo por 1K Tokens</label>
+                        <input type="number" class="form-control" id="cost_per_1k_tokens" name="cost_per_1k_tokens" 
+                               min="0" step="0.0001" value="{{ model.cost_per_1k_tokens }}">
+                        <div class="form-text">Custo em dólares por 1.000 tokens. Use 0 se desconhecido ou se não quiser rastrear custos.</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="supports_functions" name="supports_functions" 
+                                       {% if model.supports_functions %}checked{% endif %}>
+                                <label class="form-check-label" for="supports_functions">Suporta Function Calling</label>
+                                <div class="form-text">O modelo suporta chamadas de função (Function Calling).</div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="supports_vision" name="supports_vision" 
+                                       {% if model.supports_vision %}checked{% endif %}>
+                                <label class="form-check-label" for="supports_vision">Suporta Vision</label>
+                                <div class="form-text">O modelo suporta processamento de imagens (Vision).</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" 
+                               {% if model.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Ativo</label>
+                        <div class="form-text">Um modelo inativo não poderá ser usado pelos tenants.</div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('llm.view_provider', provider_id=model.provider_id) }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Zona de Perigo</h5>
+            </div>
+            <div class="card-body">
+                <p>Ações irreversíveis para este modelo LLM.</p>
+                <button type="button" class="btn btn-danger w-100"
+                        data-bs-toggle="modal" 
+                        data-bs-target="#deleteModelModal"
+                        data-model-id="{{ model.id }}"
+                        data-model-name="{{ model.name }}">
+                    <i class="bi bi-trash"></i> Excluir Modelo
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteModelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o modelo <strong id="model-name-to-delete">{{ model.name }}</strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" action="{{ url_for('llm.delete_model', model_id=model.id) }}">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configurar modal de exclusão
+        document.getElementById('deleteModelModal').addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const modelName = button.getAttribute('data-model-name');
+            
+            document.getElementById('model-name-to-delete').textContent = modelName;
+        });
+    });
+</script>
+{% endblock %}

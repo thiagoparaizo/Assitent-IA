@@ -45,6 +45,35 @@
                         <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}" class="btn btn-outline-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">Salvar Alterações</button>
                     </div>
+
+                    <div class="mb-3">
+                        <label for="default_llm_provider_id" class="form-label">Provedor LLM Padrão</label>
+                        <select class="form-select" id="default_llm_provider_id" name="default_llm_provider_id">
+                            <option value="">Sem provedor específico (usa o padrão)</option>
+                            {% for provider in llm_providers %}
+                            <option value="{{ provider.id }}" {% if tenant.default_llm_provider_id == provider.id %}selected{% endif %}>
+                                {{ provider.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Selecione o provedor LLM padrão para este tenant.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="default_llm_model_id" class="form-label">Modelo LLM Padrão</label>
+                        <select class="form-select" id="default_llm_model_id" name="default_llm_model_id">
+                            <option value="">Sem modelo específico (usa o padrão do provedor)</option>
+                            <!-- Preenchido via JavaScript quando o provedor muda -->
+                        </select>
+                        <div class="form-text">Selecione o modelo LLM padrão para este tenant.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="llm_api_key" class="form-label">Chave API Específica (opcional)</label>
+                        <input type="password" class="form-control" id="llm_api_key" name="llm_api_key" 
+                            value="{{ tenant.llm_api_key or '' }}" autocomplete="new-password">
+                        <div class="form-text">Deixe em branco para usar a chave global do sistema.</div>
+                    </div>
                 </form>
             </div>
         </div>
@@ -139,4 +168,67 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const providerSelect = document.getElementById('default_llm_provider_id');
+    const modelSelect = document.getElementById('default_llm_model_id');
+    const currentModelId = '{{ tenant.default_llm_model_id or "" }}';
+    
+    // Função para carregar modelos baseado no provedor selecionado
+    async function loadModels(providerId) {
+        // Limpar select de modelos
+        modelSelect.innerHTML = '<option value="">Sem modelo específico (usa o padrão do provedor)</option>';
+        
+        if (!providerId) {
+            return;
+        }
+        
+        try {
+            // Usar a nova rota interna da API
+            const response = await fetch(`/tenants/api/llm/models?provider_id=${providerId}`);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const models = await response.json();
+            
+            if (models && Array.isArray(models)) {
+                models.forEach(model => {
+                    if (model.is_active) {
+                        const option = document.createElement('option');
+                        option.value = model.id;
+                        option.text = `${model.name} (${model.model_id})`;
+                        
+                        if (model.id == currentModelId) {
+                            option.selected = true;
+                        }
+                        
+                        modelSelect.appendChild(option);
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Error loading models:', error);
+            // Adicionar mensagem de erro no select
+            const errorOption = document.createElement('option');
+            errorOption.text = "Erro ao carregar modelos";
+            errorOption.disabled = true;
+            modelSelect.appendChild(errorOption);
+        }
+    }
+    
+    // Carregar modelos iniciais
+    if (providerSelect.value) {
+        loadModels(providerSelect.value);
+    }
+    
+    // Atualizar modelos quando o provedor mudar
+    providerSelect.addEventListener('change', function() {
+        loadModels(this.value);
+    });
+});
+</script>
 {% endblock %}

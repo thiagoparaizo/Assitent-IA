@@ -13,12 +13,12 @@ import json
 import time
 from datetime import datetime
 
-from app.api.deps import get_db, get_tenant_id, get_whatsapp_service
+from app.api.deps import get_db, get_llm_service, get_tenant_id, get_whatsapp_service
 from app.core.redis import get_redis
 from app.schemas.agent import AgentType
 from app.services.agent import AgentService
 from app.services.config import load_system_config
-from app.services.llm import LLMService
+#from app.services.llm import LLMService
 from app.services.orchestrator import AgentOrchestrator
 from app.services.rag_faiss import RAGServiceFAISS
 from app.services.whatsapp import WhatsAppService
@@ -430,7 +430,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                     return 
         
         # Inicializar serviços
-        llm_service = LLMService(api_key=os.getenv("OPENAI_API_KEY"))
+        llm_service = await get_llm_service(db, str(tenant_id) if tenant_id else None) #LLMService(api_key=os.getenv("OPENAI_API_KEY"))
         rag_service = RAGServiceFAISS(tenant_id=tenant_id)
         
         if whatsapp_service == None:

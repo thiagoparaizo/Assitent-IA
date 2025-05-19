@@ -15,7 +15,8 @@ from app.db.session import SessionLocal
 from app.db.models.user import User
 from app.schemas.token import TokenPayload
 from app.services.agent import AgentService
-from app.services.llm import LLMService
+#from app.services.llm import LLMService
+from app.services.llm.factory import LLMServiceFactory
 from app.services.mcp import MCPService
 from app.services.orchestrator import AgentOrchestrator
 from app.services.rag_faiss import RAGServiceFAISS
@@ -129,10 +130,16 @@ async def get_rag_service(tenant_id: str = Depends(get_tenant_id)):
     return RAGServiceFAISS(tenant_id=tenant_id, openai_api_key=openai_api_key)
 
 # LLM Service
-async def get_llm_service():
-    """Obtém o serviço LLM."""
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    return LLMService(api_key=openai_api_key)
+async def get_llm_service(db: Session = Depends(get_db), tenant_id: str = Depends(get_tenant_id)):
+    """
+    Obtém o serviço LLM baseado nas configurações do tenant.
+    Note: Esta função deve ser chamada diretamente, não através de Depends.
+    """
+    # Converter tenant_id para int se não for None
+    if db is None:
+        db = get_db()
+    tenant_id_int = int(tenant_id) if tenant_id else None
+    return await LLMServiceFactory.create_service(db, tenant_id=tenant_id_int)
 
 # MCP Service
 async def get_mcp_service():
@@ -144,19 +151,19 @@ async def get_orchestrator(
     agent_service: AgentService = Depends(get_agent_service),
     rag_service: RAGServiceFAISS = Depends(get_rag_service),
     redis_client = Depends(get_redis_client),
-    openai_api_key: str = Depends(get_openai_api_key)
+    llm_service = Depends(get_llm_service)
+    
 ) -> AgentOrchestrator:
     """
     Obtém o orquestrador de agentes.
     """
-    llm_service = LLMService(api_key=openai_api_key)
     return AgentOrchestrator(agent_service, rag_service, redis_client, llm_service)
 
 async def get_enhanced_orchestrator(
     agent_service: AgentService = Depends(get_agent_service),
     rag_service: RAGServiceFAISS = Depends(get_rag_service),
     redis_client = Depends(get_redis_client),
-    llm_service: LLMService = Depends(get_llm_service),
+    llm_service = Depends(get_llm_service),
     config: SystemConfig = None
 ) -> AgentOrchestrator:
     """

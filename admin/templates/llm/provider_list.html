@@ -1,0 +1,109 @@
+<!-- admin/templates/llm/provider_list.html -->
+{% extends 'base.html' %}
+
+{% block title %}Provedores LLM - Admin{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Gerenciamento de Provedores LLM</h1>
+        <a href="{{ url_for('llm.create_provider') }}" class="btn btn-primary">
+            <i class="bi bi-plus"></i> Novo Provedor
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="card-title">Provedores LLM Disponíveis</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Tipo</th>
+                        <th>URL Base</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for provider in providers %}
+                    <tr>
+                        <td>{{ provider.name }}</td>
+                        <td>{{ provider.provider_type }}</td>
+                        <td>{{ provider.base_url or 'Padrão' }}</td>
+                        <td>
+                            {% if provider.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ url_for('llm.view_provider', provider_id=provider.id) }}" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('llm.edit_provider', provider_id=provider.id) }}" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" class="btn btn-sm btn-outline-danger"
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#deleteProviderModal"
+                                        data-provider-id="{{ provider.id }}"
+                                        data-provider-name="{{ provider.name }}">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmação de exclusão -->
+<div class="modal fade" id="deleteProviderModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o provedor <strong id="provider-name-to-delete"></strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita. Todos os modelos associados a este provedor também serão excluídos.</p>
+                <p class="text-danger">Os tenants que utilizam este provedor serão revertidos para o provedor padrão do sistema.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" id="delete-provider-form" action="">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<!-- Script para configurar o modal -->
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Configurar modal de exclusão
+        document.getElementById('deleteProviderModal').addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            const providerId = button.getAttribute('data-provider-id');
+            const providerName = button.getAttribute('data-provider-name');
+            
+            document.getElementById('provider-name-to-delete').textContent = providerName;
+            document.getElementById('delete-provider-form').action = '/llm/providers/' + providerId + '/delete';
+        });
+    });
+</script>
+{% endblock %}

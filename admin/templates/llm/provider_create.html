@@ -1,0 +1,87 @@
+<!-- admin/templates/llm/provider_create.html -->
+{% extends 'base.html' %}
+
+{% block title %}Criar Provedor LLM{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('llm.index') }}">Provedores LLM</a></li>
+                <li class="breadcrumb-item active">Criar Provedor</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Criar Novo Provedor LLM</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('llm.create_provider') }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nome<span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                        <div class="form-text">Nome de exibição para este provedor LLM.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="provider_type" class="form-label">Tipo de Provedor<span class="text-danger">*</span></label>
+                        <select class="form-select" id="provider_type" name="provider_type" required>
+                            {% for type in provider_types %}
+                            <option value="{{ type.id }}">{{ type.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Escolha o tipo de provedor LLM.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descrição</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                        <div class="form-text">Descrição opcional para este provedor.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="base_url" class="form-label">URL Base</label>
+                        <input type="text" class="form-control" id="base_url" name="base_url">
+                        <div class="form-text">URL base para APIs self-hosted ou personalizadas. Deixe em branco para usar a URL padrão.</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" checked>
+                        <label class="form-check-label" for="is_active">Ativo</label>
+                        <div class="form-text">Um provedor inativo não poderá ser usado pelos tenants.</div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <div class="d-flex">
+                            <div class="flex-shrink-0">
+                                <i class="bi bi-info-circle-fill fs-4"></i>
+                            </div>
+                            <div class="ms-3">
+                                <h5>Configuração de Provedores LLM</h5>
+                                <p>Após criar o provedor, você poderá:</p>
+                                <ul>
+                                    <li>Adicionar modelos específicos para este provedor</li>
+                                    <li>Configurar tenants para utilizar este provedor</li>
+                                    <li>Monitorar uso e custos associados</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('llm.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Criar Provedor</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

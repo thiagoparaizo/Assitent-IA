@@ -129,7 +129,9 @@
         const deviceName = button.getAttribute('data-device-name');
         
         document.getElementById('device-name-to-disconnect').textContent = deviceName;
-        document.getElementById('disconnect-device-form').action = '{{ url_for("whatsapp.disconnect", device_id="") }}' + deviceId;
+        
+        // Corrigindo a forma de construir a URL de desconexão
+        document.getElementById('disconnect-device-form').action = '/whatsapp/devices/' + deviceId + '/disconnect';
     });
 </script>
 {% endblock %}
