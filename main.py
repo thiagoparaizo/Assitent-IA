@@ -1,3 +1,4 @@
+import os
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,6 +16,9 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     version="0.1.0",
 )
+
+os.makedirs(settings.VECTOR_DB_PATH, exist_ok=True)
+os.makedirs(settings.MEMORY_DB_PATH, exist_ok=True)
 
 @app.on_event("startup")
 async def startup_db_client():

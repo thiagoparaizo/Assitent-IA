@@ -1,4 +1,5 @@
 
+# app/services/config.py
 from enum import Enum
 from typing import Any, Dict, Optional
 from pydantic import BaseModel
@@ -19,6 +20,9 @@ class MemoryConfig(BaseModel):
     """Configuration for memory system."""
     enabled: bool = True
     vector_db_url: Optional[str] = None
+    memory_db_path: Optional[str] = None
+    # Flag para indicar se deve usar armazenamento local (FAISS) em vez de HTTP
+    use_local_storage: bool = True
     summary_frequency: int = 10  # Messages
     summary_time_threshold: int = 1800  # Seconds (30 mins)
     max_memories_per_query: int = 5
@@ -82,7 +86,11 @@ class SystemConfig(BaseModel):
         if os.getenv("MEMORY_ENABLED"):
             self.memory.enabled = os.getenv("MEMORY_ENABLED").lower() == "true"
         if os.getenv("VECTOR_DB_URL"):
-            self.memory.vector_db_url = os.getenv("VECTOR_DB_URL") # verificar
+            self.memory.vector_db_url = os.getenv("VECTOR_DB_URL")
+        if os.getenv("MEMORY_DB_PATH"):  # Nova variável específica
+            self.memory.memory_db_path = os.getenv("MEMORY_DB_PATH")
+        if os.getenv("MEMORY_USE_LOCAL_STORAGE"):
+            self.memory.use_local_storage = os.getenv("MEMORY_USE_LOCAL_STORAGE").lower() == "true"
             
         # RAG
         if os.getenv("RAG_ENABLED"):

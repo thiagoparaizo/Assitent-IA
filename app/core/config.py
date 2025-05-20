@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     # RAG
     VECTOR_DB_PATH: str = os.getenv("VECTOR_DB_PATH", "./storage/vectordb")
     
+    # Memory
+    MEMORY_DB_PATH: str = os.getenv("MEMORY_DB_PATH", "./storage/memorydb")
+    MEMORY_ENABLED: bool = os.getenv("MEMORY_ENABLED", "true").lower() == "true"
+    MEMORY_USE_LOCAL_STORAGE: bool = os.getenv("MEMORY_USE_LOCAL_STORAGE", "true").lower() == "true"
+    
+
     # LLMs API_KEYs
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     

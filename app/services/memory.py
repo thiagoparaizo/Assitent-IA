@@ -1,14 +1,18 @@
 # Create a new file at app/services/memory.py
 
 from enum import Enum
+import os
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 import time
 import json
 import hashlib
 import asyncio
+import uuid
 from pydantic import BaseModel
 import httpx
+from app.core.config import Settings, settings
+from langchain.schema import Document
 
 class MemoryType(str, Enum):
     """Types of memory entries."""
@@ -47,14 +51,145 @@ class ConversationSummary(BaseModel):
 class MemoryService:
     """Service for managing long-term memory."""
     
-    def __init__(self, llm_service, db_connection_string=None, vector_db_url=None):
+    def __init__(self, llm_service, db_connection_string=None, 
+                 vector_db_url=None, vector_db_path=None, use_local_storage=True):
         self.llm = llm_service
         self.db_url = db_connection_string
         self.vector_db_url = vector_db_url
+        self.vector_db_path = vector_db_path or settings.VECTOR_DB_PATH
+        self.use_local_storage = use_local_storage
         
-        # In-memory fallback if no vector DB is configured
+        # In-memory fallback if no storage is configured
         self._memory_entries = []
         self._summaries = []
+        
+        # FAISS index para armazenamento local
+        self.faiss_index = None
+        self.faiss_docstore = None
+        
+        # Inicializar armazenamento FAISS se necessário
+        if self.use_local_storage and self.vector_db_path:
+            # Criar diretório se não existir
+            os.makedirs(self.vector_db_path, exist_ok=True)
+            
+            # Verificar se já existe um index
+            index_file = os.path.join(self.vector_db_path, "memory_index.faiss")
+            if os.path.exists(index_file):
+                # O index será carregado na primeira vez que for necessário
+                pass
+            
+    async def _init_faiss_index(self):
+        """Inicializa o índice FAISS para armazenamento local."""
+        if self.faiss_index is not None:
+            return
+        
+        try:
+            from langchain.vectorstores import FAISS
+            from langchain.schema import Document
+            import uuid
+            
+            # Verificar se já existe um index
+            index_file = os.path.join(self.vector_db_path, "index.faiss")
+            
+            if os.path.exists(index_file):
+                # Carregar index existente
+                # Adaptador para compatibilidade com FAISS
+                embedding_adapter = self._create_embedding_adapter()
+                
+                self.faiss_index = FAISS.load_local(
+                    self.vector_db_path, 
+                    embedding_adapter,  # Usando o adaptador
+                    "index",
+                    allow_dangerous_deserialization=True
+                )
+                
+                print(f"FAISS index loaded from {self.vector_db_path}")
+            else:
+                # Criar um novo index vazio
+                # Para criar um index vazio, precisamos de pelo menos um documento
+                temp_doc = Document(
+                    page_content="Temporary document for FAISS initialization",
+                    metadata={"temp": True, "id": str(uuid.uuid4())}
+                )
+                
+                # Vamos fazer uma abordagem alternativa - criar um embedding manualmente
+                temp_embedding = await self._get_embedding(temp_doc.page_content)
+                
+                # Em vez de usar o adapter, vamos criar os documentos manualmente
+                import numpy as np
+                from langchain.schema.embeddings import Embeddings
+                
+                # Criar um embedding simples do tipo numpy array            
+                class SimpleEmbeddings(Embeddings):
+                    def embed_documents(self, texts):
+                        # Retornar embedding fixo para cada texto
+                        return [np.array([0.1] * 1536, dtype=np.float32) for _ in texts]
+                    
+                    def embed_query(self, text):
+                        # Retornar embedding fixo para query
+                        return np.array([0.1] * 1536, dtype=np.float32)
+                
+                # Criar um novo index com embedding estático
+                self.faiss_index = FAISS.from_documents([temp_doc], SimpleEmbeddings())
+                
+                # Salvar o index
+                self.faiss_index.save_local(self.vector_db_path, "index")
+                
+                print(f"New FAISS index created at {self.vector_db_path}")
+            
+            # Armazenar referência ao docstore
+            self.faiss_docstore = self.faiss_index.docstore
+            
+        except Exception as e:
+            print(f"Error initializing FAISS index: {e}")
+            import traceback
+            traceback.print_exc()
+            self.use_local_storage = False  # Fallback para memória
+
+    def _create_embedding_adapter(self):
+        """Cria um adaptador compatível com FAISS"""
+        from langchain.schema.embeddings import Embeddings
+        
+        # Classe para adaptar nosso LLM ao formato esperado pelo FAISS
+        class AsyncCompatibleEmbeddings(Embeddings):
+            def __init__(self, llm_service):
+                self.llm_service = llm_service
+                
+            def embed_documents(self, texts):
+                # Implementação síncrona - não use asyncio.run()
+                # Em vez disso, use uma solução que funcione com o eventloop atual
+                import nest_asyncio
+                import asyncio
+                
+                # Apply nest_asyncio para permitir loops aninhados
+                nest_asyncio.apply()
+                
+                # Criar uma nova coroutine que será executada no loop atual
+                async def get_embeddings():
+                    embeddings = []
+                    for text in texts:
+                        embedding = await self.llm_service.get_embeddings(text)
+                        embeddings.append(embedding)
+                    return embeddings
+                
+                # Obter o loop atual e executar a coroutine nele
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(get_embeddings())
+            
+            def embed_query(self, text):
+                # Similar à embed_documents, mas para uma única query
+                import nest_asyncio
+                import asyncio
+                
+                nest_asyncio.apply()
+                
+                async def get_embedding():
+                    return await self.llm_service.get_embeddings(text)
+                
+                loop = asyncio.get_event_loop()
+                return loop.run_until_complete(get_embedding())
+        
+        return AsyncCompatibleEmbeddings(self.llm)
     
     async def add_memory(self, entry: MemoryEntry) -> str:
         """
@@ -62,15 +197,15 @@ class MemoryService:
         
         Args:
             entry: The memory entry to add
-            
+                
         Returns:
             The ID of the added memory
         """
         # Generate embedding for this memory for retrieval later
         entry.embedding = await self._get_embedding(entry.content)
         
-        if self.vector_db_url:
-            # Store in vector database
+        # Usar serviço vetorial HTTP se configurado e não estiver usando armazenamento local
+        if self.vector_db_url and not self.use_local_storage:
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
@@ -82,6 +217,50 @@ class MemoryService:
                     return response.json()["id"]
             except Exception as e:
                 print(f"Error storing memory in vector database: {e}")
+                # Fall back to local storage or in-memory
+            # ... código HTTP existente ...
+        
+        # Usar FAISS se armazenamento local estiver habilitado
+        if self.use_local_storage and self.vector_db_path:
+            try:
+                # Inicializar FAISS se necessário
+                await self._init_faiss_index()
+                
+                if self.faiss_index:
+                    from langchain.schema import Document
+                    
+                    # Converter MemoryEntry para Document
+                    doc = Document(
+                        page_content=entry.content,
+                        metadata={
+                            "id": entry.id,
+                            "tenant_id": entry.tenant_id,
+                            "user_id": entry.user_id,
+                            "type": entry.type.value,
+                            "created_at": entry.created_at,
+                            "last_accessed": entry.last_accessed,
+                            "access_count": entry.access_count,
+                            "importance": entry.importance,
+                            "metadata": json.dumps(entry.metadata)
+                        }
+                    )
+                    
+                    # Adicionar documento diretamente ao FAISS
+                    import numpy as np
+                    embedding_vector = np.array(entry.embedding, dtype=np.float32)
+                    self.faiss_index.add_embeddings(
+                        [(doc.page_content, doc.metadata)], 
+                        [embedding_vector]
+                    )
+                    
+                    # Salvar alterações
+                    self.faiss_index.save_local(self.vector_db_path, "index")
+                    
+                    return entry.id
+            except Exception as e:
+                print(f"Error storing memory in FAISS: {e}")
+                import traceback
+                traceback.print_exc()
                 # Fall back to in-memory
         
         # In-memory fallback
@@ -109,11 +288,11 @@ class MemoryService:
         Returns:
             List of relevant memory entries
         """
+        # Generate embedding for the query
+        query_embedding = await self._get_embedding(query)
         
-        if self.vector_db_url:
-            # Generate embedding for the query
-            query_embedding = await self._get_embedding(query) # TODO verificar essa lógica
-            # Query vector database
+        # 1. Tentar usar serviço HTTP se configurado e não estiver usando armazenamento local
+        if self.vector_db_url and not self.use_local_storage:
             try:
                 params = {
                     "tenant_id": tenant_id,
@@ -140,9 +319,69 @@ class MemoryService:
                     return [MemoryEntry(**item) for item in results]
             except Exception as e:
                 print(f"Error querying vector database: {e}")
+                # Fall back to local storage or in-memory
+        
+        # 2. Tentar usar FAISS local se habilitado
+        if self.use_local_storage and self.vector_db_path:
+            try:
+                # Inicializar FAISS se necessário
+                await self._init_faiss_index()
+                
+                if self.faiss_index:
+                    # Realizar busca por similaridade
+                    # Buscar mais resultados do que necessário para poder filtrar
+                    docs_with_scores = self.faiss_index.similarity_search_with_score(
+                        query, k=limit * 3
+                    )
+                    
+                    # Filtrar por tenant_id e user_id
+                    filtered_results = []
+                    for doc, score in docs_with_scores:
+                        doc_tenant_id = doc.metadata.get("tenant_id")
+                        doc_user_id = doc.metadata.get("user_id")
+                        doc_type = doc.metadata.get("type")
+                        
+                        # Verificar se corresponde aos filtros
+                        if doc_tenant_id == tenant_id and doc_user_id == user_id:
+                            # Verificar filtro de tipo se fornecido
+                            if memory_types and doc_type:
+                                if not any(t.value == doc_type for t in memory_types):
+                                    continue
+                            
+                            # Converter de Document para MemoryEntry
+                            try:
+                                entry_metadata = json.loads(doc.metadata.get("metadata", "{}"))
+                            except:
+                                entry_metadata = {}
+                                
+                            entry = MemoryEntry(
+                                id=doc.metadata.get("id", str(uuid.uuid4())),
+                                tenant_id=doc_tenant_id,
+                                user_id=doc_user_id,
+                                type=MemoryType(doc_type) if doc_type else MemoryType.FACT,
+                                content=doc.page_content,
+                                metadata=entry_metadata,
+                                embedding=query_embedding,  # Usar embedding da query como placeholder
+                                importance=doc.metadata.get("importance", 0.5),
+                                created_at=doc.metadata.get("created_at", time.time()),
+                                last_accessed=time.time(),  # Atualizar último acesso
+                                access_count=doc.metadata.get("access_count", 0) + 1  # Incrementar
+                            )
+                            
+                            # Calcular relevância
+                            relevance = 1.0 / (1.0 + score)  # Converter distância para relevância
+                            filtered_results.append((entry, relevance))
+                    
+                    # Ordenar por relevância
+                    filtered_results.sort(key=lambda x: x[1], reverse=True)
+                    
+                    # Limitar ao número desejado
+                    return [entry for entry, _ in filtered_results[:limit]]
+            except Exception as e:
+                print(f"Error searching FAISS index: {e}")
                 # Fall back to in-memory
         
-        # In-memory fallback using simple dot product similarity
+        # 3. Fallback para busca em memória
         if not self._memory_entries:
             return []
         

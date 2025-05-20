@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Any, Tuple
 import json
 import time
 import uuid
+from app.core.config import Settings, settings
 
 from pydantic import BaseModel
 
@@ -57,7 +58,9 @@ class AgentOrchestrator:
         if self.config.memory.enabled:
             self.memory_service = MemoryService(
                 llm_service, 
-                vector_db_url=self.config.memory.vector_db_url
+                vector_db_url=self.config.memory.vector_db_url,
+                vector_db_path=self.config.memory.memory_db_path or settings.MEMORY_DB_PATH,
+                use_local_storage=self.config.memory.use_local_storage
             )
         else:
             self.memory_service = None
