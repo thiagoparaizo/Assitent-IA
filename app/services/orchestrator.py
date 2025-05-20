@@ -17,6 +17,7 @@ from app.services.config import SystemConfig, load_system_config
 import logging
 
 from app.services.agent import Agent, AgentType
+from app.services.token_counter import TokenCounterService
 #from app.services.rag import RAGService
 
 
@@ -42,11 +43,12 @@ class AgentScore:
 class AgentOrchestrator:
     """Orquestrador para gerenciar a comunicação entre agentes."""
     
-    def __init__(self, agent_service, rag_service, redis_client, llm_service, config: SystemConfig = None):
+    def __init__(self, agent_service, rag_service, redis_client, llm_service, config: SystemConfig = None, token_counter_service: TokenCounterService = None):
         self.agent_service = agent_service
         self.rag_service = rag_service
         self.redis = redis_client
         self.llm = llm_service
+        
         
         # Load or use provided config
         self.config = config or load_system_config()
@@ -64,6 +66,18 @@ class AgentOrchestrator:
             )
         else:
             self.memory_service = None
+            
+        # Inicializar o serviço de contagem de tokens
+        self.token_counter_service = token_counter_service
+        
+        # Se não foi fornecido mas temos acesso ao banco de dados, criar
+        if self.token_counter_service is None and hasattr(self.agent_service, 'db'):
+            try:
+                from app.services.token_counter import TokenCounterService
+                self.token_counter_service = TokenCounterService(self.agent_service.db)
+            except Exception as e:
+                print(f"Aviso: Não foi possível criar TokenCounterService: {e}")
+                self.token_counter_service = None
             
         # Log initialization
         logging.info(f"AgentOrchestrator initialized with config: {self.config}")
@@ -413,7 +427,49 @@ class AgentOrchestrator:
         prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id)
         
         # Get response from LLM
-        response = await self.llm.generate_response(prompt)
+        response, token_usage = await self.llm.generate_response(prompt)
+        
+        # Registrar uso de tokens - Implementação melhorada
+        if hasattr(self, 'token_counter_service') and self.token_counter_service:
+            try:
+                # Obter informações do modelo
+                model_id = getattr(self.llm, 'model_id', None)
+                
+                # Se model_id não estiver disponível, tentar obter por nome
+                if model_id is None and hasattr(self.llm, 'model'):
+                    # Tenta encontrar o modelo pelo nome no banco de dados
+                    try:
+                        model_name = self.llm.model
+                        from app.db.models.llm_model import LLMModel
+                        db_session = getattr(self.token_counter_service, 'db', None)
+                        if db_session:
+                            model = db_session.query(LLMModel).filter(LLMModel.model_id == model_name).first()
+                            if model:
+                                model_id = model.id
+                            else:
+                                # Se não encontrar, usa ID 1 como fallback
+                                model_id = 1
+                    except Exception as e:
+                        # Logar erro mas continuar
+                        print(f"Erro ao buscar modelo por nome: {e}")
+                        model_id = 1
+                
+                # Garantir que temos um ID de modelo válido
+                if model_id is None:
+                    model_id = 1  # Usar ID 1 como fallback
+                
+                # Registrar o uso
+                await self.token_counter_service.log_token_usage(
+                    tenant_id=int(state.tenant_id),
+                    agent_id=current_agent.id,
+                    model_id=model_id,
+                    prompt_tokens=token_usage.get('prompt_tokens', 0),
+                    completion_tokens=token_usage.get('completion_tokens', 0),
+                    conversation_id=conversation_id
+                )
+            except Exception as e:
+                # Logar erro mas não interromper o fluxo principal
+                print(f"Erro ao registrar uso de tokens: {e}")
         
         # Process the response for actions
         processed_response = await self._process_agent_response(response, state, current_agent, tenant_config)

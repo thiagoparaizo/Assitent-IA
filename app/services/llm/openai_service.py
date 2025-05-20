@@ -1,8 +1,10 @@
 # app/services/llm/openai_service.py
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 import httpx
 
+
 from app.services.llm.base import LLMService
+import tiktoken
 
 class OpenAIService(LLMService):
     def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str = None):
@@ -10,15 +12,37 @@ class OpenAIService(LLMService):
         self.model = model
         self.base_url = base_url or "https://api.openai.com/v1"
         
-    async def generate_response(self, messages: List[Dict[str, str]]) -> str:
-        """
-        Gera uma resposta usando o modelo LLM.
+        # Instanciar o codificador para contagem de tokens
+        self.tokenizer = self._get_tokenizer(model)
         
-        Args:
-            messages: Lista de mensagens no formato OpenAI (role, content)
-            
-        Returns:
-            Texto gerado
+    def _get_tokenizer(self, model: str):
+        """Obtém o codificador tokenizer apropriado para o modelo."""
+        try :
+            return tiktoken.encoding_for_model(model)
+        except Exception:
+            try:
+                if "gpt-4" in model:
+                    return tiktoken.encoding_for_model("gpt-4")
+                elif "gpt-3.5" in model:
+                    return tiktoken.encoding_for_model("gpt-3.5-turbo")
+                else:
+                    # Fallback para o codificador mais recente
+                    return tiktoken.get_encoding("cl100k_base")
+            except Exception:
+                # Em caso de erro, usar o codificador padrão
+                return tiktoken.get_encoding("cl100k_base")
+        
+    async def count_tokens(self, text: str) -> int:
+        """Conta tokens em um texto usando o tokenizer apropriado."""
+        if self.tokenizer:
+            return len(self.tokenizer.encode(text))
+        else:
+            # Fallback para estimativa
+            return len(text) // 4
+        
+    async def generate_response(self, messages: List[Dict[str, str]], **kwargs) -> Tuple[str, Dict[str, int]]:
+        """
+        Gera uma resposta e retorna o texto gerado e informações de uso de tokens.
         """
         headers = {
             "Content-Type": "application/json",
@@ -28,8 +52,8 @@ class OpenAIService(LLMService):
         payload = {
             "model": self.model,
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 1000
+            "temperature": kwargs.get("temperature", 0.7),
+            "max_tokens": kwargs.get("max_tokens", 1000)
         }
         
         
@@ -44,24 +68,39 @@ class OpenAIService(LLMService):
             response.raise_for_status()
             result = response.json()
             
-            return result["choices"][0]["message"]["content"]
+            # Extrair informações de uso de tokens
+            token_usage = {
+                "prompt_tokens": result.get("usage", {}).get("prompt_tokens", 0),
+                "completion_tokens": result.get("usage", {}).get("completion_tokens", 0),
+                "total_tokens": result.get("usage", {}).get("total_tokens", 0)
+            }
+            
+            # Se a API não retornar informações de tokens, tentar calcular
+            if token_usage["prompt_tokens"] == 0:
+                # Contar tokens no prompt
+                prompt_tokens = 0
+                for message in messages:
+                    prompt_tokens += await self.count_tokens(message.get("content", ""))
+                token_usage["prompt_tokens"] = prompt_tokens
+                
+                # Contar tokens na resposta
+                content = result["choices"][0]["message"]["content"]
+                completion_tokens = await self.count_tokens(content)
+                token_usage["completion_tokens"] = completion_tokens
+                
+                # Calcular total
+                token_usage["total_tokens"] = prompt_tokens + completion_tokens
+            
+            return result["choices"][0]["message"]["content"], token_usage
         
     async def generate_with_functions(
         self, 
         messages: List[Dict[str, str]], 
         functions: List[Dict[str, Any]], 
         function_call: str = "auto"
-    ) -> Dict[str, Any]:
+    ) -> Tuple[Dict[str, Any], Dict[str, int]]:
         """
-        Gera uma resposta com suporte a chamadas de função.
-        
-        Args:
-            messages: Lista de mensagens no formato OpenAI
-            functions: Lista de definições de funções
-            function_call: Como chamar funções ("auto", "none", ou nome da função)
-            
-        Returns:
-            Resposta completa, incluindo possíveis chamadas de função
+        Gera uma resposta com suporte a chamadas de função, incluindo uso de tokens.
         """
         headers = {
             "Content-Type": "application/json",
@@ -85,7 +124,37 @@ class OpenAIService(LLMService):
             )
             
             response.raise_for_status()
-            return response.json()["choices"][0]["message"]
+            result = response.json()
+            
+            # Extrair informações de uso de tokens
+            token_usage = {
+                "prompt_tokens": result.get("usage", {}).get("prompt_tokens", 0),
+                "completion_tokens": result.get("usage", {}).get("completion_tokens", 0),
+                "total_tokens": result.get("usage", {}).get("total_tokens", 0)
+            }
+            
+            # Calcular tokens se não fornecidos pela API
+            if token_usage["prompt_tokens"] == 0:
+                # Contar tokens no prompt e funções
+                prompt_tokens = 0
+                for message in messages:
+                    prompt_tokens += await self.count_tokens(message.get("content", ""))
+                
+                # Adicionar tokens das funções (aproximado)
+                functions_text = str(functions)
+                prompt_tokens += await self.count_tokens(functions_text)
+                
+                token_usage["prompt_tokens"] = prompt_tokens
+                
+                # Contar tokens na resposta
+                message_content = str(result["choices"][0]["message"])
+                completion_tokens = await self.count_tokens(message_content)
+                token_usage["completion_tokens"] = completion_tokens
+                
+                # Calcular total
+                token_usage["total_tokens"] = prompt_tokens + completion_tokens
+            
+            return result["choices"][0]["message"], token_usage
         
     async def get_embeddings(self, text: str) -> List[float]:
         """

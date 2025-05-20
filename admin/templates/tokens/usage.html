@@ -1,0 +1,290 @@
+<!-- admin/templates/tokens/usage.html -->
+{% extends 'base.html' %}
+
+{% block title %}Análise de Uso de Tokens - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h3">Análise de Uso de Tokens</h1>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Filtros</h6>
+            </div>
+            <div class="card-body">
+                <form method="GET" action="{{ url_for('tokens.usage') }}" class="row g-3">
+                    {% if is_admin %}
+                    <div class="col-md-3">
+                        <label for="tenant_id" class="form-label">Tenant</label>
+                        <select class="form-select" id="tenant_id" name="tenant_id">
+                            <option value="">Todos</option>
+                            {% for tenant in tenants %}
+                            <option value="{{ tenant.id }}" {% if tenant.id == current_tenant_id %}selected{% endif %}>
+                                {{ tenant.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="col-md-3">
+                        <label for="agent_id" class="form-label">Agente</label>
+                        <select class="form-select" id="agent_id" name="agent_id">
+                            <option value="">Todos</option>
+                            {% for agent in agents %}
+                            <option value="{{ agent.id }}" {% if agent.id == current_agent_id %}selected{% endif %}>
+                                {{ agent.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label for="period" class="form-label">Período</label>
+                        <select class="form-select" id="period" name="period">
+                            <option value="daily" {% if current_period == 'daily' %}selected{% endif %}>Diário</option>
+                            <option value="monthly" {% if current_period == 'monthly' or not current_period %}selected{% endif %}>Mensal</option>
+                            <option value="yearly" {% if current_period == 'yearly' %}selected{% endif %}>Anual</option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-filter"></i> Filtrar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cards de resumo -->
+<div class="row mb-4">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total de Tokens</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ "{:,}".format(total_tokens) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-cpu fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Custo Estimado</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">${{ "%.2f"|format(total_cost) }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-cash fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Usado do Limite</div>
+                        <div class="row no-gutters align-items-center">
+                            {% set percentage = 0 %}
+                            {% if limit_value and total_tokens %}
+                                {% set percentage = (total_tokens / limit_value * 100)|round %}
+                            {% endif %}
+                            <div class="col-auto">
+                                <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">
+                                    {% if limit_value %}
+                                        {{ percentage }}%
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if limit_value %}
+                            <div class="col">
+                                <div class="progress progress-sm mr-2">
+                                    <div class="progress-bar bg-info" role="progressbar" 
+                                         style="width: {{ percentage }}%"></div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-speedometer2 fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Limite Configurado</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {% if limit_value %}
+                                {{ "{:,}".format(limit_value) }}
+                            {% else %}
+                                <span class="text-muted">Não definido</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-sliders fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Gráfico de Uso -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    Uso de Tokens por 
+                    {% if current_period == 'daily' %}Dia
+                    {% elif current_period == 'yearly' %}Ano
+                    {% else %}Mês{% endif %}
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-area">
+                    <canvas id="tokenUsageChart" style="height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Dados Detalhados -->
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Dados Detalhados</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Período</th>
+                                <th>Tokens Total</th>
+                                <th>Tokens Prompt</th>
+                                <th>Tokens Resposta</th>
+                                <th>Custo ($)</th>
+                                <th>% do Limite</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in usage_data %}
+                            <tr>
+                                <td>{{ item.period_value }}</td>
+                                <td>{{ "{:,}".format(item.total_tokens) }}</td>
+                                <td>{{ "{:,}".format(item.prompt_tokens) }}</td>
+                                <td>{{ "{:,}".format(item.completion_tokens) }}</td>
+                                <td>${{ "%.4f"|format(item.total_cost_usd) }}</td>
+                                <td>
+                                    {% if item.percentage_of_limit %}
+                                        <div class="progress" style="height: 20px;">
+                                            <div class="progress-bar 
+                                                {% if item.percentage_of_limit < 0.5 %}bg-info
+                                                {% elif item.percentage_of_limit < 0.8 %}bg-warning
+                                                {% else %}bg-danger{% endif %}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ (item.percentage_of_limit * 100)|round }}%">
+                                                {{ (item.percentage_of_limit * 100)|round }}%
+                                            </div>
+                                        </div>
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            
+                            {% if usage_data|length == 0 %}
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+                                        Nenhum dado de uso encontrado para o período selecionado.
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Gráfico de Uso de Tokens
+    const ctx = document.getElementById('tokenUsageChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: {{ labels|tojson }},
+            datasets: [
+                {
+                    label: 'Tokens de Prompt',
+                    backgroundColor: 'rgba(78, 115, 223, 0.8)',
+                    data: {{ prompt_values|tojson }}
+                },
+                {
+                    label: 'Tokens de Resposta',
+                    backgroundColor: 'rgba(28, 200, 138, 0.8)',
+                    data: {{ completion_values|tojson }}
+                }
+            ]
+        },
+        options: {
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    stacked: true
+                },
+                y: {
+                    stacked: true,
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

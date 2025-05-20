@@ -1,0 +1,348 @@
+<!-- admin/templates/tokens/index.html -->
+{% extends 'base.html' %}
+
+{% block title %}Dashboard de Tokens - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h3">Dashboard de Uso de Tokens</h1>
+        <p class="text-muted">Monitoramento de uso e limites de tokens LLM  </p> 
+        <a href="{{ url_for('tokens.limits') }}" class="btn btn-sm btn-primary">Configurar Limites</a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Cards de Estatísticas -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Total de Tokens (Este Mês)</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {% set total_tokens = 0 %}
+                            {% for agent in token_data.agent_usage %}
+                                {% set total_tokens = total_tokens + agent.total_tokens %}
+                            {% endfor %}
+                            {{ "{:,}".format(total_tokens) }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-cpu fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Custo Estimado (Este Mês)</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {% set total_cost = 0 %}
+                            {% for agent in token_data.agent_usage %}
+                                {% set total_cost = total_cost + agent.total_cost %}
+                            {% endfor %}
+                            ${{ "%.2f"|format(total_cost) }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-cash fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                            Uso do Limite Mensal</div>
+                        <div class="row no-gutters align-items-center">
+                            {% set limit_value = 0 %}
+                            {% set percentage = 0 %}
+                            {% for limit in token_data.limits %}
+                                {% if not limit.agent_id and limit.monthly_limit %}
+                                    {% set limit_value = limit.monthly_limit %}
+                                    {% if limit_value > 0 and total_tokens > 0 %}
+                                        {% set percentage = (total_tokens / limit_value * 100)|round %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                            <div class="col-auto">
+                                <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">{{ percentage }}%</div>
+                            </div>
+                            <div class="col">
+                                <div class="progress progress-sm mr-2">
+                                    <div class="progress-bar 
+                                        {% if percentage < 50 %}bg-info
+                                        {% elif percentage < 80 %}bg-warning
+                                        {% else %}bg-danger{% endif %}" 
+                                        role="progressbar" style="width: {{ percentage }}%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-speedometer2 fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning h-100 py-2">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Alertas Pendentes</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">
+                            {{ token_data.alerts|length }}
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-exclamation-triangle fs-2 text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Gráfico de Uso Diário -->
+    <div class="col-xl-8 col-lg-7">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Uso de Tokens - Tendência Diária</h6>
+                <div class="dropdown no-arrow">
+                    <a class="dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
+                        <a class="dropdown-item" href="{{ url_for('tokens.usage', period='daily') }}">Ver detalhes</a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-area">
+                    <canvas id="dailyTokensChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gráfico de Distribuição por Agente -->
+    <div class="col-xl-4 col-lg-5">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Uso por Agente (Mês Atual)</h6>
+                <div class="dropdown no-arrow">
+                    <a class="dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
+                        <a class="dropdown-item" href="{{ url_for('tokens.usage') }}">Ver detalhes</a>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-pie pt-4 pb-2">
+                    <canvas id="agentTokensChart"></canvas>
+                </div>
+                <div class="mt-4 text-center small">
+                    {% for i in range(agent_labels|length) %}
+                    <span class="me-2">
+                        <i class="bi bi-circle-fill" style="color: {{ agent_colors[i] }}"></i> {{ agent_labels[i] }}
+                    </span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-xl-8 col-lg-7">
+        <!-- Tabela de Uso por Modelo -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Uso por Modelo LLM (Mês Atual)</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Modelo</th>
+                                <th>Total de Tokens</th>
+                                <th>Custo Estimado</th>
+                                <th>Percentual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set total_model_tokens = 0 %}
+                            {% for model in token_data.model_usage %}
+                                {% set total_model_tokens = total_model_tokens + model.total_tokens %}
+                            {% endfor %}
+                            
+                            {% for model in token_data.model_usage %}
+                            <tr>
+                                <td>{{ model.model_name }}</td>
+                                <td>{{ "{:,}".format(model.total_tokens) }}</td>
+                                <td>${{ "%.2f"|format(model.total_cost) }}</td>
+                                <td>
+                                    {% if total_model_tokens > 0 %}
+                                    {{ ((model.total_tokens / total_model_tokens) * 100)|round }}%
+                                    {% else %}
+                                    0%
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            
+                            {% if token_data.model_usage|length == 0 %}
+                            <tr>
+                                <td colspan="4" class="text-center">Nenhum uso de modelo registrado este mês</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-xl-4 col-lg-5">
+        <!-- Alertas Recentes -->
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
+                <h6 class="m-0 font-weight-bold text-primary">Alertas Recentes</h6>
+                <a href="{{ url_for('tokens.alerts') }}" class="btn btn-sm btn-primary">
+                    Ver Todos
+                </a>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for alert in token_data.alerts %}
+                    <li class="list-group-item">
+                        <div class="d-flex w-100 justify-content-between">
+                            <h6 class="mb-1">
+                                <span class="badge 
+                                    {% if alert.threshold_value < 0.5 %}bg-info
+                                    {% elif alert.threshold_value < 0.8 %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ (alert.threshold_value * 100)|round }}%
+                                </span>
+                                {% if alert.agent_id %}
+                                    {{ alert.agent_name or 'Agente' }}
+                                {% else %}
+                                    Tenant
+                                {% endif %}
+                            </h6>
+                            <small>{{ (alert.created_at|string)[:10] }}</small>
+                        </div>
+                        <p class="mb-1">
+                            {{ "{:,}".format(alert.current_usage) }} / {{ "{:,}".format(alert.max_limit) }} tokens
+                            ({{ ((alert.current_usage / alert.max_limit) * 100)|round }}%)
+                        </p>
+                        <small>Limite {{ 'diário' if alert.limit_type == 'daily' else 'mensal' }}</small>
+                    </li>
+                    {% endfor %}
+                    
+                    {% if token_data.alerts|length == 0 %}
+                    <li class="list-group-item text-center">
+                        <i class="bi bi-check-circle text-success"></i> Nenhum alerta recente
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Gráfico de Uso Diário
+    const ctxDaily = document.getElementById('dailyTokensChart').getContext('2d');
+    new Chart(ctxDaily, {
+        type: 'line',
+        data: {
+            labels: {{ daily_labels|tojson }},
+            datasets: [{
+                label: 'Tokens',
+                lineTension: 0.3,
+                backgroundColor: "rgba(78, 115, 223, 0.05)",
+                borderColor: "rgba(78, 115, 223, 1)",
+                pointRadius: 3,
+                pointBackgroundColor: "rgba(78, 115, 223, 1)",
+                pointBorderColor: "rgba(78, 115, 223, 1)",
+                pointHoverRadius: 3,
+                pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+                pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+                pointHitRadius: 10,
+                pointBorderWidth: 2,
+                data: {{ daily_values|tojson }},
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    grid: {
+                        display: false,
+                        drawBorder: false
+                    }
+                },
+                y: {
+                    ticks: {
+                        beginAtZero: true
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+
+    // Gráfico de Distribuição por Agente
+    const ctxAgent = document.getElementById('agentTokensChart').getContext('2d');
+    new Chart(ctxAgent, {
+        type: 'doughnut',
+        data: {
+            labels: {{ agent_labels|tojson }},
+            datasets: [{
+                data: {{ agent_values|tojson }},
+                backgroundColor: {{ agent_colors|tojson }},
+                hoverBackgroundColor: {{ agent_colors|tojson }},
+                hoverBorderColor: "rgba(234, 236, 244, 1)",
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            cutout: '70%'
+        }
+    });
+</script>
+{% endblock %}

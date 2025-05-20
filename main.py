@@ -4,6 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from dotenv import load_dotenv
+
+from app.services.token_counter import TokenCounterService
 load_dotenv()
 
 from app.api.router import api_router
@@ -23,6 +25,14 @@ os.makedirs(settings.MEMORY_DB_PATH, exist_ok=True)
 @app.on_event("startup")
 async def startup_db_client():
     await init_redis_pool()
+    # Criar uma sessão global para serviços
+    from sqlalchemy.orm import sessionmaker
+    from app.db.session import engine
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
+    # Criar instância global do TokenCounterService 
+    # (opcional, mas pode ser útil para processos assíncronos)
+    app.state.token_counter = TokenCounterService(SessionLocal())
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

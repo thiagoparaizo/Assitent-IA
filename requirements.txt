@@ -23,3 +23,4 @@ alembic>=1.15.2
 email-validator>=2.0.0
 pydantic[email]>=2.5.3
 google-generativeai==0.8.5
+tiktoken==0.9.0

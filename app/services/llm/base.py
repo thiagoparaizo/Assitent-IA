@@ -21,3 +21,8 @@ class LLMService(ABC):
     async def get_embeddings(self, text: str) -> List[float]:
         """Obtém embeddings para um texto."""
         pass
+    
+    @abstractmethod
+    async def count_tokens(self, text: str) -> int:
+       """Conta tokens em um texto."""
+       pass

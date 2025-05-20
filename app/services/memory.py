@@ -217,7 +217,7 @@ class MemoryService:
                     return response.json()["id"]
             except Exception as e:
                 print(f"Error storing memory in vector database: {e}")
-                # Fall back to local storage or in-memory
+                # Fall back to local storage or in-memoryy
             # ... código HTTP existente ...
         
         # Usar FAISS se armazenamento local estiver habilitado

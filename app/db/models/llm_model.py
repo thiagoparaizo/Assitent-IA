@@ -22,3 +22,5 @@ class LLMModel(Base):
     
     # Definição explícita da relação com LLMProvider
     provider = relationship("LLMProvider", back_populates="models")
+    # Definição explícita da relação com TokenUsageLog
+    token_usage = relationship("TokenUsageLog", back_populates="model")

@@ -1,0 +1,103 @@
+<!-- admin/templates/tokens/alerts.html -->
+{% extends 'base.html' %}
+
+{% block title %}Alertas de Uso de Tokens - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h3">Alertas de Uso de Tokens</h1>
+        <p class="text-muted">Histórico de alertas de limites de utilização</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">Alertas Recentes</h6>
+                <a href="{{ url_for('tokens.index') }}" class="btn btn-sm btn-primary">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                {% if is_admin %}
+                                <th>Tenant</th>
+                                {% endif %}
+                                <th>Agente</th>
+                                <th>Tipo</th>
+                                <th>Threshold</th>
+                                <th>Uso Atual</th>
+                                <th>Limite</th>
+                                <th>Notificação</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in alerts %}
+                            <tr>
+                                <td>{{ alert.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                {% if is_admin %}
+                                <td>{{ alert.tenant_name or 'Tenant ID: ' + alert.tenant_id|string }}</td>
+                                {% endif %}
+                                <td>
+                                    {% if alert.agent_id %}
+                                        {{ alert.agent_name or 'Agente ID: ' + alert.agent_id|string }}
+                                    {% else %}
+                                        <span class="text-muted">Todo o Tenant</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if alert.limit_type == 'daily' %}
+                                        <span class="badge bg-info">Diário</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">Mensal</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if alert.threshold_value < 0.7 %}bg-info
+                                        {% elif alert.threshold_value < 0.9 %}bg-warning
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ (alert.threshold_value * 100)|round }}%
+                                    </span>
+                                </td>
+                                <td>{{ "{:,}".format(alert.current_usage) }}</td>
+                                <td>{{ "{:,}".format(alert.max_limit) }}</td>
+                                <td>
+                                    {% if alert.notification_sent %}
+                                        <span class="badge bg-success">Enviado</span>
+                                        {% if alert.notification_channel == 'email' %}
+                                            <small class="text-muted d-block">E-mail</small>
+                                        {% elif alert.notification_channel == 'webhook' %}
+                                            <small class="text-muted d-block">Webhook</small>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-secondary">Não enviado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            
+                            {% if alerts|length == 0 %}
+                            <tr>
+                                <td colspan="{% if is_admin %}8{% else %}7{% endif %}" class="text-center py-4">
+                                    <div class="text-muted">
+                                        <i class="bi bi-check-circle fs-4 d-block mb-2"></i>
+                                        Nenhum alerta de uso de tokens registrado.
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

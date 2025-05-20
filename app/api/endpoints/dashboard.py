@@ -3,17 +3,19 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
-from sqlalchemy import func, desc, and_
+from sqlalchemy import extract, func, desc, and_
 from sqlalchemy.orm import Session
 import random
 
 from app.api.deps import get_db, get_current_active_user, get_tenant_id
+from app.db.models.token_usage import TokenUsageAlert, TokenUsageLimit, TokenUsageLog
 from app.db.models.user import User
 from app.db.models.agent import Agent
 from app.db.models.tenant import Tenant
 from app.db.models.device_agent import DeviceAgent
 from app.db.models.archived_conversation import ArchivedConversation
 from app.db.models.webhook import Webhook
+from app.services.token_counter import TokenCounterService
 
 router = APIRouter()
 
@@ -236,3 +238,166 @@ async def get_recent_conversations(
             })
     
     return result
+
+@router.get("/token-usage")
+async def get_token_usage_dashboard(
+    tenant_id: str = Depends(get_tenant_id),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Obtém estatísticas de uso de tokens para o dashboard.
+    """
+    tenant_id_int = int(tenant_id)
+    
+    # Verificar permissões
+    if not current_user.is_superuser and current_user.tenant_id != tenant_id_int:
+        raise HTTPException(status_code=403, detail="Sem permissão para acessar dados deste tenant")
+    
+    # Inicializar serviço de tokens
+    token_service = TokenCounterService(db)
+    
+    # Obter resumos de uso
+    daily_usage = await token_service.get_token_usage_summary(
+        tenant_id=tenant_id_int,
+        period="daily"
+    )
+    
+    monthly_usage = await token_service.get_token_usage_summary(
+        tenant_id=tenant_id_int,
+        period="monthly"
+    )
+    
+    # Obter uso por agente no mês atual
+    current_month = datetime.now().month
+    current_year = datetime.now().year
+    
+    # Consulta para obter uso por agente no mês atual
+    agent_query = db.query(
+        TokenUsageLog.agent_id,
+        func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
+        func.sum(TokenUsageLog.estimated_cost_usd).label("total_cost")
+    ).filter(
+        TokenUsageLog.tenant_id == tenant_id_int,
+        extract('year', TokenUsageLog.timestamp) == current_year,
+        extract('month', TokenUsageLog.timestamp) == current_month
+    ).group_by(
+        TokenUsageLog.agent_id
+    ).order_by(
+        func.sum(TokenUsageLog.total_tokens).desc()
+    )
+    
+    agent_usage = []
+    for result in agent_query.all():
+        agent_id = result.agent_id
+        
+        # Obter nome do agente
+        agent_name = "Unknown Agent"
+        from app.db.models.agent import Agent
+        agent = db.query(Agent).filter(Agent.id == agent_id).first()
+        if agent:
+            agent_name = agent.name
+        
+        agent_usage.append({
+            "agent_id": str(agent_id),
+            "agent_name": agent_name,
+            "total_tokens": result.total_tokens,
+            "total_cost": result.total_cost
+        })
+    
+    # Obter uso por modelo LLM no mês atual
+    model_query = db.query(
+        TokenUsageLog.model_id,
+        func.sum(TokenUsageLog.total_tokens).label("total_tokens"),
+        func.sum(TokenUsageLog.estimated_cost_usd).label("total_cost")
+    ).filter(
+        TokenUsageLog.tenant_id == tenant_id_int,
+        extract('year', TokenUsageLog.timestamp) == current_year,
+        extract('month', TokenUsageLog.timestamp) == current_month
+    ).group_by(
+        TokenUsageLog.model_id
+    ).order_by(
+        func.sum(TokenUsageLog.total_tokens).desc()
+    )
+    
+    model_usage = []
+    for result in model_query.all():
+        model_id = result.model_id
+        
+        # Obter nome do modelo
+        model_name = "Unknown Model"
+        from app.db.models.llm_model import LLMModel
+        model = db.query(LLMModel).filter(LLMModel.id == model_id).first()
+        if model:
+            model_name = model.name
+        
+        model_usage.append({
+            "model_id": model_id,
+            "model_name": model_name,
+            "total_tokens": result.total_tokens,
+            "total_cost": result.total_cost
+        })
+    
+    # Obter limites ativos
+    limits = db.query(TokenUsageLimit).filter(
+        TokenUsageLimit.tenant_id == tenant_id_int,
+        TokenUsageLimit.is_active == True
+    ).all()
+    
+    limits_data = []
+    for limit in limits:
+        limit_data = {
+            "id": limit.id,
+            "tenant_id": limit.tenant_id,
+            "agent_id": str(limit.agent_id) if limit.agent_id else None,
+            "monthly_limit": limit.monthly_limit,
+            "daily_limit": limit.daily_limit,
+            "warning_threshold": limit.warning_threshold
+        }
+        
+        # Adicionar nome do agente se aplicável
+        if limit.agent_id:
+            from app.db.models.agent import Agent
+            agent = db.query(Agent).filter(Agent.id == limit.agent_id).first()
+            if agent:
+                limit_data["agent_name"] = agent.name
+        
+        limits_data.append(limit_data)
+    
+    # Obter alertas recentes
+    alerts = db.query(TokenUsageAlert).filter(
+        TokenUsageAlert.tenant_id == tenant_id_int
+    ).order_by(
+        TokenUsageAlert.created_at.desc()
+    ).limit(5).all()
+    
+    alerts_data = []
+    for alert in alerts:
+        alert_data = {
+            "id": str(alert.id),
+            "tenant_id": alert.tenant_id,
+            "agent_id": str(alert.agent_id) if alert.agent_id else None,
+            "limit_type": alert.limit_type,
+            "threshold_value": alert.threshold_value,
+            "current_usage": alert.current_usage,
+            "max_limit": alert.max_limit,
+            "created_at": alert.created_at.isoformat()
+        }
+        
+        # Adicionar nome do agente se aplicável
+        if alert.agent_id:
+            from app.db.models.agent import Agent
+            agent = db.query(Agent).filter(Agent.id == alert.agent_id).first()
+            if agent:
+                alert_data["agent_name"] = agent.name
+        
+        alerts_data.append(alert_data)
+    
+    return {
+        "daily_usage": daily_usage,
+        "monthly_usage": monthly_usage,
+        "agent_usage": agent_usage,
+        "model_usage": model_usage,
+        "limits": limits_data,
+        "alerts": alerts_data
+    }

@@ -1,0 +1,334 @@
+<!-- admin/templates/tokens/limits.html -->
+{% extends 'base.html' %}
+
+{% block title %}Limites de Tokens - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="h3">Limites de Uso de Tokens</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createLimitModal">
+            <i class="bi bi-plus-circle"></i> Novo Limite
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Limites Configurados</h6>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                {% if is_admin %}
+                                <th>Tenant</th>
+                                {% endif %}
+                                <th>Agente</th>
+                                <th>Limite Mensal</th>
+                                <th>Limite Diário</th>
+                                <th>Threshold</th>
+                                <th>Notificações</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for limit in limits %}
+                            <tr>
+                                <td>{{ limit.id }}</td>
+                                {% if is_admin %}
+                                <td>
+                                    {% if limit.tenant_id %}
+                                        {% for tenant in tenants %}
+                                            {% if tenant.id == limit.tenant_id %}
+                                                {{ tenant.name }}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </td>
+                                {% endif %}
+                                <td>
+                                    {% if limit.agent_id %}
+                                        {% for agent in agents %}
+                                            {% if agent.id == limit.agent_id %}
+                                                {{ agent.name }}
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">Todo o Tenant</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ "{:,}".format(limit.monthly_limit) }}</td>
+                                <td>
+                                    {% if limit.daily_limit %}
+                                        {{ "{:,}".format(limit.daily_limit) }}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ (limit.warning_threshold * 100)|round }}%</td>
+                                <td>
+                                    {% if limit.notify_email %}
+                                        <span class="badge bg-info">E-mail</span>
+                                    {% endif %}
+                                    {% if limit.notify_webhook_url %}
+                                        <span class="badge bg-secondary">Webhook</span>
+                                    {% endif %}
+                                    {% if not limit.notify_email and not limit.notify_webhook_url %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if limit.is_active %}
+                                        <span class="badge bg-success">Ativo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inativo</span>
+                                    {% endif %}
+                                <td>
+                                   <div class="btn-group">
+                                       <button class="btn btn-sm btn-outline-primary" 
+                                               data-bs-toggle="modal" 
+                                               data-bs-target="#editLimitModal{{ limit.id }}">
+                                           <i class="bi bi-pencil"></i>
+                                       </button>
+                                       <button class="btn btn-sm btn-outline-danger" 
+                                               data-bs-toggle="modal" 
+                                               data-bs-target="#deleteLimitModal{{ limit.id }}">
+                                           <i class="bi bi-trash"></i>
+                                       </button>
+                                   </div>
+                               </td>
+                           </tr>
+                           {% endfor %}
+                           
+                           {% if limits|length == 0 %}
+                           <tr>
+                               <td colspan="{% if is_admin %}9{% else %}8{% endif %}" class="text-center py-4">
+                                   <div class="text-muted">
+                                       <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
+                                       Nenhum limite configurado.
+                                   </div>
+                               </td>
+                           </tr>
+                           {% endif %}
+                       </tbody>
+                   </table>
+               </div>
+           </div>
+       </div>
+   </div>
+</div>
+
+<!-- Modal para Criar Limite -->
+<div class="modal fade" id="createLimitModal" tabindex="-1" aria-hidden="true">
+   <div class="modal-dialog">
+       <div class="modal-content">
+           <form action="{{ url_for('tokens.create_limit') }}" method="POST">
+               <div class="modal-header">
+                   <h5 class="modal-title">Criar Novo Limite de Tokens</h5>
+                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+               </div>
+               <div class="modal-body">
+                   {% if is_admin %}
+                   <div class="mb-3">
+                       <label for="tenant_id" class="form-label">Tenant</label>
+                       <select class="form-select" id="tenant_id" name="tenant_id">
+                           {% for tenant in tenants %}
+                           <option value="{{ tenant.id }}" {% if tenant.id == current_user.tenant_id %}selected{% endif %}>
+                               {{ tenant.name }}
+                           </option>
+                           {% endfor %}
+                       </select>
+                   </div>
+                   {% endif %}
+                   
+                   <div class="mb-3">
+                       <label for="agent_id" class="form-label">Agente (opcional)</label>
+                       <select class="form-select" id="agent_id" name="agent_id">
+                           <option value="">Todo o Tenant</option>
+                           {% for agent in agents %}
+                           <option value="{{ agent.id }}">{{ agent.name }}</option>
+                           {% endfor %}
+                       </select>
+                       <small class="form-text text-muted">
+                           Deixe em branco para definir um limite para todo o tenant.
+                       </small>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="monthly_limit" class="form-label">Limite Mensal de Tokens</label>
+                       <input type="number" class="form-control" id="monthly_limit" name="monthly_limit" 
+                              min="1000" step="1000" required>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="daily_limit" class="form-label">Limite Diário de Tokens (opcional)</label>
+                       <input type="number" class="form-control" id="daily_limit" name="daily_limit" 
+                              min="100" step="100">
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="warning_threshold" class="form-label">Threshold de Alerta (%)</label>
+                       <select class="form-select" id="warning_threshold" name="warning_threshold">
+                           <option value="0.5">50%</option>
+                           <option value="0.7">70%</option>
+                           <option value="0.8" selected>80%</option>
+                           <option value="0.9">90%</option>
+                           <option value="0.95">95%</option>
+                       </select>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="notify_email" class="form-label">Email para Notificações (opcional)</label>
+                       <input type="email" class="form-control" id="notify_email" name="notify_email">
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="notify_webhook_url" class="form-label">URL de Webhook (opcional)</label>
+                       <input type="url" class="form-control" id="notify_webhook_url" name="notify_webhook_url">
+                   </div>
+               </div>
+               <div class="modal-footer">
+                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                   <button type="submit" class="btn btn-primary">Criar Limite</button>
+               </div>
+           </form>
+       </div>
+   </div>
+</div>
+
+<!-- Modais para Editar Limites -->
+{% for limit in limits %}
+<div class="modal fade" id="editLimitModal{{ limit.id }}" tabindex="-1" aria-hidden="true">
+   <div class="modal-dialog">
+       <div class="modal-content">
+           <form action="{{ url_for('tokens.update_limit', limit_id=limit.id) }}" method="POST">
+               <div class="modal-header">
+                   <h5 class="modal-title">Editar Limite de Tokens</h5>
+                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+               </div>
+               <div class="modal-body">
+                   <div class="mb-3">
+                       <label class="form-label">Tenant</label>
+                       <input type="text" class="form-control" value="
+                       {% if limit.tenant_id %}
+                           {% for tenant in tenants %}
+                               {% if tenant.id == limit.tenant_id %}
+                                   {{ tenant.name }}
+                               {% endif %}
+                           {% endfor %}
+                       {% else %}
+                           -
+                       {% endif %}" disabled>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label class="form-label">Agente</label>
+                       <input type="text" class="form-control" value="
+                       {% if limit.agent_id %}
+                           {% for agent in agents %}
+                               {% if agent.id == limit.agent_id %}
+                                   {{ agent.name }}
+                               {% endif %}
+                           {% endfor %}
+                       {% else %}
+                           Todo o Tenant
+                       {% endif %}" disabled>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="monthly_limit{{ limit.id }}" class="form-label">Limite Mensal de Tokens</label>
+                       <input type="number" class="form-control" id="monthly_limit{{ limit.id }}" 
+                              name="monthly_limit" min="1000" step="1000" value="{{ limit.monthly_limit }}" required>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="daily_limit{{ limit.id }}" class="form-label">Limite Diário de Tokens</label>
+                       <input type="number" class="form-control" id="daily_limit{{ limit.id }}" 
+                              name="daily_limit" min="100" step="100" value="{{ limit.daily_limit or '' }}">
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="warning_threshold{{ limit.id }}" class="form-label">Threshold de Alerta (%)</label>
+                       <select class="form-select" id="warning_threshold{{ limit.id }}" name="warning_threshold">
+                           <option value="0.5" {% if limit.warning_threshold == 0.5 %}selected{% endif %}>50%</option>
+                           <option value="0.7" {% if limit.warning_threshold == 0.7 %}selected{% endif %}>70%</option>
+                           <option value="0.8" {% if limit.warning_threshold == 0.8 %}selected{% endif %}>80%</option>
+                           <option value="0.9" {% if limit.warning_threshold == 0.9 %}selected{% endif %}>90%</option>
+                           <option value="0.95" {% if limit.warning_threshold == 0.95 %}selected{% endif %}>95%</option>
+                       </select>
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="notify_email{{ limit.id }}" class="form-label">Email para Notificações</label>
+                       <input type="email" class="form-control" id="notify_email{{ limit.id }}" 
+                              name="notify_email" value="{{ limit.notify_email or '' }}">
+                   </div>
+                   
+                   <div class="mb-3">
+                       <label for="notify_webhook_url{{ limit.id }}" class="form-label">URL de Webhook</label>
+                       <input type="url" class="form-control" id="notify_webhook_url{{ limit.id }}" 
+                              name="notify_webhook_url" value="{{ limit.notify_webhook_url or '' }}">
+                   </div>
+                   
+                   <div class="form-check form-switch mb-3">
+                       <input class="form-check-input" type="checkbox" id="is_active{{ limit.id }}" 
+                              name="is_active" {% if limit.is_active %}checked{% endif %}>
+                       <label class="form-check-label" for="is_active{{ limit.id }}">Limite Ativo</label>
+                   </div>
+               </div>
+               <div class="modal-footer">
+                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                   <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+               </div>
+           </form>
+       </div>
+   </div>
+</div>
+
+<!-- Modal de Confirmação para Excluir -->
+<div class="modal fade" id="deleteLimitModal{{ limit.id }}" tabindex="-1" aria-hidden="true">
+   <div class="modal-dialog">
+       <div class="modal-content">
+           <form action="{{ url_for('tokens.delete_limit', limit_id=limit.id) }}" method="POST">
+               <div class="modal-header">
+                   <h5 class="modal-title">Confirmar Exclusão</h5>
+                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+               </div>
+               <div class="modal-body">
+                   <p>Tem certeza que deseja excluir este limite de tokens? Esta ação não pode ser desfeita.</p>
+                   
+                   <div class="alert alert-warning">
+                       <strong>Detalhes do Limite:</strong><br>
+                       {% if limit.agent_id %}
+                           Agente: 
+                           {% for agent in agents %}
+                               {% if agent.id == limit.agent_id %}
+                                   {{ agent.name }}
+                               {% endif %}
+                           {% endfor %}
+                       {% else %}
+                           Todo o Tenant
+                       {% endif %}
+                       <br>
+                       Limite Mensal: {{ "{:,}".format(limit.monthly_limit) }} tokens
+                   </div>
+               </div>
+               <div class="modal-footer">
+                   <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                   <button type="submit" class="btn btn-danger">Excluir Limite</button>
+               </div>
+           </form>
+       </div>
+   </div>
+</div>
+{% endfor %}
+
+{% endblock %}

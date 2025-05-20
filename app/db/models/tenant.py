@@ -24,3 +24,8 @@ class Tenant(Base):
     agents = relationship("Agent", back_populates="tenant", cascade="all, delete-orphan")
     default_llm_provider = relationship("LLMProvider")
     default_llm_model = relationship("LLMModel")
+    
+    # uso de token
+    token_limits = relationship("TokenUsageLimit", back_populates="tenant", cascade="all, delete-orphan")
+    token_usage = relationship("TokenUsageLog", back_populates="tenant")
+    token_alerts = relationship("TokenUsageAlert", back_populates="tenant")

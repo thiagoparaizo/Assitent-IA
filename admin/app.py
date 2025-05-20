@@ -19,6 +19,7 @@ from admin.views.user import user_bp
 from admin.models.user import User
 from admin.models.user_store import user_store
 from admin.views.llm import llm_bp
+from admin.views.tokens import tokens_bp
 
 
 
@@ -67,6 +68,7 @@ def create_app(config_class=Config):
     app.register_blueprint(webhooks_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(llm_bp)
+    app.register_blueprint(tokens_bp)
     
     # Configurar contexto global
     @app.context_processor

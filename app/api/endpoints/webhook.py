@@ -21,6 +21,7 @@ from app.services.config import load_system_config
 #from app.services.llm import LLMService
 from app.services.orchestrator import AgentOrchestrator
 from app.services.rag_faiss import RAGServiceFAISS
+from app.services.token_counter import TokenCounterService
 from app.services.whatsapp import WhatsAppService
 from app.db.models.webhook import Webhook, WebhookLog
 from app.db.models.agent import Agent
@@ -433,6 +434,9 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         llm_service = await get_llm_service(db, str(tenant_id) if tenant_id else None) #LLMService(api_key=os.getenv("OPENAI_API_KEY"))
         rag_service = RAGServiceFAISS(tenant_id=tenant_id)
         
+        # Criar o serviço de contagem de tokens (novo)
+        token_counter_service = TokenCounterService(db)
+        
         if whatsapp_service == None:
             whatsapp_service = WhatsAppService()
         
@@ -440,7 +444,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         config = load_system_config()
         
         # Inicializar orquestrador
-        orchestrator = AgentOrchestrator(agent_service, rag_service, redis_client, llm_service, config)
+        orchestrator = AgentOrchestrator(agent_service, rag_service, redis_client, llm_service, config, token_counter_service)
         
         
         # Verificar se já existe uma conversa para este usuário

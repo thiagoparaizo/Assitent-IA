@@ -20,6 +20,7 @@ from app.services.llm.factory import LLMServiceFactory
 from app.services.mcp import MCPService
 from app.services.orchestrator import AgentOrchestrator
 from app.services.rag_faiss import RAGServiceFAISS
+from app.services.token_counter import TokenCounterService
 from app.services.whatsapp import WhatsAppService
 
 from app.services.config import SystemConfig, load_system_config
@@ -159,11 +160,17 @@ async def get_orchestrator(
     """
     return AgentOrchestrator(agent_service, rag_service, redis_client, llm_service)
 
+# Função para obter o serviço de contagem de tokens
+async def get_token_counter_service(db: Session = Depends(get_db)):
+    """Obtém o serviço de contagem de tokens."""
+    return TokenCounterService(db)
+
 async def get_enhanced_orchestrator(
     agent_service: AgentService = Depends(get_agent_service),
     rag_service: RAGServiceFAISS = Depends(get_rag_service),
     redis_client = Depends(get_redis_client),
     llm_service = Depends(get_llm_service),
+    token_counter_service: TokenCounterService = Depends(get_token_counter_service),
     config: SystemConfig = None
 ) -> AgentOrchestrator:
     """
@@ -185,3 +192,4 @@ async def get_enhanced_orchestrator(
     
     # Create orchestrator
     return AgentOrchestrator(agent_service, rag_service, redis_client, llm_service, config)
+

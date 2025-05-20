@@ -30,10 +30,13 @@ class Agent(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     tenant = relationship("Tenant", back_populates="agents")
-    
     device_mappings = relationship("DeviceAgent", back_populates="agent", cascade="all, delete-orphan")
-    
     contact_controls = relationship("ContactControl", back_populates="agent", cascade="all, delete-orphan")
+    
+    # Token Usage
+    token_limits = relationship("TokenUsageLimit", back_populates="agent", cascade="all, delete-orphan")
+    token_usage = relationship("TokenUsageLog", back_populates="agent")
+    token_alerts = relationship("TokenUsageAlert", back_populates="agent")
     
     # Helper method to convert JSON strings to Python objects
     def get_prompt_dict(self):

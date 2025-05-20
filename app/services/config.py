@@ -33,9 +33,9 @@ class MemoryConfig(BaseModel):
 class RAGConfig(BaseModel):
     """Configuration for RAG system."""
     enabled: bool = True
-    default_limit: int = 5
-    min_relevance_score: float = 0.7
-    categories_hard_limit: int = 3
+    default_limit: int = 5 # Número máximo de documentos por categoria
+    min_relevance_score: float = 0.7 # Pontuação mínima de relevância
+    categories_hard_limit: int = 3 # Limite máximo de categorias por consulta
     
 class MCPConfig(BaseModel):
     """Configuration for MCP (function calling)."""
