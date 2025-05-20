@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.endpoints import auth, llm_admin, whatsapp, tenants, conversations, appointments, webhook, knowledge, agents, internal
+from app.api.endpoints import auth, dashboard, llm_admin, whatsapp, tenants, conversations, appointments, webhook, knowledge, agents, internal
 
 api_router = APIRouter()
 
@@ -14,6 +14,7 @@ api_router.include_router(knowledge.router, prefix="/knowledge", tags=["conhecim
 api_router.include_router(agents.router, prefix="/agents", tags=["agentes"])
 api_router.include_router(internal.router, prefix="/internal", tags=["internal"])
 api_router.include_router(llm_admin.router, prefix="/llm", tags=["llm"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 
 @api_router.get("/health", tags=["health"])
 def health_check():

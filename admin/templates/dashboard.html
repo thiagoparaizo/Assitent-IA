@@ -182,9 +182,15 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        <a href="{{ url_for('conversations.view', conversation_id=conversation.id) }}" class="btn btn-sm btn-outline-primary">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
+                                        {% if conversation.is_active %}
+                                            <a href="{{ url_for('conversations.view', conversation_id=conversation.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        {% else %}
+                                            <a href="{{ url_for('conversations.view_archived', conversation_id=conversation.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% endfor %}
