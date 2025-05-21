@@ -78,7 +78,7 @@ def login():
                     
                     # Redirect to the next page or dashboard
                     next_page = request.args.get('next')
-                    if not next_page or not next_page.startswith('/'):
+                    if not next_page or ( not next_page.startswith('/') and not next_page.startswith("%2F")):
                         next_page = url_for('dashboard.index')
                     
                     flash(f"Bem-vindo, {user.email}!", "success")
