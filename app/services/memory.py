@@ -450,93 +450,157 @@ class MemoryService:
             for msg in filtered_messages
         ])
         
-        # Generate brief summary (1-2 sentences)
-        brief_summary_prompt = [
-            {"role": "system", "content": "Você é especialista em resumir conversas em 1 ou 2 frases, capturando a essência."},
-            {"role": "user", "content": f"Resuma esta conversa em 1-2 frases:\n{conversation_text}"}
-        ]
-        brief_summary = await self.llm.generate_response(brief_summary_prompt)
-        
-        # Generate detailed summary (paragraph)
-        detailed_summary_prompt = [
-            {"role": "system", "content": "Você é especialista em resumir conversas em um parágrafo detalhado, porém conciso e objetivo."},
-            {"role": "user", "content": f"Resuma esta conversa em um parágrafo detalhado:\n{conversation_text}"}
-        ]
-        detailed_summary = await self.llm.generate_response(detailed_summary_prompt)
-        
-        # Extract key points
-        key_points_prompt = [
-            {"role": "system", "content": "Você é um especialista em extrair pontos-chave de conversas."},
-            {"role": "user", "content": f"Extraia 3 a 5 pontos-chave desta conversa como um JSON array:\n{conversation_text}"}
-        ]
-        key_points_json = await self.llm.generate_response(key_points_prompt)
-        
-        # Parse key points from JSON
         try:
-            key_points = json.loads(key_points_json)
-            if not isinstance(key_points, list):
-                key_points = ["Falha ao extrair pontos-chave devidamente."]
-        except:
-            key_points = ["Falha ao extrair pontos-chave"]
-        
-        # Extract entities (people, products, etc.)
-        entities_prompt = [
-            {"role": "system", "content": "Você é especialista em extrair entidades (pessoas, produtos, locais, datas, problemas) de conversas. Retorne como JSON."},
-            {"role": "user", "content": f"Extraia entidades desta conversa como um objeto JSON com categorias como chaves:\n{conversation_text}"}
-        ]
-        entities_json = await self.llm.generate_response(entities_prompt)
-        
-        # Parse entities from JSON
-        try:
-            entities = json.loads(entities_json)
-            if not isinstance(entities, dict):
-                entities = {}
-        except:
-            entities = {}
-        
-        # Analyze sentiment
-        sentiment_prompt = [
-            {"role": "system", "content": "Analise o sentimento desta conversa. Responda apenas uma palavra: positivo, negativo, neutro ou misto."},
-            {"role": "user", "content": f"Determine o sentimento desta conversa:\n{conversation_text}"}
-        ]
-        sentiment = await self.llm.generate_response(sentiment_prompt)
-        
-        # Create and return summary
-        summary = ConversationSummary(
-            conversation_id=conversation_id,
-            tenant_id=tenant_id,
-            user_id=user_id,
-            brief_summary=brief_summary,
-            detailed_summary=detailed_summary,
-            key_points=key_points,
-            entities=entities,
-            sentiment=sentiment.strip().lower(),
-            created_at=time.time()
-        )
-        
-        # Store summary
-        if self.vector_db_url:
+            # Generate brief summary (1-2 sentences)
+            brief_summary_prompt = [
+                {"role": "system", "content": "Você é especialista em resumir conversas em 1 ou 2 frases, capturando a essência."},
+                {"role": "user", "content": f"Resuma esta conversa em 1-2 frases:\n{conversation_text}"}
+            ]
+            brief_summary_response = await self.llm.generate_response(brief_summary_prompt)
+            
+            # Handle tuple response - extract the text part
+            if isinstance(brief_summary_response, tuple):
+                brief_summary = brief_summary_response[0] if brief_summary_response else ""
+            else:
+                brief_summary = brief_summary_response
+            
+            # Ensure it's a string and clean it
+            brief_summary = str(brief_summary).strip() if brief_summary else "Resumo não disponível"
+            
+            # Generate detailed summary (paragraph)
+            detailed_summary_prompt = [
+                {"role": "system", "content": "Você é especialista em resumir conversas em um parágrafo detalhado, porém conciso e objetivo."},
+                {"role": "user", "content": f"Resuma esta conversa em um parágrafo detalhado:\n{conversation_text}"}
+            ]
+            detailed_summary_response = await self.llm.generate_response(detailed_summary_prompt)
+            
+            # Handle tuple response - extract the text part
+            if isinstance(detailed_summary_response, tuple):
+                detailed_summary = detailed_summary_response[0] if detailed_summary_response else ""
+            else:
+                detailed_summary = detailed_summary_response
+            
+            # Ensure it's a string and clean it
+            detailed_summary = str(detailed_summary).strip() if detailed_summary else "Resumo detalhado não disponível"
+            
+            # Extract key points
+            key_points_prompt = [
+                {"role": "system", "content": "Você é um especialista em extrair pontos-chave de conversas."},
+                {"role": "user", "content": f"Extraia 3 a 5 pontos-chave desta conversa como um JSON array:\n{conversation_text}"}
+            ]
+            key_points_response = await self.llm.generate_response(key_points_prompt)
+            
+            # Handle tuple response - extract the text part
+            if isinstance(key_points_response, tuple):
+                key_points_json = key_points_response[0] if key_points_response else "[]"
+            else:
+                key_points_json = key_points_response
+            
+            # Ensure it's a string
+            key_points_json = str(key_points_json).strip() if key_points_json else "[]"
+            
+            # Parse key points from JSON
             try:
-                async with httpx.AsyncClient() as client:
-                    await client.post(
-                        f"{self.vector_db_url}/summaries",
-                        json=summary.dict(),
-                        timeout=10.0
-                    )
-            except Exception as e:
-                print(f"Error storing summary in vector database: {e}")
-                # Fall back to in-memory
-        
-        # In-memory fallback
-        self._summaries.append(summary)
-        
-        # Extract memories from this conversation
-        await self._extract_memories_from_conversation(
-            conversation_id, tenant_id, user_id, 
-            filtered_messages, summary
-        )
-        
-        return summary
+                key_points = json.loads(key_points_json)
+                if not isinstance(key_points, list):
+                    key_points = ["Falha ao extrair pontos-chave devidamente."]
+            except:
+                key_points = ["Falha ao extrair pontos-chave"]
+            
+            # Extract entities (people, products, etc.)
+            entities_prompt = [
+                {"role": "system", "content": "Você é especialista em extrair entidades (pessoas, produtos, locais, datas, problemas) de conversas. Retorne como JSON."},
+                {"role": "user", "content": f"Extraia entidades desta conversa como um objeto JSON com categorias como chaves:\n{conversation_text}"}
+            ]
+            entities_response = await self.llm.generate_response(entities_prompt)
+            
+            # Handle tuple response - extract the text part
+            if isinstance(entities_response, tuple):
+                entities_json = entities_response[0] if entities_response else "{}"
+            else:
+                entities_json = entities_response
+            
+            # Ensure it's a string
+            entities_json = str(entities_json).strip() if entities_json else "{}"
+            
+            # Parse entities from JSON
+            try:
+                entities = json.loads(entities_json)
+                if not isinstance(entities, dict):
+                    entities = {}
+            except:
+                entities = {}
+            
+            # Analyze sentiment
+            sentiment_prompt = [
+                {"role": "system", "content": "Analise o sentimento desta conversa. Responda apenas uma palavra: positivo, negativo, neutro ou misto."},
+                {"role": "user", "content": f"Determine o sentimento desta conversa:\n{conversation_text}"}
+            ]
+            sentiment_response = await self.llm.generate_response(sentiment_prompt)
+            
+            # Handle tuple response - extract the text part
+            if isinstance(sentiment_response, tuple):
+                sentiment = sentiment_response[0] if sentiment_response else "neutro"
+            else:
+                sentiment = sentiment_response
+            
+            # Ensure it's a string and clean it
+            sentiment = str(sentiment).strip().lower() if sentiment else "neutro"
+            
+            # Create and return summary
+            summary = ConversationSummary(
+                conversation_id=conversation_id,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                brief_summary=brief_summary,
+                detailed_summary=detailed_summary,
+                key_points=key_points,
+                entities=entities,
+                sentiment=sentiment,
+                created_at=time.time()
+            )
+            
+            # Store summary
+            if self.vector_db_url:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        await client.post(
+                            f"{self.vector_db_url}/summaries",
+                            json=summary.dict(),
+                            timeout=10.0
+                        )
+                except Exception as e:
+                    print(f"Error storing summary in vector database: {e}")
+                    # Fall back to in-memory
+            
+            # In-memory fallback
+            self._summaries.append(summary)
+            
+            # Extract memories from this conversation
+            await self._extract_memories_from_conversation(
+                conversation_id, tenant_id, user_id, 
+                filtered_messages, summary
+            )
+            
+            return summary
+            
+        except Exception as e:
+            print(f"Error in generate_conversation_summary: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Return a minimal summary in case of error
+            return ConversationSummary(
+                conversation_id=conversation_id,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                brief_summary="Erro ao gerar resumo",
+                detailed_summary="Não foi possível gerar resumo detalhado devido a erro técnico",
+                key_points=["Erro na geração de resumo"],
+                entities={},
+                sentiment="neutro",
+                created_at=time.time()
+            )
     
     async def get_user_profile(self, tenant_id: str, user_id: str) -> Dict[str, Any]:
         """

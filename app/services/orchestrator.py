@@ -415,13 +415,17 @@ class AgentOrchestrator:
             (message_count % tenant_config.memory.summary_frequency == 0 or 
             time_since_summary > tenant_config.memory.summary_time_threshold)):
             should_summarize = True
-        
+
         if should_summarize and self.memory_service:
-            # Generate summary in the background
-            asyncio.create_task(self._generate_and_store_summary(state))
-            
-            # Update metadata
-            state.metadata["last_summary_at"] = time.time()
+            try:
+                # Generate summary in the background
+                asyncio.create_task(self._generate_and_store_summary(state))
+                
+                # Update metadata
+                state.metadata["last_summary_at"] = time.time()
+            except Exception as e:
+                logging.error(f"Erro ao agendar geração de resumo: {str(e)}")
+                # Continue sem interromper o fluxo principal
         
         # Prepare prompt with history, context, and memories
         prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id)
@@ -859,10 +863,15 @@ class AgentOrchestrator:
         except Exception as e:
             logging.error(f"Erro ao gerar resumo da conversa: {str(e)}")
             
+            # Log adicional para debugging
+            import traceback
+            logging.error(f"Stack trace completo: {traceback.format_exc()}")
+            
             # Registrar o erro nos metadados
             state.metadata["last_summary_error"] = {
                 "error": str(e),
-                "timestamp": time.time()
+                "timestamp": time.time(),
+                "error_type": type(e).__name__
             }
             
             # Salvar estado mesmo com erro
