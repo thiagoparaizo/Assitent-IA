@@ -303,8 +303,7 @@
         const documentFilename = button.getAttribute('data-document-filename');
         
         document.getElementById('document-name-to-delete').textContent = documentFilename;
-        document.getElementById('delete-document-form').action = '{{ url_for("knowledge.delete_document", document_id="") }}' + documentId;
-    });
+        document.getElementById('delete-document-form').action = '/document/' + documentId + '/delete';
     
     // Configurar modal de exclusão de grupo (documento completo)
     const deleteDocumentGroupModal = new bootstrap.Modal(document.getElementById('deleteDocumentGroupModal'));
@@ -374,7 +373,7 @@
             if (!documentId) continue; // Pular IDs vazios
             
             try {
-                const response = await fetch('{{ url_for("knowledge.delete_document", document_id="") }}' + documentId, {
+                const response = await fetch('/document/' + documentId + '/delete', {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest'  // Para identificar como requisição AJAX
