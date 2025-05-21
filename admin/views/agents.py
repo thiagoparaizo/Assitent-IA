@@ -90,7 +90,7 @@ def create():
         except requests.exceptions.RequestException as e:
             flash(f"Erro ao criar agente: {e}", "danger")
         
-    # Obter categorias de conhecimento
+    # Obter categorias
     try:
         response = requests.get(
             f"{Config.API_URL}/knowledge/categories",
@@ -100,13 +100,9 @@ def create():
         response.raise_for_status()
         categories = response.json()['categories']
     except requests.exceptions.RequestException:
-        categories = [ # TODO: Vrificar mais tarde outras categorias fixas
-            {"id": "general", "name": "Geral"},
-            {"id": "agendamento", "name": "Agendamento"},
-            {"id": "procedimentos", "name": "Procedimentos"},
-            {"id": "financeiro", "name": "Financeiro"},
-            {"id": "pessoal", "name": "Pessoal"}
-        ]
+        # Se falhar, usar lista padrão importada
+        from app.core.rag_categories import DEFAULT_CATEGORIES
+        categories = DEFAULT_CATEGORIES
         
     return render_template('agents/create.html', categories=categories)
 

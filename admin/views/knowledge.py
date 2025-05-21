@@ -141,7 +141,6 @@ def upload():
         except requests.exceptions.RequestException as e:
             flash(f"Erro ao enviar arquivos: {e}", "danger")
         
-    # Obter categorias
     categories = []
     try:
         response = requests.get(
@@ -152,14 +151,11 @@ def upload():
         if response.status_code == 200:
             categories = response.json()['categories']
     except requests.exceptions.RequestException:
-        #TODO ajustar
-        categories = [
-            {"id": "general", "name": "Geral"},
-            {"id": "agendamento", "name": "Agendamento"},
-            {"id": "procedimentos", "name": "Procedimentos"},
-            {"id": "financeiro", "name": "Financeiro"},
-            {"id": "pessoal", "name": "Pessoal"}
-        ]
+        # Se falhar, usar lista padrão importada
+        from app.core.rag_categories import DEFAULT_CATEGORIES
+        categories = DEFAULT_CATEGORIES
+    
+    
     
     return render_template('knowledge/upload.html', categories=categories)
 

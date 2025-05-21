@@ -158,18 +158,156 @@
                         
                         <!-- Configuração de RAG -->
                         <div class="tab-pane fade" id="rag-info" role="tabpanel">
+                            <!-- Template para seleção de categorias nos agentes - Interface melhorada -->
                             <div class="mb-3">
                                 <label class="form-label">Categorias de Conhecimento</label>
-                                <div class="list-group">
-                                    {% for category in categories %}
-                                    <label class="list-group-item">
-                                        <input class="form-check-input me-1" type="checkbox" name="rag_categories" value="{{ category.id }}">
-                                        {{ category.name }}
-                                        <small class="text-muted d-block">{{ category.description }}</small>
-                                    </label>
-                                    {% endfor %}
+                                <div class="form-text mb-2">
+                                    Selecione as categorias de conhecimento que este agente pode acessar.
                                 </div>
-                                <div class="form-text">Selecione as categorias de conhecimento que este agente pode acessar.</div>
+                                
+                                <!-- Campo de busca para filtrar categorias -->
+                                <div class="input-group mb-3">
+                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                    <input type="text" class="form-control" id="category-search" placeholder="Buscar categorias...">
+                                </div>
+                                
+                                <!-- Exibição agrupada por setores -->
+                                <div class="category-selector">
+                                    <!-- Tabs para grupos de categorias -->
+                                    <ul class="nav nav-tabs mb-3" id="categoryTabs" role="tablist">
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general-categories" type="button" role="tab">
+                                                <i class="bi bi-globe"></i> Geral
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="health-tab" data-bs-toggle="tab" data-bs-target="#health-categories" type="button" role="tab">
+                                                <i class="bi bi-heart-pulse"></i> Saúde
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="finance-tab" data-bs-toggle="tab" data-bs-target="#finance-categories" type="button" role="tab">
+                                                <i class="bi bi-cash-coin"></i> Finanças
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="retail-tab" data-bs-toggle="tab" data-bs-target="#retail-categories" type="button" role="tab">
+                                                <i class="bi bi-shop"></i> Comércio
+                                            </button>
+                                        </li>
+                                        <li class="nav-item" role="presentation">
+                                            <button class="nav-link" id="more-tab" data-bs-toggle="tab" data-bs-target="#more-categories" type="button" role="tab">
+                                                <i class="bi bi-three-dots"></i> Mais
+                                            </button>
+                                        </li>
+                                    </ul>
+                                    
+                                    <!-- Conteúdo das tabs -->
+                                    <div class="tab-content" id="categoryTabsContent">
+                                        <!-- Categorias Gerais -->
+                                        <div class="tab-pane fade show active" id="general-categories" role="tabpanel">
+                                            <div class="row">
+                                                {% for category in categories %}
+                                                    {% if category.id in ['general', 'faq', 'policies', 'technical', 'onboarding', 'marketing', 'internal'] %}
+                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
+                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                            <label class="form-check-label" for="category-{{ category.id }}">
+                                                                <span class="fw-bold">{{ category.name }}</span>
+                                                                <small class="text-muted d-block">{{ category.description }}</small>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Categorias de Saúde -->
+                                        <div class="tab-pane fade" id="health-categories" role="tabpanel">
+                                            <div class="row">
+                                                {% for category in categories %}
+                                                    {% if category.id in ['healthcare', 'medical_procedures', 'dental', 'pharmacy', 'nutrition'] %}
+                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
+                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                            <label class="form-check-label" for="category-{{ category.id }}">
+                                                                <span class="fw-bold">{{ category.name }}</span>
+                                                                <small class="text-muted d-block">{{ category.description }}</small>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Categorias de Finanças -->
+                                        <div class="tab-pane fade" id="finance-categories" role="tabpanel">
+                                            <div class="row">
+                                                {% for category in categories %}
+                                                    {% if category.id in ['finance', 'banking', 'investments', 'taxes', 'insurance'] %}
+                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
+                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                            <label class="form-check-label" for="category-{{ category.id }}">
+                                                                <span class="fw-bold">{{ category.name }}</span>
+                                                                <small class="text-muted d-block">{{ category.description }}</small>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Categorias de Comércio -->
+                                        <div class="tab-pane fade" id="retail-categories" role="tabpanel">
+                                            <div class="row">
+                                                {% for category in categories %}
+                                                    {% if category.id in ['retail', 'products', 'pricing', 'shipping', 'returns'] %}
+                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
+                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                            <label class="form-check-label" for="category-{{ category.id }}">
+                                                                <span class="fw-bold">{{ category.name }}</span>
+                                                                <small class="text-muted d-block">{{ category.description }}</small>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Demais Categorias -->
+                                        <div class="tab-pane fade" id="more-categories" role="tabpanel">
+                                            <div class="row">
+                                                {% for category in categories %}
+                                                    {% if category.id not in ['general', 'faq', 'policies', 'technical', 'onboarding', 'marketing', 'internal', 
+                                                                        'healthcare', 'medical_procedures', 'dental', 'pharmacy', 'nutrition',
+                                                                        'finance', 'banking', 'investments', 'taxes', 'insurance',
+                                                                        'retail', 'products', 'pricing', 'shipping', 'returns'] %}
+                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
+                                                        <div class="form-check">
+                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
+                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                            <label class="form-check-label" for="category-{{ category.id }}">
+                                                                <span class="fw-bold">{{ category.name }}</span>
+                                                                <small class="text-muted d-block">{{ category.description }}</small>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         

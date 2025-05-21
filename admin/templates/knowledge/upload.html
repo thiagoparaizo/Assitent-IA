@@ -25,15 +25,74 @@
             <div class="card-body">
                 <form method="post" action="{{ url_for('knowledge.upload') }}" enctype="multipart/form-data">
                     <div class="mb-3">
-                        <label for="category" class="form-label">Categoria</label>
+                        <label for="category" class="form-label">Categoria <span class="text-danger">*</span></label>
+                        
+                        <!-- Campo de busca para filtrar categorias -->
+                        <div class="input-group mb-2">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" id="upload-category-search" placeholder="Buscar categorias...">
+                        </div>
+                        
+                        <!-- Seletor de categorias principal -->
                         <select class="form-select" id="category" name="category" required>
-                            <option value="">Selecione uma categoria</option>
-                            <option value="general">Geral</option>
-                            <option value="agendamento">Agendamento</option>
-                            <option value="procedimentos">Procedimentos</option>
-                            <option value="financeiro">Financeiro</option>
-                            <option value="pessoal">Pessoal</option>
+                            <option value="" selected disabled>Selecione uma categoria</option>
+                            
+                            <!-- Grupos de categorias -->
+                            <optgroup label="Gerais">
+                                {% for category in categories %}
+                                    {% if category.id in ['general', 'faq', 'policies', 'technical', 'onboarding', 'marketing', 'internal'] %}
+                                        <option value="{{ category.id }}" data-description="{{ category.description }}">{{ category.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </optgroup>
+                            
+                            <optgroup label="Saúde">
+                                {% for category in categories %}
+                                    {% if category.id in ['healthcare', 'medical_procedures', 'dental', 'pharmacy', 'nutrition'] %}
+                                        <option value="{{ category.id }}" data-description="{{ category.description }}">{{ category.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </optgroup>
+                            
+                            <optgroup label="Finanças">
+                                {% for category in categories %}
+                                    {% if category.id in ['finance', 'banking', 'investments', 'taxes', 'insurance'] %}
+                                        <option value="{{ category.id }}" data-description="{{ category.description }}">{{ category.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </optgroup>
+                            
+                            <optgroup label="Comércio">
+                                {% for category in categories %}
+                                    {% if category.id in ['retail', 'products', 'pricing', 'shipping', 'returns'] %}
+                                        <option value="{{ category.id }}" data-description="{{ category.description }}">{{ category.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </optgroup>
+                            
+                            <optgroup label="Tecnologia">
+                                {% for category in categories %}
+                                    {% if category.id in ['technology', 'software', 'hardware', 'it_support', 'security'] %}
+                                        <option value="{{ category.id }}" data-description="{{ category.description }}">{{ category.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </optgroup>
+                            
+                            <optgroup label="Outras Categorias">
+                                {% for category in categories %}
+                                    {% if category.id not in ['general', 'faq', 'policies', 'technical', 'onboarding', 'marketing', 'internal', 
+                                                        'healthcare', 'medical_procedures', 'dental', 'pharmacy', 'nutrition',
+                                                        'finance', 'banking', 'investments', 'taxes', 'insurance',
+                                                        'retail', 'products', 'pricing', 'shipping', 'returns',
+                                                        'technology', 'software', 'hardware', 'it_support', 'security'] %}
+                                        <option value="{{ category.id }}" data-description="{{ category.description }}">{{ category.name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            </optgroup>
                         </select>
+                        
+                        <!-- Descrição da categoria selecionada -->
+                        <div class="category-description text-muted mt-2 fst-italic" style="display: none;"></div>
                     </div>
                     
                     <div class="mb-3">
@@ -57,3 +116,61 @@
     </div>
 </div>
 {% endblock %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Filtro de categorias
+    const searchInput = document.getElementById('upload-category-search');
+    const categorySelect = document.getElementById('category');
+    const categoryDescription = document.querySelector('.category-description');
+    
+    if (searchInput && categorySelect) {
+        // Filtrar opções baseado na pesquisa
+        searchInput.addEventListener('keyup', function() {
+            const searchText = this.value.toLowerCase();
+            const options = categorySelect.querySelectorAll('option:not([disabled])');
+            const optgroups = categorySelect.querySelectorAll('optgroup');
+            
+            // Resetar todos os optgroups
+            optgroups.forEach(group => {
+                group.style.display = '';
+            });
+            
+            // Filtrar opções
+            options.forEach(option => {
+                const text = option.textContent.toLowerCase();
+                const description = option.getAttribute('data-description')?.toLowerCase() || '';
+                
+                if (searchText === '' || text.includes(searchText) || description.includes(searchText)) {
+                    option.style.display = '';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+            
+            // Ocultar optgroups vazios
+            optgroups.forEach(group => {
+                const visibleOptions = Array.from(group.querySelectorAll('option')).filter(opt => 
+                    opt.style.display !== 'none'
+                );
+                
+                if (visibleOptions.length === 0) {
+                    group.style.display = 'none';
+                }
+            });
+        });
+        
+        // Mostrar descrição da categoria selecionada
+        categorySelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            const description = selectedOption.getAttribute('data-description');
+            
+            if (description) {
+                categoryDescription.textContent = description;
+                categoryDescription.style.display = 'block';
+            } else {
+                categoryDescription.style.display = 'none';
+            }
+        });
+    }
+});
+</script>

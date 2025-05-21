@@ -12,6 +12,8 @@ from app.api.deps import get_current_active_user, get_db, get_tenant_id
 from app.db.models.user import User
 from app.services.rag_faiss import RAGServiceFAISS
 
+from app.core.rag_categories import DEFAULT_CATEGORIES
+
 router = APIRouter()
 
 
@@ -159,29 +161,103 @@ async def list_documents(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar documentos: {str(e)}")
     
+# @router.get("/categories")
+# async def list_categories(
+#     tenant_id: int = Depends(get_tenant_id),
+#     current_user: User = Depends(get_current_active_user),
+# ):
+#     """
+#     Lista categorias disponíveis no RAG com contagem correta de documentos únicos
+#     """
+#     t = int(tenant_id) if tenant_id else 0
+#     if not current_user.is_superuser and current_user.tenant_id != t:
+#         raise HTTPException(status_code=403, detail="Sem permissão para acessar este tenant")
+    
+#     # Inicializar serviço RAG
+#     rag_service = RAGServiceFAISS(tenant_id=tenant_id)
+    
+#     try:
+#         # Obter categorias
+#         categories = await rag_service.list_categories()
+        
+#         # Obter documentos para contagem correta
+#         documents = await rag_service.list_documents()
+        
+#         # Criar um conjunto de nomes de arquivos únicos por categoria
+#         unique_filenames_by_category = {}
+        
+#         for doc in documents:
+#             category = doc.get("category", "general")
+#             filename = doc.get("filename", "unknown")
+            
+#             if category not in unique_filenames_by_category:
+#                 unique_filenames_by_category[category] = set()
+                
+#             unique_filenames_by_category[category].add(filename)
+        
+#         # Calcular contagem correta por categoria
+#         category_counts = {
+#             category: len(filenames)
+#             for category, filenames in unique_filenames_by_category.items()
+#         }
+        
+#         # Formatar categorias com contagem correta
+#         formatted_categories = [
+#             {
+#                 "id": category,
+#                 "name": category.capitalize(),
+#                 "document_count": category_counts.get(category, 0)
+#             }
+#             for category, _ in categories.items()
+#         ]
+        
+#         # Calcular total de documentos únicos para "Todas" as categorias
+#         all_filenames = set()
+#         for filenames in unique_filenames_by_category.values():
+#             all_filenames.update(filenames)
+        
+#         # Adicionar categorias fixas se não existirem
+#         fixed_categories = ["general", "agendamento", "procedimentos", "financeiro", "pessoal"]
+#         existing_categories = [c["id"] for c in formatted_categories]
+        
+#         for category in fixed_categories:
+#             if category not in existing_categories:
+#                 formatted_categories.append({
+#                     "id": category,
+#                     "name": category.capitalize(),
+#                     "document_count": 0
+#                 })
+        
+#         # Retornar com total geral
+#         return {
+#             "categories": formatted_categories,
+#             "total_documents": len(all_filenames)
+#         }
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Erro ao listar categorias: {str(e)}")
+
 @router.get("/categories")
 async def list_categories(
     tenant_id: int = Depends(get_tenant_id),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Lista categorias disponíveis no RAG com contagem correta de documentos únicos
+    Lista categorias disponíveis para seleção.
+    Combina categorias predefinidas com contagens de documentos existentes.
     """
     t = int(tenant_id) if tenant_id else 0
     if not current_user.is_superuser and current_user.tenant_id != t:
         raise HTTPException(status_code=403, detail="Sem permissão para acessar este tenant")
     
-    # Inicializar serviço RAG
-    rag_service = RAGServiceFAISS(tenant_id=tenant_id)
-    
     try:
-        # Obter categorias
-        categories = await rag_service.list_categories()
+        # Obter contagem de documentos por categoria do RAG
+        rag_service = RAGServiceFAISS(tenant_id=tenant_id)
+        existing_categories = await rag_service.list_categories()
         
-        # Obter documentos para contagem correta
+        # Obter documentos para contagem precisa
         documents = await rag_service.list_documents()
         
-        # Criar um conjunto de nomes de arquivos únicos por categoria
+        # Contagem de documentos únicos por categoria
         unique_filenames_by_category = {}
         
         for doc in documents:
@@ -193,38 +269,29 @@ async def list_categories(
                 
             unique_filenames_by_category[category].add(filename)
         
-        # Calcular contagem correta por categoria
+        # Contagem por categoria
         category_counts = {
             category: len(filenames)
             for category, filenames in unique_filenames_by_category.items()
         }
         
-        # Formatar categorias com contagem correta
-        formatted_categories = [
-            {
-                "id": category,
-                "name": category.capitalize(),
-                "document_count": category_counts.get(category, 0)
-            }
-            for category, _ in categories.items()
-        ]
+        # Combinar categorias predefinidas com contagens
+        formatted_categories = []
+        for category in DEFAULT_CATEGORIES:
+            category_id = category["id"]
+            count = category_counts.get(category_id, 0)
+            
+            formatted_categories.append({
+                "id": category_id,
+                "name": category["name"],
+                "description": category["description"],
+                "document_count": count
+            })
         
-        # Calcular total de documentos únicos para "Todas" as categorias
+        # Calcular total de documentos únicos
         all_filenames = set()
         for filenames in unique_filenames_by_category.values():
             all_filenames.update(filenames)
-        
-        # Adicionar categorias fixas se não existirem
-        fixed_categories = ["general", "agendamento", "procedimentos", "financeiro", "pessoal"]
-        existing_categories = [c["id"] for c in formatted_categories]
-        
-        for category in fixed_categories:
-            if category not in existing_categories:
-                formatted_categories.append({
-                    "id": category,
-                    "name": category.capitalize(),
-                    "document_count": 0
-                })
         
         # Retornar com total geral
         return {
@@ -233,6 +300,7 @@ async def list_categories(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar categorias: {str(e)}")
+
     
 @router.delete("/documents/{document_id}")
 async def delete_document(
