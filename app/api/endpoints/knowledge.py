@@ -48,7 +48,7 @@ async def upload_documents(
         #rag_service = RAGService(tenant_id=tenant_id)
         #rag_service = SeuProcessador(tenant_id=tenant_id)
         rag_service = RAGServiceFAISS(tenant_id=tenant_id)
-        num_chunks = rag_service.index_documents(temp_dir, category=category)
+        num_chunks = await rag_service.index_documents(temp_dir, category=category)
         
         # Registrar upload no banco de dados (opcional)
         # Você pode criar um modelo Document para rastrear uploads
@@ -117,7 +117,7 @@ async def list_documents(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Lista documentos indexados no RAG
+    Lista documentos indexados no RAG, com metadados adicionais para agrupamento
     """
     # Verificar permissão
     t = int(tenant_id) if tenant_id else 0
@@ -131,12 +131,30 @@ async def list_documents(
         # Obter documentos
         documents = await rag_service.list_documents(category=category, skip=skip, limit=limit)
         
-        # Retornar lista de documentos
+        # Agrupar documentos por nome de arquivo para contagem
+        filenames = {}
+        for doc in documents:
+            filename = doc.get("filename", "unknown")
+            if filename not in filenames:
+                filenames[filename] = 0
+            filenames[filename] += 1
+        
+        # Adicionar contagem de chunks para cada documento
+        for doc in documents:
+            filename = doc.get("filename", "unknown")
+            doc["total_chunks"] = filenames.get(filename, 1)
+        
+        # Calcular número total de documentos únicos para contagem/paginação
+        total_unique_docs = len(filenames)
+        
+        # Retornar lista de documentos com metadados adicionais
         return {
             "documents": documents,
             "total": len(documents),
+            "total_unique": total_unique_docs,
             "skip": skip,
-            "limit": limit
+            "limit": limit,
+            "unique_files": list(filenames.keys())
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar documentos: {str(e)}")
@@ -147,7 +165,7 @@ async def list_categories(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Lista categorias disponíveis no RAG
+    Lista categorias disponíveis no RAG com contagem correta de documentos únicos
     """
     t = int(tenant_id) if tenant_id else 0
     if not current_user.is_superuser and current_user.tenant_id != t:
@@ -160,17 +178,43 @@ async def list_categories(
         # Obter categorias
         categories = await rag_service.list_categories()
         
-        # Formatar categorias
+        # Obter documentos para contagem correta
+        documents = await rag_service.list_documents()
+        
+        # Criar um conjunto de nomes de arquivos únicos por categoria
+        unique_filenames_by_category = {}
+        
+        for doc in documents:
+            category = doc.get("category", "general")
+            filename = doc.get("filename", "unknown")
+            
+            if category not in unique_filenames_by_category:
+                unique_filenames_by_category[category] = set()
+                
+            unique_filenames_by_category[category].add(filename)
+        
+        # Calcular contagem correta por categoria
+        category_counts = {
+            category: len(filenames)
+            for category, filenames in unique_filenames_by_category.items()
+        }
+        
+        # Formatar categorias com contagem correta
         formatted_categories = [
             {
                 "id": category,
                 "name": category.capitalize(),
-                "document_count": count
+                "document_count": category_counts.get(category, 0)
             }
-            for category, count in categories.items()
+            for category, _ in categories.items()
         ]
         
-        # Adicionar categorias fixas se não existirem # TODO ajustar
+        # Calcular total de documentos únicos para "Todas" as categorias
+        all_filenames = set()
+        for filenames in unique_filenames_by_category.values():
+            all_filenames.update(filenames)
+        
+        # Adicionar categorias fixas se não existirem
         fixed_categories = ["general", "agendamento", "procedimentos", "financeiro", "pessoal"]
         existing_categories = [c["id"] for c in formatted_categories]
         
@@ -182,7 +226,11 @@ async def list_categories(
                     "document_count": 0
                 })
         
-        return {"categories": formatted_categories}
+        # Retornar com total geral
+        return {
+            "categories": formatted_categories,
+            "total_documents": len(all_filenames)
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar categorias: {str(e)}")
     

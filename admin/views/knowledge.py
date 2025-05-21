@@ -50,7 +50,9 @@ def index():
             timeout=5
         )
         if response.status_code == 200:
-            categories = response.json().get('categories', [])
+            data = response.json()
+            categories = data.get('categories', [])
+            total_documents = data.get('total_documents', 0)
             
         # Obter documentos
         url = f"{Config.API_URL}/knowledge/documents"
@@ -65,13 +67,12 @@ def index():
         if response.status_code == 200:
             data = response.json()
             documents = data.get('documents', [])
-            total_documents = data.get('total', 0)
+            
+            # Se total_documents ainda não foi definido, use o total de documentos retornado
+            if not total_documents:
+                total_documents = data.get('total', 0)
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao obter dados: {e}", "danger")
-    
-    # Calcular total de documentos em todas as categorias se necessário
-    if not total_documents and categories:
-        total_documents = sum(category.get('document_count', 0) for category in categories)
     
     return render_template(
         'knowledge/index.html', 
@@ -80,8 +81,8 @@ def index():
         selected_category=selected_category,
         total_documents=total_documents
     )
-
-@knowledge_bp.route('/upload', methods=['GET', 'POST'])
+    
+@knowledge_bp.route('/upload', methods=['GET', 'POST'])    
 @login_required
 def upload():
     if request.method == 'POST':
@@ -244,8 +245,12 @@ def delete_category(category_id):
 @knowledge_bp.route('/document/<document_id>/delete', methods=['POST'])
 @login_required
 def delete_document(document_id):
-    """Exclui um documento da base de conhecimento."""
+    """Exclui um documento ou chunk específico da base de conhecimento."""
     try:
+        # Verificar se é uma requisição AJAX (usada para exclusão em massa)
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        # Chamar API para excluir documento
         response = requests.delete(
             f"{Config.API_URL}/knowledge/documents/{document_id}",
             headers=get_api_headers(),
@@ -253,6 +258,11 @@ def delete_document(document_id):
         )
         
         if response.status_code == 200:
+            # Se for AJAX, retornar resultado como JSON
+            if is_ajax:
+                return jsonify({"success": True, "message": "Documento excluído com sucesso"})
+                
+            # Se não for AJAX, mostrar flash e redirecionar
             flash("Documento excluído com sucesso!", "success")
         else:
             error_detail = "Erro desconhecido"
@@ -262,8 +272,23 @@ def delete_document(document_id):
             except:
                 error_detail = f"Erro {response.status_code}"
             
+            # Se for AJAX, retornar erro como JSON
+            if is_ajax:
+                return jsonify({"success": False, "message": f"Erro ao excluir documento: {error_detail}"}), 400
+                
+            # Se não for AJAX, mostrar flash e redirecionar
             flash(f"Erro ao excluir documento: {error_detail}", "danger")
     except requests.exceptions.RequestException as e:
+        # Se for AJAX, retornar erro como JSON
+        if is_ajax:
+            return jsonify({"success": False, "message": f"Erro ao excluir documento: {str(e)}"}), 500
+            
+        # Se não for AJAX, mostrar flash e redirecionar
         flash(f"Erro ao excluir documento: {e}", "danger")
+    
+    # Se for AJAX, não redirecionar
+    if is_ajax:
+        return jsonify({"success": True})
         
+    # Se não for AJAX, redirecionar para a página principal
     return redirect(url_for('knowledge.index'))

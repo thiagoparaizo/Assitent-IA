@@ -1,4 +1,5 @@
 # \app\services\rag_faiss.py
+import asyncio
 import os
 from typing import Any, Dict, List, Optional
 import httpx
@@ -43,6 +44,26 @@ class RAGServiceFAISS:
             # para garantir que usamos os embeddings corretos
             pass
         
+    def _create_faiss_from_documents(self, texts, embeddings):
+        """
+        A synchronous method to create FAISS from documents
+        """
+        return FAISS.from_documents(texts, embeddings)
+
+    def _update_faiss_index(self, texts):
+        """
+        A synchronous method to update FAISS index
+        """
+        # Create a new temporary vectorstore
+        temp_vectorstore = FAISS.from_documents(texts, self.embeddings)
+        
+        # Merge with existing vectorstore
+        self.vectorstore.merge_from(temp_vectorstore)
+        
+        # Save changes
+        self.vectorstore.save_local(self.vector_db_path, "index")    
+    
+    
     async def _init_embeddings(self):
         """
         Inicializa o modelo de embeddings com base nas configurações do tenant
@@ -53,61 +74,99 @@ class RAGServiceFAISS:
         # Usar o factory para criar o serviço LLM correto para o tenant
         llm_service = await LLMServiceFactory.create_service(self.db, tenant_id=self.tenant_id)
         
-        # Para compatibilidade com o FAISS existente, criamos um adaptador
-        # que implementa a interface esperada pelo FAISS
-        class EmbeddingAdapter:
-            def __init__(self, llm_service):
-                self.llm_service = llm_service
-            
-            async def embed_documents(self, texts):
-                embeddings = []
-                for text in texts:
-                    embedding = await self.llm_service.get_embeddings(text)
-                    embeddings.append(embedding)
-                return embeddings
-            
-            async def embed_query(self, text):
-                return await self.llm_service.get_embeddings(text)
-            
-            # Método síncrono necessário para FAISS
-            def embed_documents(self, texts):
-                import asyncio
-                return asyncio.run(self._async_embed_documents(texts))
-            
-            async def _async_embed_documents(self, texts):
-                return await self.embed_documents(texts)
-            
-            # Método síncrono necessário para FAISS
-            def embed_query(self, text):
-                import asyncio
-                return asyncio.run(self._async_embed_query(text))
-                
-            async def _async_embed_query(self, text):
-                return await self.embed_query(text)
+        # Option 1: Use a direct implementation of OpenAIEmbeddings (most reliable)
+        # This is the preferred option for a production environment
+        self.embeddings = OpenAIEmbeddings(
+            openai_api_key=llm_service.api_key,
+            model="text-embedding-ada-002"
+        )
         
-        self.embeddings = EmbeddingAdapter(llm_service)
+        
+    class EmbeddingAdapter:
+        def __init__(self, llm_service):
+            self.llm_service = llm_service
+            self._loop = asyncio.get_event_loop()
+        
+        async def async_embed_documents(self, texts):
+            """Async method to get embeddings for documents"""
+            embeddings = []
+            for text in texts:
+                embedding = await self.llm_service.get_embeddings(text)
+                embeddings.append(embedding)
+            return embeddings
+        
+        async def async_embed_query(self, text):
+            """Async method to get embedding for a single query"""
+            return await self.llm_service.get_embeddings(text)
+        
+        # Synchronous methods required by FAISS
+        def embed_documents(self, texts):
+            """
+            Synchronous method that uses run_in_executor to call the async method
+            without creating a new event loop
+            """
+            # Use a ThreadPoolExecutor to run the async method in a separate thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = self._loop.run_in_executor(
+                    executor,
+                    lambda: asyncio.run_coroutine_threadsafe(
+                        self.async_embed_documents(texts), 
+                        self._loop
+                    ).result()
+                )
+                # Get result from future
+                return self._loop.run_until_complete(future)
+        
+        def embed_query(self, text):
+            """
+            Synchronous method that uses run_in_executor to call the async method
+            without creating a new event loop
+            """
+            # Use a ThreadPoolExecutor to run the async method in a separate thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = self._loop.run_in_executor(
+                    executor,
+                    lambda: asyncio.run_coroutine_threadsafe(
+                        self.async_embed_query(text), 
+                        self._loop
+                    ).result()
+                )
+                # Get result from future
+                return self._loop.run_until_complete(future)
     
     async def load_vectorstore(self):
         """
-        Carrega o vectorstore existente
+        Carrega o vectorstore do disco se existir
         """
-        # Garantir que o modelo de embeddings está inicializado
-        await self._init_embeddings()
+        if not self.embeddings:
+            await self._init_embeddings()
         
-        try:
-            self.vectorstore = FAISS.load_local(
-                self.vector_db_path, 
-                self.embeddings, 
-                "index",
-                allow_dangerous_deserialization=True
-            )
-        except Exception as e:
-            print(f"Erro ao carregar vectorstore: {e}")
-            self.vectorstore = None
+        index_file = os.path.join(self.vector_db_path, "index.faiss")
+        if os.path.exists(index_file):
+            try:
+                # Run FAISS load operation in a separate thread to avoid event loop issues
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    self.vectorstore = await asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        lambda: FAISS.load_local(
+                            self.vector_db_path,
+                            self.embeddings,
+                            "index",
+                            allow_dangerous_deserialization=True
+                        )
+                    )
+                return True
+            except Exception as e:
+                print(f"Erro ao carregar vectorstore: {e}")
+                return False
+        return False
     
     async def index_documents(self, documents_dir: str, category: str = None, tenant_id: int = None) -> int:
         """
-        Indexa documentos de um diretório para o vectorstore
+        Indexa documentos de um diretório para o vectorstore, mantendo os documentos existentes
         """
         # Permitir substituir o tenant_id no método
         if tenant_id is not None:
@@ -117,16 +176,18 @@ class RAGServiceFAISS:
             
             # Limpar embeddings para reinicializar com o tenant correto
             self.embeddings = None
-            
-            # Recarregar vectorstore com o novo caminho
-            index_file = os.path.join(self.vector_db_path, "index.faiss")
-            if os.path.exists(index_file):
-                await self.load_vectorstore()
-            else:
-                self.vectorstore = None
         
         # Garantir que o modelo de embeddings está inicializado
         await self._init_embeddings()
+        
+        # Verificar e carregar vectorstore existente ANTES de processar novos documentos
+        if self.vectorstore is None:
+            index_file = os.path.join(self.vector_db_path, "index.faiss")
+            if os.path.exists(index_file):
+                success = await self.load_vectorstore()
+                if not success:
+                    print("Falha ao carregar vectorstore existente. Será criado um novo.")
+                    self.vectorstore = None
         
         # Dicionário de carregadores por extensão
         loaders = {
@@ -147,6 +208,8 @@ class RAGServiceFAISS:
                     try:
                         # Usar o carregador apropriado
                         loader = loaders[ext.lower()](file_path)
+                        
+                        # Use a non-async method to load documents
                         documents = loader.load()
                         
                         # Adicionar metadados
@@ -166,22 +229,34 @@ class RAGServiceFAISS:
             text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
             texts = text_splitter.split_documents(all_documents)
             
-            # Adicionar ao vectorstore
-            if self.vectorstore is None:
-                # Criar um novo vectorstore
-                self.vectorstore = FAISS.from_documents(texts, self.embeddings)
-                # Salvar alterações
-                self.vectorstore.save_local(self.vector_db_path, "index", allow_dangerous_deserialization=True)
-            else:
-                # Atualizar o vectorstore existente
-                # Criar um novo vectorstore temporário
-                temp_vectorstore = FAISS.from_documents(texts, self.embeddings)
-                
-                # Mesclar com o vectorstore existente
-                self.vectorstore.merge_from(temp_vectorstore)
-                
-                # Salvar alterações
-                self.vectorstore.save_local(self.vector_db_path, "index")
+            # Debug: mostrar número de documentos
+            print(f"Processando {len(texts)} novos chunks de documentos.")
+            
+            # Run FAISS operations in a separate thread to avoid event loop issues
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                if self.vectorstore is None:
+                    # Se não existir vectorstore, criar um novo
+                    print("Criando novo vectorstore com os documentos processados")
+                    self.vectorstore = await asyncio.get_event_loop().run_in_executor(
+                        executor, self._create_faiss_from_documents, texts, self.embeddings
+                    )
+                    # Salvar alterações
+                    self.vectorstore.save_local(self.vector_db_path, "index")
+                else:
+                    # Se já existir vectorstore, adicionar os novos documentos
+                    print(f"Adicionando novos documentos ao vectorstore existente")
+                    
+                    # Versão mais direta: usar add_documents no executor
+                    await asyncio.get_event_loop().run_in_executor(
+                        executor,
+                        lambda: self._safe_add_documents(texts)
+                    )
+                    
+                    # Contar documentos após adição para verificar
+                    doc_count = len(self.vectorstore.docstore._dict.keys())
+                    print(f"Total de documentos após adição: {doc_count}")
             
             return len(texts)
         
@@ -215,7 +290,7 @@ class RAGServiceFAISS:
             self.vectorstore = self.vectorstore.add_documents(documents)
         
         # Salvar o vectorstore
-        self.vectorstore.save_local(self.vector_db_path, "index", allow_dangerous_deserialization=True)
+        self.vectorstore.save_local(self.vector_db_path, "index")
     
     async def get_context(self, question: str, category: str = None, top_k: int = 5) -> List[Dict[str, Any]]:
         """
@@ -305,7 +380,7 @@ class RAGServiceFAISS:
         """
         if self.vectorstore is None:
             print("Vectorstore não inicializado. Tentando recarregar...")
-            self.load_vectorstore()
+            await self.load_vectorstore()
             
             if self.vectorstore is None:
                 print("Não foi possível carregar o vectorstore.")
@@ -398,25 +473,101 @@ class RAGServiceFAISS:
         Exclui um documento do vectorstore
         """
         if self.vectorstore is None:
-            return False
+            # Tentar carregar o vectorstore se não estiver inicializado
+            success = await self.load_vectorstore()
+            if not success:
+                print("Falha ao carregar vectorstore para exclusão de documento")
+                return False
         
         try:
             # Verificar se o documento existe
-            doc = self.vectorstore.docstore.search(document_id)
+            print(f"Tentando excluir documento com ID: {document_id}")
             
-            # Verificar se o tenant_id corresponde
-            if self.tenant_id is not None:
-                doc_tenant_id = doc.metadata.get("tenant_id")
-                if doc_tenant_id != self.tenant_id and str(doc_tenant_id) != str(self.tenant_id):
-                    return False
-            
-            # Excluir documento
-            self.vectorstore.delete([document_id])
-            
-            # Salvar alterações
-            self.vectorstore.save_local(self.vector_db_path, "index", allow_dangerous_deserialization=True)
-            
-            return True
+            # Verificar antes se o documento existe
+            try:
+                doc = self.vectorstore.docstore.search(document_id)
+                
+                # Verificar se o tenant_id corresponde
+                if self.tenant_id is not None:
+                    doc_tenant_id = doc.metadata.get("tenant_id")
+                    if doc_tenant_id != self.tenant_id and str(doc_tenant_id) != str(self.tenant_id):
+                        print(f"Documento {document_id} pertence ao tenant {doc_tenant_id}, não ao tenant {self.tenant_id}")
+                        return False
+                
+                # Contagem antes da exclusão
+                doc_count_before = len(self.vectorstore.docstore._dict.keys())
+                print(f"Documentos antes da exclusão: {doc_count_before}")
+                
+                # Excluir documento - verificar a API correta
+                if hasattr(self.vectorstore, 'delete'):
+                    # Para versões mais recentes do FAISS
+                    self.vectorstore.delete([document_id])
+                elif hasattr(self.vectorstore, 'delete_by_document_id'):
+                    # Para versões mais antigas do FAISS
+                    self.vectorstore.delete_by_document_id(document_id)
+                else:
+                    # Tentar uma abordagem alternativa usando o docstore diretamente
+                    if document_id in self.vectorstore.docstore._dict:
+                        del self.vectorstore.docstore._dict[document_id]
+                        print(f"Documento {document_id} excluído manualmente do docstore")
+                    else:
+                        print(f"Documento {document_id} não encontrado no docstore")
+                        return False
+                
+                # Contagem após a exclusão
+                doc_count_after = len(self.vectorstore.docstore._dict.keys())
+                print(f"Documentos após a exclusão: {doc_count_after}")
+                
+                # Verificar se o número de documentos diminuiu
+                if doc_count_after >= doc_count_before:
+                    print("AVISO: O número de documentos não diminuiu após a exclusão!")
+                
+                # Salvar alterações
+                self.vectorstore.save_local(self.vector_db_path, "index")
+                
+                print(f"Documento {document_id} excluído com sucesso")
+                return True
+            except Exception as e:
+                print(f"Erro ao buscar documento {document_id}: {str(e)}")
+                return False
         except Exception as e:
             print(f"Erro ao excluir documento: {e}")
+            return False
+        
+        
+    def _add_texts_to_faiss(self, texts):
+        """
+        Método síncrono para adicionar textos ao FAISS existente sem substituir
+        """
+        # Use add_documents para preservar documentos existentes
+        self.vectorstore.add_documents(texts)
+        
+        # Salvar alterações
+        self.vectorstore.save_local(self.vector_db_path, "index")
+        
+    def _safe_add_documents(self, texts):
+        """
+        Adiciona documentos ao FAISS de forma segura e salva após a adição
+        """
+        try:
+            # Contar documentos antes
+            doc_count_before = len(self.vectorstore.docstore._dict.keys())
+            print(f"Documentos antes da adição: {doc_count_before}")
+            
+            # Adicionar documentos
+            self.vectorstore.add_documents(texts)
+            
+            # Contar documentos depois
+            doc_count_after = len(self.vectorstore.docstore._dict.keys())
+            print(f"Documentos após a adição: {doc_count_after}")
+            
+            # Verificar se o número de documentos aumentou
+            if doc_count_after <= doc_count_before:
+                print("AVISO: O número de documentos não aumentou após a adição!")
+            
+            # Salvar o vectorstore para persistir os novos documentos
+            self.vectorstore.save_local(self.vector_db_path, "index")
+            return True
+        except Exception as e:
+            print(f"Erro ao adicionar documentos ao vectorstore: {e}")
             return False

@@ -1,4 +1,4 @@
-<!-- admin/templates/knowledge/index.html -->
+<!-- admin/templates/knowledge/index.html - Versão Melhorada -->
 {% extends 'base.html' %}
 
 {% block title %}Base de Conhecimento - Assistente Inteligente{% endblock %}
@@ -60,32 +60,93 @@
             <div class="card-body p-0">
                 {% if documents %}
                 <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0">
+                    <!-- Tabela de documentos agrupados por arquivo original -->
+                    <table class="table table-hover table-striped mb-0" id="documents-table">
                         <thead>
                             <tr>
+                                <th style="width: 30px;"></th>
                                 <th>Nome do Arquivo</th>
                                 <th>Categoria</th>
-                                <th>Prévia do Conteúdo</th>
+                                <th>Chunks</th>
                                 <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
+                            {% set grouped_docs = {} %}
+                            
+                            <!-- Agrupar documentos por arquivo original -->
                             {% for doc in documents %}
-                            <tr>
-                                <td>{{ doc.filename }}</td>
-                                <td>
-                                    <span class="badge bg-secondary">{{ doc.category|capitalize }}</span>
+                                {% set filename = doc.filename %}
+                                {% if filename not in grouped_docs %}
+                                    {% set _ = grouped_docs.update({filename: {'docs': [], 'category': doc.category}}) %}
+                                {% endif %}
+                                {% set _ = grouped_docs[filename]['docs'].append(doc) %}
+                            {% endfor %}
+                            
+                            <!-- Renderizar cada grupo de documentos -->
+                            {% for filename, group in grouped_docs.items() %}
+                            <tr class="document-group-row" data-filename="{{ filename }}">
+                                <td class="text-center">
+                                    <button class="btn btn-sm btn-link toggle-chunks" data-filename="{{ filename }}">
+                                        <i class="bi bi-plus-circle"></i>
+                                    </button>
                                 </td>
-                                <td class="text-truncate" style="max-width: 300px;">{{ doc.content_preview }}</td>
+                                <td>{{ filename }}</td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ group.category|capitalize }}</span>
+                                </td>
+                                <td>{{ group.docs|length }}</td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button type="button" class="btn btn-sm btn-outline-info view-document" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#documentDetailsModal"
+                                                data-document-id="{{ group.docs[0].id }}"
+                                                data-document-filename="{{ filename }}"
+                                                data-document-content="{{ group.docs[0].content_preview }}"
+                                                data-document-category="{{ group.category }}"
+                                                data-document-source="{{ group.docs[0].source }}">
+                                            <i class="bi bi-eye"></i>
+                                        </button>
+                                        
+                                        
+                                        <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#deleteDocumentGroupModal"
+                                                data-document-filename="{{ filename }}"
+                                                data-document-ids='{{ group.docs|map(attribute="id")|list|tojson|safe }}'>
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                       
+                                    </div>
+                                </td>
+                            </tr>
+                            
+                            <!-- Linhas para os pedaços (chunks) do documento, inicialmente ocultas -->
+                            {% for doc in group.docs %}
+                            <tr class="chunk-row" data-parent="{{ filename }}" style="display: none; background-color: #f8f9fa;">
+                                <td></td>
+                                <td>
+                                    <div class="ms-3 small">
+                                        <i class="bi bi-file-text text-muted me-1"></i>
+                                        <span class="text-muted">Chunk #{{ loop.index }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark">{{ group.category|capitalize }}</span>
+                                </td>
+                                <td>
+                                    <div class="small text-truncate" style="max-width: 200px;">{{ doc.content_preview }}</div>
+                                </td>
                                 <td>
                                     <div class="btn-group">
                                         <button type="button" class="btn btn-sm btn-outline-info view-document" 
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#documentDetailsModal"
                                                 data-document-id="{{ doc.id }}"
-                                                data-document-filename="{{ doc.filename }}"
+                                                data-document-filename="{{ filename }} (Chunk #{{ loop.index }})"
                                                 data-document-content="{{ doc.content_preview }}"
-                                                data-document-category="{{ doc.category }}"
+                                                data-document-category="{{ group.category }}"
                                                 data-document-source="{{ doc.source }}">
                                             <i class="bi bi-eye"></i>
                                         </button>
@@ -95,13 +156,14 @@
                                                 data-bs-toggle="modal" 
                                                 data-bs-target="#deleteDocumentModal"
                                                 data-document-id="{{ doc.id }}"
-                                                data-document-filename="{{ doc.filename }}">
+                                                data-document-filename="{{ filename }} (Chunk #{{ loop.index }})">
                                             <i class="bi bi-trash"></i>
                                         </button>
                                         {% endif %}
                                     </div>
                                 </td>
                             </tr>
+                            {% endfor %}
                             {% endfor %}
                         </tbody>
                     </table>
@@ -164,16 +226,16 @@
     </div>
 </div>
 
-<!-- Modal de Confirmação de Exclusão -->
+<!-- Modal de Confirmação de Exclusão de Chunk Individual -->
 <div class="modal fade" id="deleteDocumentModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <h5 class="modal-title">Confirmar Exclusão de Chunk</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>Tem certeza que deseja excluir o documento <strong id="document-name-to-delete"></strong>?</p>
+                <p>Tem certeza que deseja excluir o chunk <strong id="document-name-to-delete"></strong>?</p>
                 <p class="text-danger">Esta ação não pode ser desfeita.</p>
             </div>
             <div class="modal-footer">
@@ -181,6 +243,26 @@
                 <form method="post" id="delete-document-form" action="">
                     <button type="submit" class="btn btn-danger">Excluir</button>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão de Documento Completo -->
+<div class="modal fade" id="deleteDocumentGroupModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão de Documento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir <strong>todos os chunks</strong> do documento <strong id="document-group-name-to-delete"></strong>?</p>
+                <p class="text-danger">Esta ação excluirá todos os pedaços (chunks) do documento e não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-document-group">Excluir Documento Completo</button>
             </div>
         </div>
     </div>
@@ -212,7 +294,7 @@
             });
         });
     
-    // Configurar modal de exclusão
+    // Configurar modal de exclusão de chunk individual
     const deleteDocumentModal = new bootstrap.Modal(document.getElementById('deleteDocumentModal'));
         
     document.getElementById('deleteDocumentModal').addEventListener('show.bs.modal', function (event) {
@@ -224,25 +306,176 @@
         document.getElementById('delete-document-form').action = '{{ url_for("knowledge.delete_document", document_id="") }}' + documentId;
     });
     
+    // Configurar modal de exclusão de grupo (documento completo)
+    const deleteDocumentGroupModal = new bootstrap.Modal(document.getElementById('deleteDocumentGroupModal'));
+    
+    document.getElementById('deleteDocumentGroupModal').addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const documentFilename = button.getAttribute('data-document-filename');
+        const documentIdsAttr = button.getAttribute('data-document-ids');
+        
+        let documentIds = [];
+        // Verificar se é uma string JSON válida
+        try {
+            if (documentIdsAttr && documentIdsAttr !== "undefined" && documentIdsAttr !== "null") {
+                documentIds = JSON.parse(documentIdsAttr);
+            }
+        } catch (e) {
+            console.error("Erro ao parsear document IDs:", e);
+            console.log("Valor recebido:", documentIdsAttr);
+            documentIds = [];
+        }
+        
+        // Garantir que documentIds é um array
+        if (!Array.isArray(documentIds)) {
+            console.warn("documentIds não é um array, convertendo:", documentIds);
+            documentIds = documentIds ? [documentIds] : [];
+        }
+        
+        document.getElementById('document-group-name-to-delete').textContent = documentFilename;
+        
+        // Armazenar os IDs no botão de confirmação
+        document.getElementById('confirm-delete-document-group').setAttribute('data-document-ids', JSON.stringify(documentIds));
+        console.log("IDs a serem excluídos:", documentIds);
+    });
+    
+    // Processar exclusão de grupo (documento completo)
+    document.getElementById('confirm-delete-document-group').addEventListener('click', async function() {
+        const documentIdsAttr = this.getAttribute('data-document-ids');
+        let documentIds = [];
+        
+        try {
+            documentIds = JSON.parse(documentIdsAttr || '[]');
+        } catch (e) {
+            console.error("Erro ao parsear IDs para exclusão:", e);
+            documentIds = [];
+        }
+        
+        // Garantir que é um array
+        if (!Array.isArray(documentIds)) {
+            documentIds = [documentIds];
+        }
+        
+        if (!documentIds.length) {
+            alert("Nenhum documento para excluir.");
+            deleteDocumentGroupModal.hide();
+            return;
+        }
+        
+        let successCount = 0;
+        let errorCount = 0;
+        
+        // Desabilitar botão durante o processamento
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Excluindo...';
+        
+        // Processar cada chunk do documento
+        for (const documentId of documentIds) {
+            if (!documentId) continue; // Pular IDs vazios
+            
+            try {
+                const response = await fetch('{{ url_for("knowledge.delete_document", document_id="") }}' + documentId, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest'  // Para identificar como requisição AJAX
+                    }
+                });
+                
+                if (response.ok) {
+                    successCount++;
+                } else {
+                    errorCount++;
+                    console.error(`Erro ao excluir chunk ${documentId}: ${response.status}`);
+                }
+            } catch (error) {
+                errorCount++;
+                console.error(`Exceção ao excluir chunk ${documentId}: ${error}`);
+            }
+        }
+        
+        // Fechar modal e mostrar resultado
+        deleteDocumentGroupModal.hide();
+        
+        // Recarregar a página para mostrar as mudanças
+        if (errorCount === 0) {
+            // Flash message será mostrada pelo backend após reload
+            window.location.reload();
+        } else {
+            alert(`${successCount} chunks excluídos com sucesso. ${errorCount} chunks falharam ao excluir.`);
+            window.location.reload();
+        }
+    });
+    
+    // Implementar expansão/colapso dos chunks
+    document.querySelectorAll('.toggle-chunks').forEach(button => {
+        button.addEventListener('click', function() {
+            const filename = this.getAttribute('data-filename');
+            const icon = this.querySelector('i');
+            const isExpanded = icon.classList.contains('bi-dash-circle');
+            
+            // Alternar ícone
+            if (isExpanded) {
+                icon.classList.remove('bi-dash-circle');
+                icon.classList.add('bi-plus-circle');
+            } else {
+                icon.classList.remove('bi-plus-circle');
+                icon.classList.add('bi-dash-circle');
+            }
+            
+            // Mostrar/ocultar chunks
+            document.querySelectorAll(`.chunk-row[data-parent="${filename}"]`).forEach(row => {
+                row.style.display = isExpanded ? 'none' : 'table-row';
+            });
+        });
+    });
+    
     // Pesquisa de documentos
     document.getElementById('document-search').addEventListener('keyup', function(e) {
         const searchText = this.value.toLowerCase();
-        const tableRows = document.querySelectorAll('tbody tr');
+        const documentRows = document.querySelectorAll('.document-group-row');
         
-        tableRows.forEach(row => {
-            const filename = row.cells[0].textContent.toLowerCase();
-            const category = row.cells[1].textContent.toLowerCase();
-            const content = row.cells[2].textContent.toLowerCase();
+        documentRows.forEach(row => {
+            const filename = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+            const category = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
             
-            if (filename.includes(searchText) || category.includes(searchText) || content.includes(searchText)) {
+            // Buscar também nos chunks deste documento
+            const chunkRows = document.querySelectorAll(`.chunk-row[data-parent="${row.getAttribute('data-filename')}"]`);
+            let matchInChunks = false;
+            
+            chunkRows.forEach(chunkRow => {
+                const chunkContent = chunkRow.querySelector('td:nth-child(4)').textContent.toLowerCase();
+                if (chunkContent.includes(searchText)) {
+                    matchInChunks = true;
+                    // Mostrar o chunk que corresponde
+                    chunkRow.style.display = 'table-row';
+                    
+                    // Mudar o ícone para indicar expansão
+                    const toggleButton = row.querySelector('.toggle-chunks i');
+                    toggleButton.classList.remove('bi-plus-circle');
+                    toggleButton.classList.add('bi-dash-circle');
+                } else if (!searchText) {
+                    // Se a pesquisa for limpa, ocultar os chunks
+                    chunkRow.style.display = 'none';
+                    
+                    // Restaurar ícone para indicar colapso
+                    const toggleButton = row.querySelector('.toggle-chunks i');
+                    toggleButton.classList.remove('bi-dash-circle');
+                    toggleButton.classList.add('bi-plus-circle');
+                } else {
+                    // Não corresponde à pesquisa, ocultar
+                    chunkRow.style.display = 'none';
+                }
+            });
+            
+            // Mostrar a linha do documento se corresponder ao texto de pesquisa
+            // ou se algum de seus chunks corresponder
+            if (filename.includes(searchText) || category.includes(searchText) || matchInChunks) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
             }
         });
     });
-
 });
-
 </script>
 {% endblock %}

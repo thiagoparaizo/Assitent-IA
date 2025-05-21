@@ -13,6 +13,9 @@ poetry.lock
 # Arquivos gerados pelo docker
 #Dockerfile
 docker-compose.yml
+admin/web.zip
+docker-compose.yaml
+docker-compose_old.yml
 
 # Arquivos gerados pelo vscode
 .vscode
