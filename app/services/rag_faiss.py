@@ -468,6 +468,22 @@ class RAGServiceFAISS:
         
         return categories
     
+    async def search(self, query: str, category: str = None, limit: int = 5) -> List[Dict[str, Any]]:
+        """
+        Método para buscar documentos relevantes para uma consulta.
+        Este é um alias para get_context para compatibilidade com o orchestrator.
+        
+        Args:
+            query: A consulta/mensagem do usuário
+            category: A categoria para filtrar os resultados (opcional)
+            limit: Número máximo de resultados a retornar
+            
+        Returns:
+            Lista de documentos relevantes com suas pontuações
+        """
+        print(f"RAGServiceFAISS.search: Buscando por '{query}' na categoria '{category}' com limite {limit}")
+        return await self.get_context(question=query, category=category, top_k=limit)
+    
     async def delete_document(self, document_id: str) -> bool:
         """
         Exclui um documento do vectorstore
