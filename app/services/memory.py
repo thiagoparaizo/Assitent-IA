@@ -12,11 +12,10 @@ import asyncio
 import uuid
 from pydantic import BaseModel
 import httpx
+from langchain_community.vectorstores import FAISS
 from app.core.config import Settings, settings
 from langchain.schema import Document
 
-
-from app.services.orchestrator import ConversationState
 
 logger = logging.getLogger(__name__)
 
@@ -504,160 +503,6 @@ class MemoryService:
         
         # Return top entries
         return [entry for entry, _ in entries_with_scores[:limit]]
-    
-    # app/services/memory.py - Correções necessárias
-
-# Primeiro, corrigir o import (linha 87)
-from langchain_community.vectorstores import FAISS  # Usar o import correto
-from langchain.schema import Document
-
-class MemoryService:
-    # ... código existente ...
-    
-    async def add_memory(self, entry: MemoryEntry) -> str:
-        """
-        Adds a new memory entry to the system.
-        
-        Args:
-            entry: The memory entry to add
-                
-        Returns:
-            The ID of the added memory
-        """
-        # Generate embedding for this memory for retrieval later
-        entry.embedding = await self._get_embedding(entry.content)
-        
-        # Usar serviço vetorial HTTP se configurado e não estiver usando armazenamento local
-        if self.vector_db_url and not self.use_local_storage:
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.post(
-                        f"{self.vector_db_url}/vectors",
-                        json=entry.dict(),
-                        timeout=10.0
-                    )
-                    response.raise_for_status()
-                    return response.json()["id"]
-            except Exception as e:
-                print(f"Error storing memory in vector database: {e}")
-                # Fall back to local storage or in-memory
-        
-        # Usar FAISS se armazenamento local estiver habilitado
-        if self.use_local_storage and self.vector_db_path:
-            try:
-                # Inicializar FAISS se necessário
-                await self._init_faiss_index()
-                
-                if self.faiss_index:
-                    from langchain.schema import Document
-                    
-                    # Converter MemoryEntry para Document com metadados corretos
-                    doc = Document(
-                        page_content=entry.content,
-                        metadata={
-                            "id": entry.id,
-                            "tenant_id": entry.tenant_id,
-                            "user_id": entry.user_id,
-                            "type": entry.type.value,
-                            "created_at": entry.created_at,
-                            "last_accessed": entry.last_accessed,
-                            "access_count": entry.access_count,
-                            "importance": entry.importance,
-                            "metadata": json.dumps(entry.metadata)
-                        }
-                    )
-                    
-                    # CORREÇÃO: Usar add_documents ao invés de add_embeddings
-                    # para evitar problemas com metadados
-                    import numpy as np
-                    
-                    # Criar um documento temporário para adicionar ao FAISS
-                    texts = [doc.page_content]
-                    metadatas = [doc.metadata]
-                    embeddings = [entry.embedding]
-                    
-                    # Adicionar usando o método correto
-                    self.faiss_index.add_texts(
-                        texts=texts,
-                        metadatas=metadatas,
-                        embeddings=embeddings
-                    )
-                    
-                    # Salvar alterações
-                    self.faiss_index.save_local(self.vector_db_path, "index")
-                    
-                    return entry.id
-            except Exception as e:
-                print(f"Error storing memory in FAISS: {e}")
-                import traceback
-                traceback.print_exc()
-                # Fall back to in-memory
-        
-        # In-memory fallback
-        self._memory_entries.append(entry)
-        return entry.id
-
-    async def _generate_and_store_summary(self, state: ConversationState) -> None:
-        """
-        Gera e armazena um resumo da conversa.
-        
-        Args:
-            state: Estado da conversa
-        """
-        try:
-            # Verificar se o serviço de memória está ativo
-            if not self.memory_service:
-                logging.warning(f"Tentativa de gerar resumo, mas o serviço de memória não está ativo")
-                return
-            
-            logging.info(f"Gerando resumo para a conversa {state.conversation_id}")
-            
-            # Gerar resumo
-            summary = await self.memory_service.generate_conversation_summary(
-                conversation_id=state.conversation_id,
-                tenant_id=state.tenant_id,
-                user_id=state.user_id,
-                messages=state.history
-            )
-            
-            if not summary:
-                logging.warning(f"Falha ao gerar resumo para conversa {state.conversation_id}")
-                return
-            
-            # Armazenar o resumo nos metadados do estado
-            state.metadata["last_summary"] = {
-                "brief": summary.brief_summary,
-                "detailed": summary.detailed_summary,
-                "key_points": summary.key_points,
-                "sentiment": summary.sentiment,
-                "generated_at": time.time()
-            }
-            
-            # Salvar estado atualizado
-            await self.save_conversation_state(state)
-            
-            logging.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
-            
-        except Exception as e:
-            logging.error(f"Erro ao gerar resumo da conversa: {str(e)}")
-            
-            # Log adicional para debugging
-            import traceback
-            logging.error(f"Stack trace completo: {traceback.format_exc()}")
-            
-            # Registrar o erro nos metadados
-            state.metadata["last_summary_error"] = {
-                "error": str(e),
-                "timestamp": time.time(),
-                "error_type": type(e).__name__
-            }
-            
-            # Salvar estado mesmo com erro
-            try:
-                await self.save_conversation_state(state)
-            except Exception as save_error:
-                logging.error(f"Erro adicional ao salvar estado após falha de resumo: {str(save_error)}")
-
     
     async def generate_conversation_summary(
         self, 

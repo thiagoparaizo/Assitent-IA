@@ -19,18 +19,19 @@ import logging
 from app.services.agent import Agent, AgentType
 from app.services.token_counter import TokenCounterService
 #from app.services.rag import RAGService
+from app.db.models.conversation import ConversationState, AgentScore
 
 
 logger = logging.getLogger(__name__)
 
-class ConversationState(BaseModel):
-    conversation_id: str
-    tenant_id: str
-    user_id: str
-    current_agent_id: str
-    history: List[Dict[str, Any]]
-    metadata: Dict[str, Any] = {}
-    last_updated: float = 0
+# class ConversationState(BaseModel):
+#     conversation_id: str
+#     tenant_id: str
+#     user_id: str
+#     current_agent_id: str
+#     history: List[Dict[str, Any]]
+#     metadata: Dict[str, Any] = {}
+#     last_updated: float = 0
 
 class AgentScore:
     """Represents a score for an agent's ability to handle a conversation."""
