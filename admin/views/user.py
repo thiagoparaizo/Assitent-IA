@@ -227,6 +227,7 @@ def view(user_id):
         
         if response.status_code == 200:
             user = response.json()
+            print(f"User data loaded: {user}")  # Debug
             
             # Get tenant details if user has one
             if user.get('tenant_id'):
@@ -238,18 +239,49 @@ def view(user_id):
                     )
                     if tenant_response.status_code == 200:
                         tenant = tenant_response.json()
-                except:
+                        print(f"Tenant data loaded: {tenant}")  # Debug
+                    else:
+                        print(f"Failed to load tenant: {tenant_response.status_code}")  # Debug
+                except Exception as e:
+                    print(f"Error loading tenant: {e}")  # Debug
                     pass
         else:
+            print(f"Failed to load user: {response.status_code} - {response.text}")  # Debug
             flash(f"Erro ao carregar usuário: {response.status_code}", "danger")
             return redirect(url_for('user.index'))
     except requests.exceptions.RequestException as e:
+        print(f"Request error: {e}")  # Debug
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
         return redirect(url_for('user.index'))
     
     if not user:
         flash('Usuário não encontrado.', 'danger')
         return redirect(url_for('user.index'))
+    
+    # Check permissions - only allow viewing if user is superuser or viewing their own profile
+    if not current_user.is_superuser and current_user.id != user.get('id'):
+        flash('Você não tem permissão para ver este usuário.', 'danger')
+        return redirect(url_for('user.index'))
+    
+    # Format dates for display
+    if user.get('created_at'):
+        try:
+            from datetime import datetime
+            # Parse ISO format date
+            created_at = datetime.fromisoformat(user['created_at'].replace('Z', '+00:00'))
+            user['created_at'] = created_at
+        except:
+            pass
+    
+    if user.get('updated_at'):
+        try:
+            from datetime import datetime
+            updated_at = datetime.fromisoformat(user['updated_at'].replace('Z', '+00:00'))
+            user['updated_at'] = updated_at
+        except:
+            pass
+    
+    print(f"Rendering template with user: {user.get('email')} and tenant: {tenant.get('name') if tenant else 'None'}")  # Debug
     
     return render_template('user/view.html', user=user, tenant=tenant)
 

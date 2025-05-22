@@ -1,0 +1,359 @@
+<!-- admin/templates/user/view.html -->
+{% extends 'base.html' %}
+
+{% block title %}{{ user.email }} - Detalhes do Usuário{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('user.index') }}">Usuários</a></li>
+                <li class="breadcrumb-item active">{{ user.email }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="h3">
+            <i class="bi bi-person-circle me-2"></i>
+            {{ user.email }}
+        </h1>
+        <div class="btn-group">
+            {% if current_user.is_superuser or current_user.id == user.id %}
+            <a href="{{ url_for('user.edit', user_id=user.id) }}" class="btn btn-primary">
+                <i class="bi bi-pencil"></i> Editar
+            </a>
+            {% endif %}
+            {% if current_user.is_superuser and current_user.id != user.id %}
+            {% if user.is_active %}
+            <form method="post" action="{{ url_for('user.deactivate', user_id=user.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-warning" onclick="return confirm('Tem certeza que deseja desativar este usuário?')">
+                    <i class="bi bi-pause-circle"></i> Desativar
+                </button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('user.activate', user_id=user.id) }}" class="d-inline">
+                <button type="submit" class="btn btn-success" onclick="return confirm('Tem certeza que deseja ativar este usuário?')">
+                    <i class="bi bi-play-circle"></i> Ativar
+                </button>
+            </form>
+            {% endif %}
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteUserModal">
+                <i class="bi bi-trash"></i> Excluir
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Informações Pessoais</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <div class="avatar avatar-xl mx-auto">
+                        <span class="avatar-initial rounded-circle bg-primary fs-1">
+                            {{ user.email[0]|upper }}
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-4 text-muted">Email:</div>
+                        <div class="col-8">{{ user.email }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-4 text-muted">Nome:</div>
+                        <div class="col-8">{{ user.full_name or 'Não informado' }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-4 text-muted">Status:</div>
+                        <div class="col-8">
+                            {% if user.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inativo</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-4 text-muted">Tipo:</div>
+                        <div class="col-8">
+                            {% if user.is_superuser %}
+                            <span class="badge bg-danger">Administrador</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Usuário</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                {% if tenant %}
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-4 text-muted">Tenant:</div>
+                        <div class="col-8">
+                            <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}" class="text-decoration-none">
+                                <span class="badge bg-info">{{ tenant.name }}</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% elif user.tenant_id %}
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-4 text-muted">Tenant:</div>
+                        <div class="col-8">
+                            <span class="badge bg-warning">ID: {{ user.tenant_id }}</span>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-4 text-muted">Tenant:</div>
+                        <div class="col-8">
+                            <span class="text-muted">Sem tenant</span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">Informações do Sistema</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">ID:</div>
+                        <div class="col-7"><small class="font-monospace">{{ user.id }}</small></div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Criado em:</div>
+                        <div class="col-7">{{ user.created_at|datetime('%d/%m/%Y %H:%M') }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Atualizado em:</div>
+                        <div class="col-7">{{ user.updated_at|datetime('%d/%m/%Y %H:%M') }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if current_user.is_superuser and current_user.id != user.id %}
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">Ações Administrativas</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#resetPasswordModal">
+                        <i class="bi bi-key"></i> Redefinir Senha
+                    </button>
+                    
+                    {% if user.is_active %}
+                    <form method="post" action="{{ url_for('user.deactivate', user_id=user.id) }}">
+                        <button type="submit" class="btn btn-outline-warning w-100" onclick="return confirm('Tem certeza que deseja desativar este usuário?')">
+                            <i class="bi bi-pause-circle"></i> Desativar Usuário
+                        </button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{{ url_for('user.activate', user_id=user.id) }}">
+                        <button type="submit" class="btn btn-outline-success w-100" onclick="return confirm('Tem certeza que deseja ativar este usuário?')">
+                            <i class="bi bi-play-circle"></i> Ativar Usuário
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="col-md-8">
+        <!-- Atividade Recente -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Atividade Recente</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center py-4">
+                    <i class="bi bi-clock-history fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Nenhuma atividade recente registrada.</p>
+                    <small class="text-muted">As atividades do usuário aparecerão aqui quando disponíveis.</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Estatísticas -->
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card border-left-primary h-100">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                    Conversas Iniciadas
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">0</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="bi bi-chat-dots fs-2 text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card border-left-success h-100">
+                    <div class="card-body">
+                        <div class="row no-gutters align-items-center">
+                            <div class="col mr-2">
+                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                    Mensagens Enviadas
+                                </div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">0</div>
+                            </div>
+                            <div class="col-auto">
+                                <i class="bi bi-envelope fs-2 text-gray-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Logs de Acesso (se disponível) -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Logs de Acesso</h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center py-4">
+                    <i class="bi bi-list-check fs-1 text-muted"></i>
+                    <p class="mt-2 text-muted">Nenhum log de acesso disponível.</p>
+                    <small class="text-muted">Os logs de acesso aparecerão aqui quando a funcionalidade estiver implementada.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o usuário <strong>{{ user.email }}</strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita. Todos os dados associados a este usuário serão permanentemente removidos.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" action="{{ url_for('user.delete', user_id=user.id) }}">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Redefinição de Senha -->
+{% if current_user.is_superuser and current_user.id != user.id %}
+<div class="modal fade" id="resetPasswordModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">Redefinir Senha</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{{ url_for('user.reset_password', user_id=user.id) }}">
+                <div class="modal-body">
+                    <p>Defina uma nova senha para o usuário <strong>{{ user.email }}</strong>:</p>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Nova Senha</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required minlength="6">
+                        <div class="form-text">A senha deve ter pelo menos 6 caracteres.</div>
+                    </div>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Atenção:</strong> O usuário deverá ser informado da nova senha através de um canal seguro.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-warning">Redefinir Senha</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .avatar {
+        width: 80px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .avatar-initial {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+    }
+    
+    .border-left-primary {
+        border-left: 4px solid #4e73df !important;
+    }
+    
+    .border-left-success {
+        border-left: 4px solid #1cc88a !important;
+    }
+    
+    .text-gray-800 {
+        color: #5a5c69 !important;
+    }
+    
+    .text-gray-300 {
+        color: #dddfeb !important;
+    }
+</style>
+{% endblock %}
