@@ -142,7 +142,7 @@ def create():
     # Check if user is superuser
     if not current_user.is_superuser:
         flash('Você não tem permissão para criar usuários.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     tenants = []
     preselected_tenant_id = request.args.get('tenant_id', type=int)  # Pegar tenant da URL
@@ -195,7 +195,7 @@ def create():
                 if preselected_tenant_id:
                     return redirect(url_for('tenants.view', tenant_id=preselected_tenant_id))
                 else:
-                    return redirect(url_for('users.index'))
+                    return redirect(url_for('user.index'))
             else:
                 error_detail = "Erro desconhecido"
                 try:
@@ -242,14 +242,14 @@ def view(user_id):
                     pass
         else:
             flash(f"Erro ao carregar usuário: {response.status_code}", "danger")
-            return redirect(url_for('users.index'))
+            return redirect(url_for('user.index'))
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     if not user:
         flash('Usuário não encontrado.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     return render_template('user/view.html', user=user, tenant=tenant)
 
@@ -272,19 +272,19 @@ def edit(user_id):
             user = response.json()
         else:
             flash(f"Erro ao carregar usuário: {response.status_code}", "danger")
-            return redirect(url_for('users.index'))
+            return redirect(url_for('user.index'))
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     if not user:
         flash('Usuário não encontrado.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     # Check permissions
     if not current_user.is_superuser and current_user.id != user['id']:
         flash('Você não tem permissão para editar este usuário.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     # Get tenants for the form (if superuser)
     if current_user.is_superuser:
@@ -333,7 +333,7 @@ def edit(user_id):
             
             if response.status_code == 200:
                 flash('Usuário atualizado com sucesso!', 'success')
-                return redirect(url_for('users.view', user_id=user_id))
+                return redirect(url_for('user.view', user_id=user_id))
             else:
                 error_detail = "Erro desconhecido"
                 try:
@@ -355,7 +355,7 @@ def delete(user_id):
     # Check if user is superuser
     if not current_user.is_superuser:
         flash('Você não tem permissão para excluir usuários.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     try:
         # Call API to delete user
@@ -379,7 +379,7 @@ def delete(user_id):
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
     
-    return redirect(url_for('users.index'))
+    return redirect(url_for('user.index'))
 
 @user_bp.route('/<user_id>/activate', methods=['POST'])
 @login_required
@@ -387,7 +387,7 @@ def activate(user_id):
     """Activate a user."""
     if not current_user.is_superuser:
         flash('Você não tem permissão para ativar usuários.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     try:
         response = requests.put(
@@ -403,7 +403,7 @@ def activate(user_id):
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
     
-    return redirect(url_for('users.view', user_id=user_id))
+    return redirect(url_for('user.view', user_id=user_id))
 
 @user_bp.route('/<user_id>/deactivate', methods=['POST'])
 @login_required
@@ -411,7 +411,7 @@ def deactivate(user_id):
     """Deactivate a user."""
     if not current_user.is_superuser:
         flash('Você não tem permissão para desativar usuários.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     try:
         response = requests.put(
@@ -427,7 +427,7 @@ def deactivate(user_id):
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
     
-    return redirect(url_for('users.view', user_id=user_id))
+    return redirect(url_for('user.view', user_id=user_id))
 
 @user_bp.route('/<user_id>/reset-password', methods=['POST'])
 @login_required
@@ -435,12 +435,12 @@ def reset_password(user_id):
     """Reset user password."""
     if not current_user.is_superuser:
         flash('Você não tem permissão para redefinir senhas.', 'danger')
-        return redirect(url_for('users.index'))
+        return redirect(url_for('user.index'))
     
     new_password = request.form.get('new_password')
     if not new_password:
         flash('Nova senha é obrigatória.', 'danger')
-        return redirect(url_for('users.view', user_id=user_id))
+        return redirect(url_for('user.view', user_id=user_id))
     
     try:
         response = requests.post(
@@ -457,4 +457,4 @@ def reset_password(user_id):
     except requests.exceptions.RequestException as e:
         flash(f"Erro ao conectar com a API: {str(e)}", "danger")
     
-    return redirect(url_for('users.view', user_id=user_id))
+    return redirect(url_for('user.view', user_id=user_id))

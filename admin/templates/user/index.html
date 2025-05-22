@@ -8,7 +8,7 @@
     <div class="col-12 d-flex justify-content-between align-items-center">
         <h1 class="h3">Gerenciamento de Usuários</h1>
         {% if current_user.is_superuser %}
-        <a href="{{ url_for('users.create') }}" class="btn btn-primary">
+        <a href="{{ url_for('user.create') }}" class="btn btn-primary">
             <i class="bi bi-plus"></i> Novo Usuário
         </a>
         {% endif %}
@@ -80,11 +80,11 @@
                                     <td>{{ user.created_at|datetime('%d/%m/%Y') }}</td>
                                     <td>
                                         <div class="btn-group">
-                                            <a href="{{ url_for('users.view', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <a href="{{ url_for('user.view', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
                                                 <i class="bi bi-eye"></i>
                                             </a>
                                             {% if current_user.is_superuser or current_user.id == user.id %}
-                                            <a href="{{ url_for('users.edit', user_id=user.id) }}" class="btn btn-sm btn-outline-secondary">
+                                            <a href="{{ url_for('user.edit', user_id=user.id) }}" class="btn btn-sm btn-outline-secondary">
                                                 <i class="bi bi-pencil"></i>
                                             </a>
                                             {% endif %}
@@ -109,7 +109,7 @@
                                             Nenhum usuário encontrado.
                                         </div>
                                         {% if current_user.is_superuser %}
-                                        <a href="{{ url_for('users.create') }}" class="btn btn-sm btn-primary mt-2">
+                                        <a href="{{ url_for('user.create') }}" class="btn btn-sm btn-primary mt-2">
                                             <i class="bi bi-plus"></i> Criar Usuário
                                         </a>
                                         {% endif %}

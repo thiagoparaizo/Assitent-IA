@@ -9,7 +9,7 @@
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
                 <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('users.index') }}">Usuários</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('user.index') }}">Usuários</a></li>
                 <li class="breadcrumb-item active">Criar Usuário</li>
             </ol>
         </nav>
@@ -23,7 +23,7 @@
                 <h5 class="card-title mb-0">Criar Novo Usuário</h5>
             </div>
             <div class="card-body">
-                <form method="post" action="{{ url_for('users.create') }}">
+                <form method="post" action="{{ url_for('user.create') }}">
                     <div class="mb-3">
                         <label for="email" class="form-label">Email<span class="text-danger">*</span></label>
                         <input type="email" class="form-control" id="email" name="email" required>
@@ -89,7 +89,7 @@
                     </div>
                     
                     <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('users.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <a href="{{ url_for('user.index') }}" class="btn btn-outline-secondary">Cancelar</a>
                         <button type="submit" class="btn btn-primary">Criar Usuário</button>
                     </div>
                 </form>

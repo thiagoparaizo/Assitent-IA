@@ -114,7 +114,7 @@
           <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
               <h5 class="card-title mb-0">Usuários</h5>
-              <a href="{{ url_for('users.create') }}?tenant_id={{ tenant.id }}" class="btn btn-sm btn-outline-primary">
+              <a href="{{ url_for('user.create') }}?tenant_id={{ tenant.id }}" class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-plus"></i> Novo
               </a>
             </div>
@@ -123,7 +123,7 @@
             {% if tenant.users and tenant.users|length > 0 %}
             <div class="list-group list-group-flush">
               {% for user in tenant.users[:3] %}
-              <a href="{{ url_for('users.view', user_id=user.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+              <a href="{{ url_for('user.view', user_id=user.id) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                 <div>
                   <i class="bi bi-person-circle me-2"></i> {{ user.email }} 
                   {% if user.is_superuser %}
@@ -142,7 +142,7 @@
               {% endif %}
             </div>
             <div class="mt-3 text-center">
-              <a href="{{ url_for('users.index') }}?tenant_id={{ tenant.id }}" class="btn btn-sm btn-outline-secondary">
+              <a href="{{ url_for('user.index') }}?tenant_id={{ tenant.id }}" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-list"></i> Ver Todos ({{ tenant.users|length }})
               </a>
             </div>
@@ -150,7 +150,7 @@
             <div class="text-center py-3">
               <i class="bi bi-people fs-1 text-muted"></i>
               <p class="mt-2 text-muted">Nenhum usuário cadastrado</p>
-              <a href="{{ url_for('users.create') }}?tenant_id={{ tenant.id }}" class="btn btn-sm btn-primary">
+              <a href="{{ url_for('user.create') }}?tenant_id={{ tenant.id }}" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus"></i> Adicionar Usuário
               </a>
             </div>
