@@ -152,50 +152,50 @@ class MemoryService:
             traceback.print_exc()
             self.use_local_storage = False  # Fallback para memória
 
-    def _create_embedding_adapter(self):
-        """Cria um adaptador compatível com FAISS"""
-        from langchain.schema.embeddings import Embeddings
+    # def _create_embedding_adapter(self):
+    #     """Cria um adaptador compatível com FAISS"""
+    #     from langchain.schema.embeddings import Embeddings
         
-        # Classe para adaptar nosso LLM ao formato esperado pelo FAISS
-        class AsyncCompatibleEmbeddings(Embeddings):
-            def __init__(self, llm_service):
-                self.llm_service = llm_service
+    #     # Classe para adaptar nosso LLM ao formato esperado pelo FAISS
+    #     class AsyncCompatibleEmbeddings(Embeddings):
+    #         def __init__(self, llm_service):
+    #             self.llm_service = llm_service
                 
-            def embed_documents(self, texts):
-                # Implementação síncrona - não use asyncio.run()
-                # Em vez disso, use uma solução que funcione com o eventloop atual
-                import nest_asyncio
-                import asyncio
+    #         def embed_documents(self, texts):
+    #             # Implementação síncrona - não use asyncio.run()
+    #             # Em vez disso, use uma solução que funcione com o eventloop atual
+    #             import nest_asyncio
+    #             import asyncio
                 
-                # Apply nest_asyncio para permitir loops aninhados
-                nest_asyncio.apply()
+    #             # Apply nest_asyncio para permitir loops aninhados
+    #             nest_asyncio.apply()
                 
-                # Criar uma nova coroutine que será executada no loop atual
-                async def get_embeddings():
-                    embeddings = []
-                    for text in texts:
-                        embedding = await self.llm_service.get_embeddings(text)
-                        embeddings.append(embedding)
-                    return embeddings
+    #             # Criar uma nova coroutine que será executada no loop atual
+    #             async def get_embeddings():
+    #                 embeddings = []
+    #                 for text in texts:
+    #                     embedding = await self.llm_service.get_embeddings(text)
+    #                     embeddings.append(embedding)
+    #                 return embeddings
                 
-                # Obter o loop atual e executar a coroutine nele
-                loop = asyncio.get_event_loop()
-                return loop.run_until_complete(get_embeddings())
+    #             # Obter o loop atual e executar a coroutine nele
+    #             loop = asyncio.get_event_loop()
+    #             return loop.run_until_complete(get_embeddings())
             
-            def embed_query(self, text):
-                # Similar à embed_documents, mas para uma única query
-                import nest_asyncio
-                import asyncio
+    #         def embed_query(self, text):
+    #             # Similar à embed_documents, mas para uma única query
+    #             import nest_asyncio
+    #             import asyncio
                 
-                nest_asyncio.apply()
+    #             nest_asyncio.apply()
                 
-                async def get_embedding():
-                    return await self.llm_service.get_embeddings(text)
+    #             async def get_embedding():
+    #                 return await self.llm_service.get_embeddings(text)
                 
-                loop = asyncio.get_event_loop()
-                return loop.run_until_complete(get_embedding())
+    #             loop = asyncio.get_event_loop()
+    #             return loop.run_until_complete(get_embedding())
         
-        return AsyncCompatibleEmbeddings(self.llm)
+    #     return AsyncCompatibleEmbeddings(self.llm)
     
     # async def add_memory(self, entry: MemoryEntry) -> str:
     #     """
@@ -273,6 +273,15 @@ class MemoryService:
     #     self._memory_entries.append(entry)
     #     return entry.id
     
+    def _create_embedding_adapter(self):
+        """Cria um adaptador compatível com FAISS"""
+        from langchain_openai import OpenAIEmbeddings
+        
+        # Usar OpenAI Embeddings diretamente - sem nest_asyncio
+        return OpenAIEmbeddings(
+            openai_api_key=self.llm.api_key,
+            model="text-embedding-ada-002"
+        )
     
     async def add_memory(self, entry: MemoryEntry) -> str:
         """
