@@ -1,130 +1,475 @@
-<!-- admin/templates/base.html -->
+<!-- admin/templates/base.html - VERSÃO MELHORADA -->
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Assistente Inteligente - Admin{% endblock %}</title>
-    <!--link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}"-->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" ></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
     
-
+    <style>
+        :root {
+            --sidebar-width: 280px;
+            --header-height: 60px;
+        }
+        
+        body {
+            font-size: 0.9rem;
+        }
+        
+        .wrapper {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar Styles */
+        .sidebar {
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
+            background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
+            color: white;
+            transition: all 0.3s;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+        
+        .sidebar.collapsed {
+            min-width: 80px;
+            max-width: 80px;
+        }
+        
+        .sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.1);
+        }
+        
+        .sidebar-brand {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .sidebar-brand:hover {
+            color: #93c5fd;
+        }
+        
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+        
+        .nav-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .nav-section-title {
+            color: #93c5fd;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 1rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .sidebar.collapsed .nav-section-title {
+            display: none;
+        }
+        
+        .nav-item {
+            margin-bottom: 0.25rem;
+        }
+        
+        .nav-link {
+            color: rgba(255,255,255,0.8);
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+            transition: all 0.2s;
+            border-radius: 0;
+            font-size: 0.9rem;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding-left: 1.5rem;
+        }
+        
+        .nav-link.active {
+            background: rgba(255,255,255,0.15);
+            color: white;
+            border-right: 3px solid #60a5fa;
+        }
+        
+        .nav-link i {
+            width: 20px;
+            text-align: center;
+            font-size: 1.1rem;
+        }
+        
+        .sidebar.collapsed .nav-link span {
+            display: none;
+        }
+        
+        .sidebar.collapsed .nav-link {
+            justify-content: center;
+            padding: 0.75rem;
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            transition: all 0.3s;
+            min-height: 100vh;
+            background: #f8fafc;
+        }
+        
+        .main-content.expanded {
+            margin-left: 80px;
+        }
+        
+        /* Top Header */
+        .top-header {
+            background: white;
+            height: var(--header-height);
+            padding: 0 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .toggle-sidebar {
+            background: none;
+            border: none;
+            color: #6b7280;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 0.375rem;
+            transition: all 0.2s;
+        }
+        
+        .toggle-sidebar:hover {
+            background: #f3f4f6;
+            color: #374151;
+        }
+        
+        .header-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .user-dropdown .dropdown-toggle {
+            background: none;
+            border: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+        
+        .user-dropdown .dropdown-toggle:focus {
+            box-shadow: none;
+        }
+        
+        /* Content Area */
+        .content-area {
+            padding: 1.5rem;
+            min-height: calc(100vh - var(--header-height));
+        }
+        
+        /* Badge adjustments */
+        .nav-link .badge {
+            margin-left: auto;
+            font-size: 0.7rem;
+        }
+        
+        .sidebar.collapsed .nav-link .badge {
+            display: none;
+        }
+        
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            .sidebar {
+                margin-left: -280px;
+            }
+            
+            .sidebar.show {
+                margin-left: 0;
+            }
+            
+            .main-content {
+                margin-left: 0;
+            }
+            
+            .sidebar-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+                display: none;
+            }
+            
+            .sidebar-overlay.show {
+                display: block;
+            }
+        }
+        
+        /* Breadcrumb improvements */
+        .breadcrumb {
+            background: none;
+            padding: 0;
+            margin-bottom: 1rem;
+        }
+        
+        .breadcrumb-item + .breadcrumb-item::before {
+            color: #9ca3af;
+        }
+        
+        /* Alert improvements */
+        .alert {
+            border: none;
+            border-radius: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+    
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="{{ url_for('dashboard.index') }}">
-                <i class="bi bi-robot"></i> Assistente Inteligente
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                {% if current_user.is_authenticated %}
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('dashboard') %}active{% endif %}" href="{{ url_for('dashboard.index') }}">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('agents') %}active{% endif %}" href="{{ url_for('agents.index') }}">
-                            <i class="bi bi-people"></i> Agentes
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('knowledge') %}active{% endif %}" href="{{ url_for('knowledge.index') }}">
-                            <i class="bi bi-book"></i> Conhecimento
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('whatsapp') %}active{% endif %}" href="{{ url_for('whatsapp.devices') }}">
-                            <i class="bi bi-whatsapp"></i> WhatsApp
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('conversations') %}active{% endif %}" href="{{ url_for('conversations.index') }}">
-                            <i class="bi bi-whatsapp"></i> Conversas / Chats
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('webhooks') %}active{% endif %}" href="{{ url_for('webhooks.index') }}">
-                            <i class="bi bi-bell"></i> Webhooks
-                        </a>
-                    </li>
-                    {% if current_user.is_superuser %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('tenants') %}active{% endif %}" href="{{ url_for('tenants.index') }}">
-                            <i class="bi bi-building"></i> Tenants
-                        </a>
-                    </li>
-                    {% endif %}
-
-                    {% if current_user.is_superuser %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('llm') %}active{% endif %}" href="{{ url_for('llm.index') }}">
-                            <i class="bi bi-cpu"></i> Modelos LLM
-                        </a>
-                    </li>
-                    {% endif %}
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint.startswith('tokens') %}active{% endif %}" href="{{ url_for('tokens.index') }}">
-                            <i class="bi bi-cpu"></i> Token
-                        </a>
-                    </li>
-                    
-                </ul>
-                <ul class="navbar-nav">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> {{ current_user.email }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">Perfil</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Sair</a></li>
-                        </ul>
-                    </li>
-                </ul>
-                {% endif %}
+    <div class="wrapper">
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <a href="{{ url_for('dashboard.index') }}" class="sidebar-brand">
+                    <i class="bi bi-robot"></i>
+                    <span>Assistente IA</span>
+                </a>
             </div>
-        </div>
-    </nav>
-
-    <!-- Content -->
-    <div class="container-fluid py-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            
+            {% if current_user.is_authenticated %}
+            <div class="sidebar-nav">
+                <!-- Dashboard -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Principal</div>
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('dashboard') %}active{% endif %}" 
+                           href="{{ url_for('dashboard.index') }}">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Dashboard</span>
+                        </a>
                     </div>
-                {% endfor %}
+                </div>
+                
+                <!-- Gestão de Conteúdo -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Conteúdo</div>
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('agents') %}active{% endif %}" 
+                           href="{{ url_for('agents.index') }}">
+                            <i class="bi bi-robot"></i>
+                            <span>Agentes</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('knowledge') %}active{% endif %}" 
+                           href="{{ url_for('knowledge.index') }}">
+                            <i class="bi bi-book"></i>
+                            <span>Base de Conhecimento</span>
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Comunicação -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Comunicação</div>
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('whatsapp') %}active{% endif %}" 
+                           href="{{ url_for('whatsapp.devices') }}">
+                            <i class="bi bi-whatsapp"></i>
+                            <span>WhatsApp</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('conversations') %}active{% endif %}" 
+                           href="{{ url_for('conversations.index') }}">
+                            <i class="bi bi-chat-dots"></i>
+                            <span>Conversas</span>
+                        </a>
+                    </div>
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('webhooks') %}active{% endif %}" 
+                           href="{{ url_for('webhooks.index') }}">
+                            <i class="bi bi-bell"></i>
+                            <span>Webhooks</span>
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- Administração -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Administração</div>
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('user') %}active{% endif %}" 
+                           href="{{ url_for('user.index') }}">
+                            <i class="bi bi-people"></i>
+                            <span>Usuários</span>
+                        </a>
+                    </div>
+                    {% if current_user.is_superuser %}
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('tenants') %}active{% endif %}" 
+                           href="{{ url_for('tenants.index') }}">
+                            <i class="bi bi-building"></i>
+                            <span>Tenants</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- Sistema -->
+                <div class="nav-section">
+                    <div class="nav-section-title">Sistema</div>
+                    {% if current_user.is_superuser %}
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('llm') %}active{% endif %}" 
+                           href="{{ url_for('llm.index') }}">
+                            <i class="bi bi-cpu"></i>
+                            <span>Modelos LLM</span>
+                        </a>
+                    </div>
+                    {% endif %}
+                    <div class="nav-item">
+                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('tokens') %}active{% endif %}" 
+                           href="{{ url_for('tokens.index') }}">
+                            <i class="bi bi-bar-chart"></i>
+                            <span>Uso de Tokens</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
             {% endif %}
-        {% endwith %}
+        </nav>
+        
+        <!-- Sidebar Overlay for Mobile -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+        
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Top Header -->
+            <header class="top-header">
+                <button class="toggle-sidebar" id="sidebarToggle">
+                    <i class="bi bi-list"></i>
+                </button>
+                
+                {% if current_user.is_authenticated %}
+                <div class="header-actions">
+                    <div class="dropdown user-dropdown">
+                        <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i>
+                            <span>{{ current_user.email }}</span>
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">
+                                <i class="bi bi-person me-2"></i>Meu Perfil
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
+                                <i class="bi bi-box-arrow-right me-2"></i>Sair
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+            </header>
+            
+            <!-- Content Area -->
+            <div class="content-area">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
 
-        {% block content %}{% endblock %}
+                {% block content %}{% endblock %}
+            </div>
+        </main>
     </div>
 
-    <!-- Footer -->
-    <footer class="footer mt-auto py-3 bg-light">
-        <div class="container text-center">
-            <span class="text-muted">© 2025 Assistente Inteligente</span>
-        </div>
-    </footer>
-
     <!-- Scripts -->
-    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/custom.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const sidebarOverlay = document.getElementById('sidebarOverlay');
+            
+            // Toggle sidebar
+            sidebarToggle.addEventListener('click', function() {
+                if (window.innerWidth <= 768) {
+                    // Mobile: show/hide sidebar
+                    sidebar.classList.toggle('show');
+                    sidebarOverlay.classList.toggle('show');
+                } else {
+                    // Desktop: collapse/expand sidebar
+                    sidebar.classList.toggle('collapsed');
+                    mainContent.classList.toggle('expanded');
+                }
+            });
+            
+            // Close sidebar when clicking overlay (mobile)
+            sidebarOverlay.addEventListener('click', function() {
+                sidebar.classList.remove('show');
+                sidebarOverlay.classList.remove('show');
+            });
+            
+            // Handle window resize
+            window.addEventListener('resize', function() {
+                if (window.innerWidth > 768) {
+                    sidebar.classList.remove('show');
+                    sidebarOverlay.classList.remove('show');
+                }
+            });
+            
+            // Auto-collapse sidebar on small screens
+            if (window.innerWidth <= 1200 && window.innerWidth > 768) {
+                sidebar.classList.add('collapsed');
+                mainContent.classList.add('expanded');
+            }
+        });
+    </script>
+    
     {% block extra_js %}{% endblock %}
 </body>
 </html>
