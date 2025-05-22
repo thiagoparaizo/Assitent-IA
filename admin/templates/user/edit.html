@@ -1,0 +1,149 @@
+<!-- admin/templates/users/edit.html -->
+{% extends 'base.html' %}
+
+{% block title %}Editar Usuário - {{ user.email }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('users.index') }}">Usuários</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('users.view', user_id=user.id) }}">{{ user.email }}</a></li>
+                <li class="breadcrumb-item active">Editar</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Editar Usuário</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('users.edit', user_id=user.id) }}">
+                    <div class="mb-3">
+                        <label for="email" class="form-label">Email<span class="text-danger">*</span></label>
+                        <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
+                        <div class="form-text">O email é usado para login no sistema.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="full_name" class="form-label">Nome Completo</label>
+                        <input type="text" class="form-control" id="full_name" name="full_name" value="{{ user.full_name or '' }}">
+                    </div>
+                    
+                    {% if current_user.is_superuser %}
+                    <div class="mb-3">
+                        <label for="tenant_id" class="form-label">Tenant</label>
+                        <select class="form-select" id="tenant_id" name="tenant_id">
+                            <option value="">Sem tenant específico</option>
+                            {% for tenant in tenants %}
+                            <option value="{{ tenant.id }}" {% if user.tenant_id == tenant.id %}selected{% endif %}>
+                                {{ tenant.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Tenant ao qual o usuário pertence.</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_superuser" name="is_superuser" {% if user.is_superuser %}checked{% endif %}>
+                        <label class="form-check-label" for="is_superuser">Administrador</label>
+                        <div class="form-text">Usuários administradores têm acesso completo ao sistema.</div>
+                    </div>
+                    
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="is_active" name="is_active" {% if user.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Ativo</label>
+                        <div class="form-text">Usuários inativos não podem fazer login.</div>
+                    </div>
+                    {% endif %}
+                    
+                    <hr>
+                    <h6>Alterar Senha (opcional)</h6>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">Nova Senha</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password">
+                        <div class="form-text">Deixe em branco para manter a senha atual.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirmar Nova Senha</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password">
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('users.view', user_id=user.id) }}" class="btn btn-outline-secondary">Cancelar</a>
+                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">Informações Atuais</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">ID:</div>
+                        <div class="col-7"><small>{{ user.id }}</small></div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Criado em:</div>
+                        <div class="col-7">{{ user.created_at|datetime('%d/%m/%Y') }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Atualizado em:</div>
+                        <div class="col-7">{{ user.updated_at|datetime('%d/%m/%Y') }}</div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Status:</div>
+                        <div class="col-7">
+                            {% if user.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                            {% else %}
+                            <span class="badge bg-danger">Inativo</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="row g-0">
+                        <div class="col-5 text-muted">Tipo:</div>
+                        <div class="col-7">
+                            {% if user.is_superuser %}
+                            <span class="badge bg-danger">Admin</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Usuário</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">Dicas de Segurança</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled">
+                    <li><i class="bi bi

@@ -134,18 +134,24 @@ def view(tenant_id):
         if response.status_code == 200:
             tenant = response.json()
             
-            # Get tenant users
+            # Get tenant users - ATUALIZADO
             try:
                 users_response = requests.get(
-                    f"{Config.API_URL}/tenants/{tenant_id}/users",
+                    f"{Config.API_URL}/users/",
                     headers=get_api_headers(),
+                    params={"tenant_id": tenant_id},  # Filtrar por tenant
                     timeout=3
                 )
                 if users_response.status_code == 200:
                     users = users_response.json()
                     # Add users to tenant object
                     tenant['users'] = users
-            except:
+                    print(f"Loaded {len(users)} users for tenant {tenant_id}")  # Debug
+                else:
+                    print(f"Failed to load users: {users_response.status_code}")  # Debug
+                    tenant['users'] = []
+            except Exception as e:
+                print(f"Error loading users: {e}")  # Debug
                 tenant['users'] = []
             
             # Get tenant devices
@@ -159,21 +165,27 @@ def view(tenant_id):
                     devices = devices_response.json()
                     # Add device count to tenant object
                     tenant['device_count'] = len(devices)
+                else:
+                    tenant['device_count'] = 0
             except:
                 tenant['device_count'] = 0
             
             # Get tenant agents
             try:
                 agents_response = requests.get(
-                    #f"{Config.API_URL}/agents/?tenant_id={tenant_id}",
-                   f"{Config.API_URL}/agents/",
+                    f"{Config.API_URL}/agents/",
                     headers=get_api_headers(),
+                    params={"tenant_id": tenant_id},  # Se a API suportar filtro por tenant
                     timeout=3
                 )
                 if agents_response.status_code == 200:
-                    agents = agents_response.json()
+                    all_agents = agents_response.json()
+                    # Filtrar agentes do tenant específico
+                    agents = [agent for agent in all_agents if agent.get('tenant_id') == tenant_id]
                     # Add agent count to tenant object
                     tenant['agent_count'] = len(agents)
+                else:
+                    tenant['agent_count'] = 0
             except:
                 tenant['agent_count'] = 0
             

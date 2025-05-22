@@ -1,0 +1,179 @@
+<!-- admin/templates/users/index.html -->
+{% extends 'base.html' %}
+
+{% block title %}Usuários - Assistente Inteligente{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex justify-content-between align-items-center">
+        <h1 class="h3">Gerenciamento de Usuários</h1>
+        {% if current_user.is_superuser %}
+        <a href="{{ url_for('users.create') }}" class="btn btn-primary">
+            <i class="bi bi-plus"></i> Novo Usuário
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Usuários Cadastrados</h5>
+                    <div class="input-group" style="width: auto;">
+                        <input type="text" class="form-control" id="user-search" placeholder="Pesquisar usuários...">
+                        <button class="btn btn-outline-secondary" type="button" id="search-button">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Nome</th>
+                                {% if current_user.is_superuser %}
+                                <th>Tenant</th>
+                                {% endif %}
+                                <th>Tipo</th>
+                                <th>Status</th>
+                                <th>Criado em</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if users %}
+                                {% for user in users %}
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-person-circle me-2"></i>
+                                        {{ user.email }}
+                                    </td>
+                                    <td>{{ user.full_name or 'Não informado' }}</td>
+                                    {% if current_user.is_superuser %}
+                                    <td>
+                                        {% if user.tenant_name %}
+                                            <span class="badge bg-info">{{ user.tenant_name }}</span>
+                                        {% else %}
+                                            <span class="text-muted">Sem tenant</span>
+                                        {% endif %}
+                                    </td>
+                                    {% endif %}
+                                    <td>
+                                        {% if user.is_superuser %}
+                                            <span class="badge bg-danger">Administrador</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Usuário</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.is_active %}
+                                            <span class="badge bg-success">Ativo</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Inativo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ user.created_at|datetime('%d/%m/%Y') }}</td>
+                                    <td>
+                                        <div class="btn-group">
+                                            <a href="{{ url_for('users.view', user_id=user.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye"></i>
+                                            </a>
+                                            {% if current_user.is_superuser or current_user.id == user.id %}
+                                            <a href="{{ url_for('users.edit', user_id=user.id) }}" class="btn btn-sm btn-outline-secondary">
+                                                <i class="bi bi-pencil"></i>
+                                            </a>
+                                            {% endif %}
+                                            {% if current_user.is_superuser and current_user.id != user.id %}
+                                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deleteUserModal"
+                                                    data-user-id="{{ user.id }}"
+                                                    data-user-email="{{ user.email }}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="{% if current_user.is_superuser %}7{% else %}6{% endif %}" class="text-center py-4">
+                                        <div class="text-muted">
+                                            <i class="bi bi-people fs-4 d-block mb-2"></i>
+                                            Nenhum usuário encontrado.
+                                        </div>
+                                        {% if current_user.is_superuser %}
+                                        <a href="{{ url_for('users.create') }}" class="btn btn-sm btn-primary mt-2">
+                                            <i class="bi bi-plus"></i> Criar Usuário
+                                        </a>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Exclusão -->
+<div class="modal fade" id="deleteUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Confirmar Exclusão</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Tem certeza que deseja excluir o usuário <strong id="user-email-to-delete"></strong>?</p>
+                <p class="text-danger">Esta ação não pode ser desfeita.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <form method="post" id="delete-user-form" action="">
+                    <button type="submit" class="btn btn-danger">Excluir</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Configurar modal de exclusão
+    document.getElementById('deleteUserModal').addEventListener('show.bs.modal', function (event) {
+        const button = event.relatedTarget;
+        const userId = button.getAttribute('data-user-id');
+        const userEmail = button.getAttribute('data-user-email');
+        
+        document.getElementById('user-email-to-delete').textContent = userEmail;
+        document.getElementById('delete-user-form').action = '/users/' + userId + '/delete';
+    });
+    
+    // Pesquisa de usuários
+    document.getElementById('user-search').addEventListener('keyup', function(e) {
+        const searchText = this.value.toLowerCase();
+        const tableRows = document.querySelectorAll('tbody tr');
+        
+        tableRows.forEach(row => {
+            const email = row.cells[0].textContent.toLowerCase();
+            const name = row.cells[1].textContent.toLowerCase();
+            
+            if (email.includes(searchText) || name.includes(searchText)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}
