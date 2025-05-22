@@ -106,6 +106,7 @@ class NotificationService:
             smtp_user = settings.SMTP_USER
             smtp_password = settings.SMTP_PASSWORD
             
+            
             # Criar mensagem
             message = MIMEMultipart()
             message["From"] = from_email
@@ -116,8 +117,7 @@ class NotificationService:
             message.attach(MIMEText(body, "html"))
             
             # Enviar email
-            async with aiosmtplib.SMTP(hostname=smtp_server, port=smtp_port) as smtp:
-                await smtp.starttls()
+            async with aiosmtplib.SMTP(hostname=smtp_server, port=smtp_port, use_tls=settings.SMTP_TLS) as smtp:
                 await smtp.login(smtp_user, smtp_password)
                 await smtp.send_message(message)
             
