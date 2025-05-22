@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = os.getenv("SMTP_PORT", 587)
     SMTP_USER: str = os.getenv("SMTP_USER", "")
-    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
     
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
