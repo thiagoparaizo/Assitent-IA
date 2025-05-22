@@ -117,7 +117,7 @@ class NotificationService:
             message.attach(MIMEText(body, "html"))
             
             # Enviar email
-            async with aiosmtplib.SMTP(hostname=smtp_server, port=smtp_port, use_tls=settings.SMTP_TLS) as smtp:
+            async with aiosmtplib.SMTP(hostname=smtp_server, port=smtp_port, start_tls=settings.SMTP_TLS) as smtp:
                 await smtp.login(smtp_user, smtp_password)
                 await smtp.send_message(message)
             
