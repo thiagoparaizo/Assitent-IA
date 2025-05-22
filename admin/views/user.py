@@ -135,7 +135,7 @@ def get_user_profile_data(user_id):
             "message": str(e)
         }), 500
         
-@users_bp.route('/create', methods=['GET', 'POST'])
+@user_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 def create():
     """Create a new user."""
