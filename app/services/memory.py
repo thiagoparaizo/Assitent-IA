@@ -272,6 +272,8 @@ class MemoryService:
     #     # In-memory fallback
     #     self._memory_entries.append(entry)
     #     return entry.id
+    
+    
     async def add_memory(self, entry: MemoryEntry) -> str:
         """
         Adds a new memory entry to the system.
@@ -340,7 +342,9 @@ class MemoryService:
                     #     metadatas=metadatas,
                     #     embeddings=embeddings
                     # )
-                    self.faiss_index.add_documents([doc])
+                    temp_texts = [doc.page_content]
+                    temp_metadatas = [doc.metadata]
+                    self.faiss_index.add_texts(temp_texts, temp_metadatas)
                     
                     # Salvar alterações
                     self.faiss_index.save_local(self.vector_db_path, "index")
@@ -928,8 +932,8 @@ class MemoryService:
             preferences_json = str(preferences_json).strip() if preferences_json else "[]"
             
             try:
-                if not preferences_json or preferences_json.strip() == "":
-                    logger.info("Nenhuma preferência encontrada na conversa.")
+                if not preferences_json or preferences_json.strip() == "" or preferences_json.strip() == "null":
+                    logger.info("Nenhuma preferência encontrada para esta conversa.")
                     preferences_json = "[]"
                 
                 preferences = json.loads(preferences_json)
@@ -972,7 +976,7 @@ class MemoryService:
             issues_json = str(issues_json).strip() if issues_json else "[]"
             
             try:
-                if not issues_json or issues_json.strip() == "":
+                if not issues_json or issues_json.strip() == "" or issues_json.strip() == "null":
                     logger.info("Nenhum problema/issue encontrada na conversa.")
                     issues_json = "[]"
                     
@@ -1016,7 +1020,7 @@ class MemoryService:
             facts_json = str(facts_json).strip() if facts_json else "[]"
             
             try:
-                if not facts_json or facts_json.strip() == "":
+                if not facts_json or facts_json.strip() == "" or facts_json.strip() == "null":
                     logger.info("Nenhum fato importante encontrado na conversa.")
                     facts_json = "[]"
                 
