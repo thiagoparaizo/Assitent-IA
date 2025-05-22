@@ -37,7 +37,7 @@ def index():
             params['tenant_id'] = current_user.tenant_id
             
         response = requests.get(
-            f"{Config.API_URL}/users/",
+            f"{Config.API_URL}/user/",
             headers=get_api_headers(),
             params=params,
             timeout=5
@@ -182,7 +182,7 @@ def create():
         try:
             # Call API to create user
             response = requests.post(
-                f"{Config.API_URL}/users/",
+                f"{Config.API_URL}/user/",
                 headers=get_api_headers(),
                 json=user_data,
                 timeout=10
@@ -220,7 +220,7 @@ def view(user_id):
     try:
         # Get user details
         response = requests.get(
-            f"{Config.API_URL}/users/{user_id}",
+            f"{Config.API_URL}/user/{user_id}",
             headers=get_api_headers(),
             timeout=5
         )
@@ -263,7 +263,7 @@ def edit(user_id):
     # Get user details
     try:
         response = requests.get(
-            f"{Config.API_URL}/users/{user_id}",
+            f"{Config.API_URL}/user/{user_id}",
             headers=get_api_headers(),
             timeout=5
         )
@@ -325,7 +325,7 @@ def edit(user_id):
         try:
             # Call API to update user
             response = requests.put(
-                f"{Config.API_URL}/users/{user_id}",
+                f"{Config.API_URL}/user/{user_id}",
                 headers=get_api_headers(),
                 json=user_data,
                 timeout=10
@@ -360,7 +360,7 @@ def delete(user_id):
     try:
         # Call API to delete user
         response = requests.delete(
-            f"{Config.API_URL}/users/{user_id}",
+            f"{Config.API_URL}/user/{user_id}",
             headers=get_api_headers(),
             timeout=10
         )
@@ -391,7 +391,7 @@ def activate(user_id):
     
     try:
         response = requests.put(
-            f"{Config.API_URL}/users/{user_id}/activate",
+            f"{Config.API_URL}/user/{user_id}/activate",
             headers=get_api_headers(),
             timeout=10
         )
@@ -415,7 +415,7 @@ def deactivate(user_id):
     
     try:
         response = requests.put(
-            f"{Config.API_URL}/users/{user_id}/deactivate",
+            f"{Config.API_URL}/user/{user_id}/deactivate",
             headers=get_api_headers(),
             timeout=10
         )
@@ -444,7 +444,7 @@ def reset_password(user_id):
     
     try:
         response = requests.post(
-            f"{Config.API_URL}/users/{user_id}/reset-password",
+            f"{Config.API_URL}/user/{user_id}/reset-password",
             headers=get_api_headers(),
             json={"new_password": new_password},
             timeout=10

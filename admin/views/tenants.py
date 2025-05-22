@@ -48,7 +48,7 @@ def index():
                 # Get user count
                 try:
                     user_response = requests.get(
-                        f"{Config.API_URL}/tenants/{tenant['id']}/users/count",
+                        f"{Config.API_URL}/tenants/{tenant['id']}/user/count",
                         headers=get_api_headers(),
                         timeout=3
                     )
@@ -137,7 +137,7 @@ def view(tenant_id):
             # Get tenant users - ATUALIZADO
             try:
                 users_response = requests.get(
-                    f"{Config.API_URL}/users/",
+                    f"{Config.API_URL}/user/",
                     headers=get_api_headers(),
                     params={"tenant_id": tenant_id},  # Filtrar por tenant
                     timeout=3
@@ -301,7 +301,7 @@ def edit(tenant_id):
     try:
         # Get user count
         user_response = requests.get(
-            f"{Config.API_URL}/tenants/{tenant_id}/users/count",
+            f"{Config.API_URL}/tenants/{tenant_id}/user/count",
             headers=get_api_headers(),
             timeout=3
         )

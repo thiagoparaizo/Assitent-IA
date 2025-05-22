@@ -147,7 +147,7 @@ def read_tenant_users(
     
     return user_list
 
-@router.get("/{tenant_id}/users/count")
+@router.get("/{tenant_id}/user/count")
 def count_tenant_users(
     tenant_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),

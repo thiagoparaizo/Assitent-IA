@@ -12,10 +12,10 @@ Esta documentação detalha como implementar o sistema completo de administraç�
 ### Novos Arquivos do Admin
 
 1. **`admin/views/users.py`** - Views para administração de usuários
-2. **`admin/templates/users/index.html`** - Lista de usuários
-3. **`admin/templates/users/create.html`** - Formulário de criação
-4. **`admin/templates/users/view.html`** - Detalhes do usuário
-5. **`admin/templates/users/edit.html`** - Formulário de edição
+2. **`admin/templates/user/index.html`** - Lista de usuários
+3. **`admin/templates/user/create.html`** - Formulário de criação
+4. **`admin/templates/user/view.html`** - Detalhes do usuário
+5. **`admin/templates/user/edit.html`** - Formulário de edição
 
 ### Arquivos Modificados
 

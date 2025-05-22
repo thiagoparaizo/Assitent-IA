@@ -1,4 +1,4 @@
-<!-- admin/templates/users/index.html -->
+<!-- admin/templates/user/index.html -->
 {% extends 'base.html' %}
 
 {% block title %}Usuários - Assistente Inteligente{% endblock %}
@@ -156,7 +156,7 @@
         const userEmail = button.getAttribute('data-user-email');
         
         document.getElementById('user-email-to-delete').textContent = userEmail;
-        document.getElementById('delete-user-form').action = '/users/' + userId + '/delete';
+        document.getElementById('delete-user-form').action = '/user/' + userId + '/delete';
     });
     
     // Pesquisa de usuários
