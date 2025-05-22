@@ -815,6 +815,71 @@ class AgentOrchestrator:
             print(f"[DEBUG] Erro ao recuperar estado da conversa: {e}")
             return None
     
+    # async def _generate_and_store_summary(self, state: ConversationState) -> None:
+    #     """
+    #     Gera e armazena um resumo da conversa.
+        
+    #     Args:
+    #         state: Estado da conversa
+    #     """
+    #     try:
+    #         # Verificar se o serviço de memória está ativo
+    #         if not self.memory_service:
+    #             logging.warning(f"Tentativa de gerar resumo, mas o serviço de memória não está ativo")
+    #             return
+            
+    #         logging.info(f"Gerando resumo para a conversa {state.conversation_id}")
+            
+    #         # Gerar resumo
+    #         summary = await self.memory_service.generate_conversation_summary(
+    #             conversation_id=state.conversation_id,
+    #             tenant_id=state.tenant_id,
+    #             user_id=state.user_id,
+    #             messages=state.history
+    #         )
+            
+    #         if not summary:
+    #             logging.warning(f"Falha ao gerar resumo para conversa {state.conversation_id}")
+    #             return
+            
+    #         # Armazenar o resumo nos metadados do estado
+    #         state.metadata["last_summary"] = {
+    #             "brief": summary.brief_summary,
+    #             "detailed": summary.detailed_summary,
+    #             "key_points": summary.key_points,
+    #             "sentiment": summary.sentiment,
+    #             "generated_at": time.time()
+    #         }
+            
+    #         # Salvar estado atualizado
+    #         await self.save_conversation_state(state)
+            
+    #         logging.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
+            
+    #         # Verificar se precisa extrair memórias adicionais
+    #         # Nota: O método generate_conversation_summary já extrai memórias básicas,
+    #         # mas podemos adicionar lógica adicional aqui se necessário
+            
+    #     except Exception as e:
+    #         logging.error(f"Erro ao gerar resumo da conversa: {str(e)}")
+            
+    #         # Log adicional para debugging
+    #         import traceback
+    #         logging.error(f"Stack trace completo: {traceback.format_exc()}")
+            
+    #         # Registrar o erro nos metadados
+    #         state.metadata["last_summary_error"] = {
+    #             "error": str(e),
+    #             "timestamp": time.time(),
+    #             "error_type": type(e).__name__
+    #         }
+            
+    #         # Salvar estado mesmo com erro
+    #         try:
+    #             await self.save_conversation_state(state)
+    #         except Exception as save_error:
+    #             logging.error(f"Erro adicional ao salvar estado após falha de resumo: {str(save_error)}")
+    
     async def _generate_and_store_summary(self, state: ConversationState) -> None:
         """
         Gera e armazena um resumo da conversa.
@@ -856,10 +921,6 @@ class AgentOrchestrator:
             
             logging.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
             
-            # Verificar se precisa extrair memórias adicionais
-            # Nota: O método generate_conversation_summary já extrai memórias básicas,
-            # mas podemos adicionar lógica adicional aqui se necessário
-            
         except Exception as e:
             logging.error(f"Erro ao gerar resumo da conversa: {str(e)}")
             
@@ -880,6 +941,7 @@ class AgentOrchestrator:
             except Exception as save_error:
                 logging.error(f"Erro adicional ao salvar estado após falha de resumo: {str(save_error)}")
 
+
     # Add method to get user profile with memories
     async def get_user_profile(self, tenant_id: str, user_id: str) -> Dict[str, Any]:
         """
@@ -894,7 +956,7 @@ class AgentOrchestrator:
         """
         if not agent_id:
             # Original implementation
-            agents = self.agent_service.get_agents_by_tenant(tenant_id)
+            agents = await self.agent_service.get_agents_by_tenant(tenant_id)
             general_agents = [a for a in agents if a.type == AgentType.GENERAL]
             
             if not general_agents:
@@ -915,23 +977,26 @@ class AgentOrchestrator:
         )
         
         # Get user profile from memory
-        try:
-            user_profile = await self.memory_service.get_user_profile(tenant_id, user_id)
-            
-            # Add relevant profile info to conversation state
-            if user_profile:
-                state.metadata["user_profile"] = user_profile
+        if self.memory_service:
+            try:
+                user_profile = await self.memory_service.get_user_profile(tenant_id, user_id)
                 
-                # Add greeting message with personalization if user has history
-                if user_profile.get("recent_conversations"):
-                    # Has previous history
-                    state.history.append({
-                        "role": "system",
-                        "content": "User has previous conversation history.",
-                        "timestamp": time.time()
-                    })
-        except Exception as e:
-            print(f"Error retrieving user profile: {e}")
+                # Add relevant profile info to conversation state
+                if user_profile:
+                    state.metadata["user_profile"] = user_profile
+                    
+                    # Add greeting message with personalization if user has history
+                    if user_profile.get("recent_conversations"):
+                        # Has previous history
+                        state.history.append({
+                            "role": "system",
+                            "content": "User has previous conversation history.",
+                            "timestamp": time.time()
+                        })
+                        
+                        logging.info(f"Carregado perfil do usuário {user_id} com {len(user_profile.get('recent_conversations', []))} conversas anteriores")
+            except Exception as e:
+                logging.error(f"Error retrieving user profile for {user_id}: {e}")
         
         # Save state
         await self.save_conversation_state(state)

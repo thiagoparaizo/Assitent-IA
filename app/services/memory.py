@@ -1,6 +1,7 @@
 # Create a new file at app/services/memory.py
 
 from enum import Enum
+import logging
 import os
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
@@ -13,6 +14,11 @@ from pydantic import BaseModel
 import httpx
 from app.core.config import Settings, settings
 from langchain.schema import Document
+
+
+from app.services.orchestrator import ConversationState
+
+logger = logging.getLogger(__name__)
 
 class MemoryType(str, Enum):
     """Types of memory entries."""
@@ -84,7 +90,8 @@ class MemoryService:
             return
         
         try:
-            from langchain.vectorstores import FAISS
+            #from langchain.vectorstores import FAISS
+            from langchain_community.vectorstores import FAISS
             from langchain.schema import Document
             import uuid
             
@@ -191,6 +198,81 @@ class MemoryService:
         
         return AsyncCompatibleEmbeddings(self.llm)
     
+    # async def add_memory(self, entry: MemoryEntry) -> str:
+    #     """
+    #     Adds a new memory entry to the system.
+        
+    #     Args:
+    #         entry: The memory entry to add
+                
+    #     Returns:
+    #         The ID of the added memory
+    #     """
+    #     # Generate embedding for this memory for retrieval later
+    #     entry.embedding = await self._get_embedding(entry.content)
+        
+    #     # Usar serviço vetorial HTTP se configurado e não estiver usando armazenamento local
+    #     if self.vector_db_url and not self.use_local_storage:
+    #         try:
+    #             async with httpx.AsyncClient() as client:
+    #                 response = await client.post(
+    #                     f"{self.vector_db_url}/vectors",
+    #                     json=entry.dict(),
+    #                     timeout=10.0
+    #                 )
+    #                 response.raise_for_status()
+    #                 return response.json()["id"]
+    #         except Exception as e:
+    #             print(f"Error storing memory in vector database: {e}")
+    #             # Fall back to local storage or in-memoryy
+    #         # ... código HTTP existente ...
+        
+    #     # Usar FAISS se armazenamento local estiver habilitado
+    #     if self.use_local_storage and self.vector_db_path:
+    #         try:
+    #             # Inicializar FAISS se necessário
+    #             await self._init_faiss_index()
+                
+    #             if self.faiss_index:
+    #                 from langchain.schema import Document
+                    
+    #                 # Converter MemoryEntry para Document
+    #                 doc = Document(
+    #                     page_content=entry.content,
+    #                     metadata={
+    #                         "id": entry.id,
+    #                         "tenant_id": entry.tenant_id,
+    #                         "user_id": entry.user_id,
+    #                         "type": entry.type.value,
+    #                         "created_at": entry.created_at,
+    #                         "last_accessed": entry.last_accessed,
+    #                         "access_count": entry.access_count,
+    #                         "importance": entry.importance,
+    #                         "metadata": json.dumps(entry.metadata)
+    #                     }
+    #                 )
+                    
+    #                 # Adicionar documento diretamente ao FAISS
+    #                 import numpy as np
+    #                 embedding_vector = np.array(entry.embedding, dtype=np.float32)
+    #                 self.faiss_index.add_embeddings(
+    #                     [(doc.page_content, doc.metadata)], 
+    #                     [embedding_vector]
+    #                 )
+                    
+    #                 # Salvar alterações
+    #                 self.faiss_index.save_local(self.vector_db_path, "index")
+                    
+    #                 return entry.id
+    #         except Exception as e:
+    #             print(f"Error storing memory in FAISS: {e}")
+    #             import traceback
+    #             traceback.print_exc()
+    #             # Fall back to in-memory
+        
+    #     # In-memory fallback
+    #     self._memory_entries.append(entry)
+    #     return entry.id
     async def add_memory(self, entry: MemoryEntry) -> str:
         """
         Adds a new memory entry to the system.
@@ -217,8 +299,7 @@ class MemoryService:
                     return response.json()["id"]
             except Exception as e:
                 print(f"Error storing memory in vector database: {e}")
-                # Fall back to local storage or in-memoryy
-            # ... código HTTP existente ...
+                # Fall back to local storage or in-memory
         
         # Usar FAISS se armazenamento local estiver habilitado
         if self.use_local_storage and self.vector_db_path:
@@ -229,7 +310,7 @@ class MemoryService:
                 if self.faiss_index:
                     from langchain.schema import Document
                     
-                    # Converter MemoryEntry para Document
+                    # Converter MemoryEntry para Document com metadados corretos
                     doc = Document(
                         page_content=entry.content,
                         metadata={
@@ -245,12 +326,20 @@ class MemoryService:
                         }
                     )
                     
-                    # Adicionar documento diretamente ao FAISS
+                    # CORREÇÃO: Usar add_documents ao invés de add_embeddings
+                    # para evitar problemas com metadados
                     import numpy as np
-                    embedding_vector = np.array(entry.embedding, dtype=np.float32)
-                    self.faiss_index.add_embeddings(
-                        [(doc.page_content, doc.metadata)], 
-                        [embedding_vector]
+                    
+                    # Criar um documento temporário para adicionar ao FAISS
+                    texts = [doc.page_content]
+                    metadatas = [doc.metadata]
+                    embeddings = [entry.embedding]
+                    
+                    # Adicionar usando o método correto
+                    self.faiss_index.add_texts(
+                        texts=texts,
+                        metadatas=metadatas,
+                        embeddings=embeddings
                     )
                     
                     # Salvar alterações
@@ -415,6 +504,160 @@ class MemoryService:
         
         # Return top entries
         return [entry for entry, _ in entries_with_scores[:limit]]
+    
+    # app/services/memory.py - Correções necessárias
+
+# Primeiro, corrigir o import (linha 87)
+from langchain_community.vectorstores import FAISS  # Usar o import correto
+from langchain.schema import Document
+
+class MemoryService:
+    # ... código existente ...
+    
+    async def add_memory(self, entry: MemoryEntry) -> str:
+        """
+        Adds a new memory entry to the system.
+        
+        Args:
+            entry: The memory entry to add
+                
+        Returns:
+            The ID of the added memory
+        """
+        # Generate embedding for this memory for retrieval later
+        entry.embedding = await self._get_embedding(entry.content)
+        
+        # Usar serviço vetorial HTTP se configurado e não estiver usando armazenamento local
+        if self.vector_db_url and not self.use_local_storage:
+            try:
+                async with httpx.AsyncClient() as client:
+                    response = await client.post(
+                        f"{self.vector_db_url}/vectors",
+                        json=entry.dict(),
+                        timeout=10.0
+                    )
+                    response.raise_for_status()
+                    return response.json()["id"]
+            except Exception as e:
+                print(f"Error storing memory in vector database: {e}")
+                # Fall back to local storage or in-memory
+        
+        # Usar FAISS se armazenamento local estiver habilitado
+        if self.use_local_storage and self.vector_db_path:
+            try:
+                # Inicializar FAISS se necessário
+                await self._init_faiss_index()
+                
+                if self.faiss_index:
+                    from langchain.schema import Document
+                    
+                    # Converter MemoryEntry para Document com metadados corretos
+                    doc = Document(
+                        page_content=entry.content,
+                        metadata={
+                            "id": entry.id,
+                            "tenant_id": entry.tenant_id,
+                            "user_id": entry.user_id,
+                            "type": entry.type.value,
+                            "created_at": entry.created_at,
+                            "last_accessed": entry.last_accessed,
+                            "access_count": entry.access_count,
+                            "importance": entry.importance,
+                            "metadata": json.dumps(entry.metadata)
+                        }
+                    )
+                    
+                    # CORREÇÃO: Usar add_documents ao invés de add_embeddings
+                    # para evitar problemas com metadados
+                    import numpy as np
+                    
+                    # Criar um documento temporário para adicionar ao FAISS
+                    texts = [doc.page_content]
+                    metadatas = [doc.metadata]
+                    embeddings = [entry.embedding]
+                    
+                    # Adicionar usando o método correto
+                    self.faiss_index.add_texts(
+                        texts=texts,
+                        metadatas=metadatas,
+                        embeddings=embeddings
+                    )
+                    
+                    # Salvar alterações
+                    self.faiss_index.save_local(self.vector_db_path, "index")
+                    
+                    return entry.id
+            except Exception as e:
+                print(f"Error storing memory in FAISS: {e}")
+                import traceback
+                traceback.print_exc()
+                # Fall back to in-memory
+        
+        # In-memory fallback
+        self._memory_entries.append(entry)
+        return entry.id
+
+    async def _generate_and_store_summary(self, state: ConversationState) -> None:
+        """
+        Gera e armazena um resumo da conversa.
+        
+        Args:
+            state: Estado da conversa
+        """
+        try:
+            # Verificar se o serviço de memória está ativo
+            if not self.memory_service:
+                logging.warning(f"Tentativa de gerar resumo, mas o serviço de memória não está ativo")
+                return
+            
+            logging.info(f"Gerando resumo para a conversa {state.conversation_id}")
+            
+            # Gerar resumo
+            summary = await self.memory_service.generate_conversation_summary(
+                conversation_id=state.conversation_id,
+                tenant_id=state.tenant_id,
+                user_id=state.user_id,
+                messages=state.history
+            )
+            
+            if not summary:
+                logging.warning(f"Falha ao gerar resumo para conversa {state.conversation_id}")
+                return
+            
+            # Armazenar o resumo nos metadados do estado
+            state.metadata["last_summary"] = {
+                "brief": summary.brief_summary,
+                "detailed": summary.detailed_summary,
+                "key_points": summary.key_points,
+                "sentiment": summary.sentiment,
+                "generated_at": time.time()
+            }
+            
+            # Salvar estado atualizado
+            await self.save_conversation_state(state)
+            
+            logging.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
+            
+        except Exception as e:
+            logging.error(f"Erro ao gerar resumo da conversa: {str(e)}")
+            
+            # Log adicional para debugging
+            import traceback
+            logging.error(f"Stack trace completo: {traceback.format_exc()}")
+            
+            # Registrar o erro nos metadados
+            state.metadata["last_summary_error"] = {
+                "error": str(e),
+                "timestamp": time.time(),
+                "error_type": type(e).__name__
+            }
+            
+            # Salvar estado mesmo com erro
+            try:
+                await self.save_conversation_state(state)
+            except Exception as save_error:
+                logging.error(f"Erro adicional ao salvar estado após falha de resumo: {str(save_error)}")
+
     
     async def generate_conversation_summary(
         self, 
@@ -667,6 +910,135 @@ class MemoryService:
         
         return profile
     
+    # async def _extract_memories_from_conversation(
+    #     self, 
+    #     conversation_id: str,
+    #     tenant_id: str,
+    #     user_id: str,
+    #     messages: List[Dict[str, Any]],
+    #     summary: ConversationSummary
+    # ) -> None:
+    #     """
+    #     Extracts important memories from a conversation.
+        
+    #     Args:
+    #         conversation_id: The conversation ID
+    #         tenant_id: The tenant ID
+    #         user_id: The user ID
+    #         messages: The conversation messages
+    #         summary: The conversation summary
+    #     """
+    #     # Convert messages to a single string for analysis
+    #     conversation_text = "\n".join([
+    #         f"{msg['role'].upper()}: {msg['content']}"
+    #         for msg in messages
+    #     ])
+        
+    #     # Extract user preferences
+    #     preferences_prompt = [
+    #         {"role": "system", "content": "Extraia as preferências do usuário desta conversa como um array JSON. Inclua apenas preferências claras e objetivas."},
+    #         {"role": "user", "content": f"Extrair preferências desta conversa:\n{conversation_text}"}
+    #     ]
+    #     preferences_json = await self.llm.generate_response(preferences_prompt)
+        
+    #     try:
+    #         preferences = json.loads(preferences_json)
+    #         if isinstance(preferences, list):
+    #             for pref in preferences:
+    #                 if isinstance(pref, str) and pref.strip():
+    #                     # Create preference memory
+    #                     memory_id = f"pref_{conversation_id}_{hashlib.md5(pref.encode()).hexdigest()[:8]}"
+    #                     memory = MemoryEntry(
+    #                         id=memory_id,
+    #                         tenant_id=tenant_id,
+    #                         user_id=user_id,
+    #                         type=MemoryType.USER_PREFERENCE,
+    #                         content=pref,
+    #                         metadata={
+    #                             "source_conversation": conversation_id,
+    #                             "extracted_at": time.time()
+    #                         }
+    #                     )
+    #                     await self.add_memory(memory)
+    #     except:
+    #         pass
+        
+    #     # Extract issues/problems
+    #     issues_prompt = [
+    #         {"role": "system", "content": "Extract user issues, problems or complaints from this conversation as a JSON array."},
+    #         {"role": "user", "content": f"Extract issues from this conversation:\n{conversation_text}"}
+    #     ]
+    #     issues_json = await self.llm.generate_response(issues_prompt)
+        
+    #     try:
+    #         issues = json.loads(issues_json)
+    #         if isinstance(issues, list):
+    #             for issue in issues:
+    #                 if isinstance(issue, str) and issue.strip():
+    #                     # Create issue memory
+    #                     memory_id = f"issue_{conversation_id}_{hashlib.md5(issue.encode()).hexdigest()[:8]}"
+    #                     memory = MemoryEntry(
+    #                         id=memory_id,
+    #                         tenant_id=tenant_id,
+    #                         user_id=user_id,
+    #                         type=MemoryType.ISSUE,
+    #                         content=issue,
+    #                         metadata={
+    #                             "source_conversation": conversation_id,
+    #                             "extracted_at": time.time()
+    #                         }
+    #                     )
+    #                     await self.add_memory(memory)
+    #     except:
+    #         pass
+        
+    #     # Extract important facts
+    #     facts_prompt = [
+    #         {"role": "system", "content": "Extract important facts about the user from this conversation as a JSON array."},
+    #         {"role": "user", "content": f"Extract important facts from this conversation:\n{conversation_text}"}
+    #     ]
+    #     facts_json = await self.llm.generate_response(facts_prompt)
+        
+    #     try:
+    #         facts = json.loads(facts_json)
+    #         if isinstance(facts, list):
+    #             for fact in facts:
+    #                 if isinstance(fact, str) and fact.strip():
+    #                     # Create fact memory
+    #                     memory_id = f"fact_{conversation_id}_{hashlib.md5(fact.encode()).hexdigest()[:8]}"
+    #                     memory = MemoryEntry(
+    #                         id=memory_id,
+    #                         tenant_id=tenant_id,
+    #                         user_id=user_id,
+    #                         type=MemoryType.FACT,
+    #                         content=fact,
+    #                         metadata={
+    #                             "source_conversation": conversation_id,
+    #                             "extracted_at": time.time()
+    #                         }
+    #                     )
+    #                     await self.add_memory(memory)
+    #     except:
+    #         pass
+        
+    #     # Also store the conversation summary as a memory
+    #     summary_memory_id = f"summary_{conversation_id}"
+    #     summary_memory = MemoryEntry(
+    #         id=summary_memory_id,
+    #         tenant_id=tenant_id,
+    #         user_id=user_id,
+    #         type=MemoryType.CONVERSATION,
+    #         content=summary.detailed_summary,
+    #         metadata={
+    #             "conversation_id": conversation_id,
+    #             "brief_summary": summary.brief_summary,
+    #             "key_points": summary.key_points,
+    #             "sentiment": summary.sentiment,
+    #             "entities": summary.entities
+    #         }
+    #     )
+    #     await self.add_memory(summary_memory)
+    
     async def _extract_memories_from_conversation(
         self, 
         conversation_id: str,
@@ -691,110 +1063,152 @@ class MemoryService:
             for msg in messages
         ])
         
-        # Extract user preferences
-        preferences_prompt = [
-            {"role": "system", "content": "Extraia as preferências do usuário desta conversa como um array JSON. Inclua apenas preferências claras e objetivas."},
-            {"role": "user", "content": f"Extrair preferências desta conversa:\n{conversation_text}"}
-        ]
-        preferences_json = await self.llm.generate_response(preferences_prompt)
-        
         try:
-            preferences = json.loads(preferences_json)
-            if isinstance(preferences, list):
-                for pref in preferences:
-                    if isinstance(pref, str) and pref.strip():
-                        # Create preference memory
-                        memory_id = f"pref_{conversation_id}_{hashlib.md5(pref.encode()).hexdigest()[:8]}"
-                        memory = MemoryEntry(
-                            id=memory_id,
-                            tenant_id=tenant_id,
-                            user_id=user_id,
-                            type=MemoryType.USER_PREFERENCE,
-                            content=pref,
-                            metadata={
-                                "source_conversation": conversation_id,
-                                "extracted_at": time.time()
-                            }
-                        )
-                        await self.add_memory(memory)
-        except:
-            pass
-        
-        # Extract issues/problems
-        issues_prompt = [
-            {"role": "system", "content": "Extract user issues, problems or complaints from this conversation as a JSON array."},
-            {"role": "user", "content": f"Extract issues from this conversation:\n{conversation_text}"}
-        ]
-        issues_json = await self.llm.generate_response(issues_prompt)
-        
-        try:
-            issues = json.loads(issues_json)
-            if isinstance(issues, list):
-                for issue in issues:
-                    if isinstance(issue, str) and issue.strip():
-                        # Create issue memory
-                        memory_id = f"issue_{conversation_id}_{hashlib.md5(issue.encode()).hexdigest()[:8]}"
-                        memory = MemoryEntry(
-                            id=memory_id,
-                            tenant_id=tenant_id,
-                            user_id=user_id,
-                            type=MemoryType.ISSUE,
-                            content=issue,
-                            metadata={
-                                "source_conversation": conversation_id,
-                                "extracted_at": time.time()
-                            }
-                        )
-                        await self.add_memory(memory)
-        except:
-            pass
-        
-        # Extract important facts
-        facts_prompt = [
-            {"role": "system", "content": "Extract important facts about the user from this conversation as a JSON array."},
-            {"role": "user", "content": f"Extract important facts from this conversation:\n{conversation_text}"}
-        ]
-        facts_json = await self.llm.generate_response(facts_prompt)
-        
-        try:
-            facts = json.loads(facts_json)
-            if isinstance(facts, list):
-                for fact in facts:
-                    if isinstance(fact, str) and fact.strip():
-                        # Create fact memory
-                        memory_id = f"fact_{conversation_id}_{hashlib.md5(fact.encode()).hexdigest()[:8]}"
-                        memory = MemoryEntry(
-                            id=memory_id,
-                            tenant_id=tenant_id,
-                            user_id=user_id,
-                            type=MemoryType.FACT,
-                            content=fact,
-                            metadata={
-                                "source_conversation": conversation_id,
-                                "extracted_at": time.time()
-                            }
-                        )
-                        await self.add_memory(memory)
-        except:
-            pass
-        
-        # Also store the conversation summary as a memory
-        summary_memory_id = f"summary_{conversation_id}"
-        summary_memory = MemoryEntry(
-            id=summary_memory_id,
-            tenant_id=tenant_id,
-            user_id=user_id,
-            type=MemoryType.CONVERSATION,
-            content=summary.detailed_summary,
-            metadata={
-                "conversation_id": conversation_id,
-                "brief_summary": summary.brief_summary,
-                "key_points": summary.key_points,
-                "sentiment": summary.sentiment,
-                "entities": summary.entities
-            }
-        )
-        await self.add_memory(summary_memory)
+            # Extract user preferences
+            preferences_prompt = [
+                {"role": "system", "content": "Extraia as preferências do usuário desta conversa como um array JSON. Inclua apenas preferências claras e objetivas."},
+                {"role": "user", "content": f"Extrair preferências desta conversa:\n{conversation_text}"}
+            ]
+            
+            # CORREÇÃO: Tratar resposta em tupla
+            preferences_response = await self.llm.generate_response(preferences_prompt)
+            
+            # Handle tuple response
+            if isinstance(preferences_response, tuple):
+                preferences_json = preferences_response[0] if preferences_response else "[]"
+            else:
+                preferences_json = preferences_response
+            
+            preferences_json = str(preferences_json).strip() if preferences_json else "[]"
+            
+            try:
+                preferences = json.loads(preferences_json)
+                if isinstance(preferences, list):
+                    for pref in preferences:
+                        if isinstance(pref, str) and pref.strip():
+                            # Create preference memory
+                            memory_id = f"pref_{conversation_id}_{hashlib.md5(pref.encode()).hexdigest()[:8]}"
+                            memory = MemoryEntry(
+                                id=memory_id,
+                                tenant_id=tenant_id,
+                                user_id=user_id,
+                                type=MemoryType.USER_PREFERENCE,
+                                content=pref,
+                                metadata={
+                                    "source_conversation": conversation_id,
+                                    "extracted_at": time.time()
+                                }
+                            )
+                            await self.add_memory(memory)
+            except json.JSONDecodeError as e:
+                logging.warning(f"Erro ao parsear preferências JSON: {e}")
+            except Exception as e:
+                logging.error(f"Erro ao processar preferências: {e}")
+            
+            # Extract issues/problems
+            issues_prompt = [
+                {"role": "system", "content": "Extraia problemas, questões ou reclamações do usuário desta conversa como um array JSON."},
+                {"role": "user", "content": f"Extrair problemas desta conversa:\n{conversation_text}"}
+            ]
+            
+            issues_response = await self.llm.generate_response(issues_prompt)
+            
+            # Handle tuple response
+            if isinstance(issues_response, tuple):
+                issues_json = issues_response[0] if issues_response else "[]"
+            else:
+                issues_json = issues_response
+            
+            issues_json = str(issues_json).strip() if issues_json else "[]"
+            
+            try:
+                issues = json.loads(issues_json)
+                if isinstance(issues, list):
+                    for issue in issues:
+                        if isinstance(issue, str) and issue.strip():
+                            # Create issue memory
+                            memory_id = f"issue_{conversation_id}_{hashlib.md5(issue.encode()).hexdigest()[:8]}"
+                            memory = MemoryEntry(
+                                id=memory_id,
+                                tenant_id=tenant_id,
+                                user_id=user_id,
+                                type=MemoryType.ISSUE,
+                                content=issue,
+                                metadata={
+                                    "source_conversation": conversation_id,
+                                    "extracted_at": time.time()
+                                }
+                            )
+                            await self.add_memory(memory)
+            except json.JSONDecodeError as e:
+                logging.warning(f"Erro ao parsear issues JSON: {e}")
+            except Exception as e:
+                logging.error(f"Erro ao processar issues: {e}")
+            
+            # Extract important facts
+            facts_prompt = [
+                {"role": "system", "content": "Extraia fatos importantes sobre o usuário desta conversa como um array JSON."},
+                {"role": "user", "content": f"Extrair fatos importantes desta conversa:\n{conversation_text}"}
+            ]
+            
+            facts_response = await self.llm.generate_response(facts_prompt)
+            
+            # Handle tuple response
+            if isinstance(facts_response, tuple):
+                facts_json = facts_response[0] if facts_response else "[]"
+            else:
+                facts_json = facts_response
+            
+            facts_json = str(facts_json).strip() if facts_json else "[]"
+            
+            try:
+                facts = json.loads(facts_json)
+                if isinstance(facts, list):
+                    for fact in facts:
+                        if isinstance(fact, str) and fact.strip():
+                            # Create fact memory
+                            memory_id = f"fact_{conversation_id}_{hashlib.md5(fact.encode()).hexdigest()[:8]}"
+                            memory = MemoryEntry(
+                                id=memory_id,
+                                tenant_id=tenant_id,
+                                user_id=user_id,
+                                type=MemoryType.FACT,
+                                content=fact,
+                                metadata={
+                                    "source_conversation": conversation_id,
+                                    "extracted_at": time.time()
+                                }
+                            )
+                            await self.add_memory(memory)
+            except json.JSONDecodeError as e:
+                logging.warning(f"Erro ao parsear facts JSON: {e}")
+            except Exception as e:
+                logging.error(f"Erro ao processar facts: {e}")
+            
+            # Also store the conversation summary as a memory
+            summary_memory_id = f"summary_{conversation_id}"
+            summary_memory = MemoryEntry(
+                id=summary_memory_id,
+                tenant_id=tenant_id,
+                user_id=user_id,
+                type=MemoryType.CONVERSATION,
+                content=summary.detailed_summary,
+                metadata={
+                    "conversation_id": conversation_id,
+                    "brief_summary": summary.brief_summary,
+                    "key_points": summary.key_points,
+                    "sentiment": summary.sentiment,
+                    "entities": summary.entities
+                }
+            )
+            await self.add_memory(summary_memory)
+            
+            logging.info(f"Memórias extraídas e armazenadas para conversa {conversation_id}")
+            
+        except Exception as e:
+            logging.error(f"Erro geral ao extrair memórias da conversa {conversation_id}: {e}")
+            import traceback
+            logging.error(f"Stack trace: {traceback.format_exc()}")
     
     async def _get_embedding(self, text: str) -> List[float]:
         """

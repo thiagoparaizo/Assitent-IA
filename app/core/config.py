@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     # LLMs API_KEYs
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     
+    #Email config
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "no-reply@yourdomain.com")
+    SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    SMTP_PORT: int = os.getenv("SMTP_PORT", 587)
+    SMTP_USER: str = os.getenv("SMTP_USER", "")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
+    
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
     def assemble_db_connection(cls, v: str, values: dict) -> str:
         if isinstance(v, str):
