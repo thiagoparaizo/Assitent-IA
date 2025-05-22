@@ -67,8 +67,21 @@ class WhatsAppService:
     
     async def get_devices(self, tenant_id: int) -> List[dict]:
         """Obtém a lista de dispositivos de um tenant"""
-        devices = await self._request("GET", "/api/devices", params={"tenant_id": tenant_id})
-        return [self._adapt_device(device) for device in devices]
+        try:
+            devices = await self._request("GET", "/api/devices", params={"tenant_id": tenant_id})
+            
+            # Verificar se devices é None ou não é uma lista
+            if devices is None:
+                return []
+            
+            if not isinstance(devices, list):
+                logger.warning(f"Expected list but got {type(devices)} for devices")
+                return []
+            
+            return [self._adapt_device(device) for device in devices]
+        except Exception as e:
+            logger.error(f"Error getting devices for tenant {tenant_id}: {e}")
+            return []
 
     async def get_device(self, device_id: int) -> dict:
         """Obtém informações de um dispositivo específico"""
@@ -129,7 +142,19 @@ class WhatsAppService:
     
     async def get_groups(self, device_id: int) -> List[dict]:
         """Obtém a lista de grupos"""
-        return await self._request("GET", f"/api/devices/{device_id}/groups")
+        try:
+            groups = await self._request("GET", f"/api/devices/{device_id}/groups")
+            
+            if groups is None:
+                return []
+            
+            if not isinstance(groups, list):
+                return []
+                
+            return groups
+        except Exception as e:
+            logger.error(f"Error getting groups for device {device_id}: {e}")
+            return []
     
     # Endpoints de mensagens
     
