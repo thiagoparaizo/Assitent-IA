@@ -335,11 +335,12 @@ class MemoryService:
                     embeddings = [entry.embedding]
                     
                     # Adicionar usando o método correto
-                    self.faiss_index.add_texts(
-                        texts=texts,
-                        metadatas=metadatas,
-                        embeddings=embeddings
-                    )
+                    # self.faiss_index.add_texts(
+                    #     texts=texts,
+                    #     metadatas=metadatas,
+                    #     embeddings=embeddings
+                    # )
+                    self.faiss_index.add_documents([doc])
                     
                     # Salvar alterações
                     self.faiss_index.save_local(self.vector_db_path, "index")
@@ -927,6 +928,10 @@ class MemoryService:
             preferences_json = str(preferences_json).strip() if preferences_json else "[]"
             
             try:
+                if not preferences_json or preferences_json.strip() == "":
+                    logger.info("Nenhuma preferência encontrada na conversa.")
+                    preferences_json = "[]"
+                
                 preferences = json.loads(preferences_json)
                 if isinstance(preferences, list):
                     for pref in preferences:
@@ -967,6 +972,10 @@ class MemoryService:
             issues_json = str(issues_json).strip() if issues_json else "[]"
             
             try:
+                if not issues_json or issues_json.strip() == "":
+                    logger.info("Nenhum problema/issue encontrada na conversa.")
+                    issues_json = "[]"
+                    
                 issues = json.loads(issues_json)
                 if isinstance(issues, list):
                     for issue in issues:
@@ -1007,6 +1016,10 @@ class MemoryService:
             facts_json = str(facts_json).strip() if facts_json else "[]"
             
             try:
+                if not facts_json or facts_json.strip() == "":
+                    logger.info("Nenhum fato importante encontrado na conversa.")
+                    facts_json = "[]"
+                
                 facts = json.loads(facts_json)
                 if isinstance(facts, list):
                     for fact in facts:
