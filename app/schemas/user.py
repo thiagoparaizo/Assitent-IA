@@ -64,17 +64,29 @@ class UserInDBBase(UserBase):
 
 # Properties to return via API
 class UserResponse(BaseModel):
-    id: UUID4  # Ou str se preferir
+    id: str
     email: str
-    full_name: Optional[str]
-    tenant_id: Optional[int]
+    full_name: Optional[str] = None
+    tenant_id: Optional[int] = None
     is_active: bool
     is_superuser: bool
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
     class Config:
-        json_encoders = {
-            UUID4: lambda v: str(v)  # Converte UUID para string no JSON
-        }
+        from_attributes = True
+# class UserResponse(BaseModel):
+#     id: UUID4  # Ou str se preferir
+#     email: str
+#     full_name: Optional[str]
+#     tenant_id: Optional[int]
+#     is_active: bool
+#     is_superuser: bool
+
+#     class Config:
+#         json_encoders = {
+#             UUID4: lambda v: str(v)  # Converte UUID para string no JSON
+#         }
 
 
 # Properties properties stored in DB

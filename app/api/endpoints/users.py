@@ -1,5 +1,7 @@
 # app/api/endpoints/users.py
 from typing import List, Optional
+import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from sqlalchemy.orm import Session
@@ -12,7 +14,7 @@ from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
 router = APIRouter()
 
-@router.get("/", response_model=List[UserResponse])
+@router.get("/", response_model=List[dict])  # Mudamos para dict para evitar problemas de schema
 def read_users(
     skip: int = 0,
     limit: int = 100,
@@ -35,9 +37,25 @@ def read_users(
         query = query.filter(User.tenant_id == tenant_id)
     
     users = query.offset(skip).limit(limit).all()
-    return [user.to_dict() for user in users]
+    
+    # Converter manualmente para dict para garantir que funcione
+    result = []
+    for user in users:
+        user_dict = {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "tenant_id": user.tenant_id,
+            "is_active": user.is_active,
+            "is_superuser": user.is_superuser,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+        }
+        result.append(user_dict)
+    
+    return result
 
-@router.post("/", response_model=UserResponse)
+@router.post("/", response_model=dict)  # Mudamos para dict
 def create_user(
     user: UserCreate,
     db: Session = Depends(get_db),
@@ -47,8 +65,8 @@ def create_user(
     Create a new user (superuser only).
     """
     # Check if user with same email already exists
-    db_user = db.query(User).filter(User.email == user.email).first()
-    if db_user:
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
         raise HTTPException(status_code=400, detail="User with this email already exists")
     
     # Verify tenant exists if tenant_id is provided
@@ -58,9 +76,6 @@ def create_user(
             raise HTTPException(status_code=400, detail="Tenant not found")
     
     # Create new user
-    import uuid
-    from datetime import datetime
-    
     db_user = User(
         id=uuid.uuid4(),
         email=user.email,
@@ -73,13 +88,27 @@ def create_user(
     )
     db_user.set_password(user.password)
     
-    db.add(db_user)
-    db.commit()
-    db.refresh(db_user)
-    
-    return db_user.to_dict()
+    try:
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        
+        # Retornar como dict
+        return {
+            "id": str(db_user.id),
+            "email": db_user.email,
+            "full_name": db_user.full_name,
+            "tenant_id": db_user.tenant_id,
+            "is_active": db_user.is_active,
+            "is_superuser": db_user.is_superuser,
+            "created_at": db_user.created_at.isoformat() if db_user.created_at else None,
+            "updated_at": db_user.updated_at.isoformat() if db_user.updated_at else None
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error creating user: {str(e)}")
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=dict)
 def read_user(
     user_id: str = Path(...),
     db: Session = Depends(get_db),
@@ -97,9 +126,18 @@ def read_user(
         if current_user.id != user.id and current_user.tenant_id != user.tenant_id:
             raise HTTPException(status_code=403, detail="Not enough permissions")
     
-    return user.to_dict()
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "full_name": user.full_name,
+        "tenant_id": user.tenant_id,
+        "is_active": user.is_active,
+        "is_superuser": user.is_superuser,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "updated_at": user.updated_at.isoformat() if user.updated_at else None
+    }
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=dict)
 def update_user(
     user_update: UserUpdate,
     user_id: str = Path(...),
@@ -146,13 +184,25 @@ def update_user(
         elif hasattr(user, field):
             setattr(user, field, value)
     
-    from datetime import datetime
     user.updated_at = datetime.utcnow()
     
-    db.commit()
-    db.refresh(user)
-    
-    return user.to_dict()
+    try:
+        db.commit()
+        db.refresh(user)
+        
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "tenant_id": user.tenant_id,
+            "is_active": user.is_active,
+            "is_superuser": user.is_superuser,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error updating user: {str(e)}")
 
 @router.delete("/{user_id}")
 def delete_user(
@@ -171,11 +221,15 @@ def delete_user(
     if current_user.id == user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     
-    # Delete the user
-    db.delete(user)
-    db.commit()
-    
-    return {"message": f"User {user_id} successfully deleted"}
+    try:
+        # Delete the user
+        db.delete(user)
+        db.commit()
+        
+        return {"message": f"User {user_id} successfully deleted"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error deleting user: {str(e)}")
 
 @router.put("/{user_id}/activate")
 def activate_user(
@@ -191,7 +245,6 @@ def activate_user(
         raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
     
     user.is_active = True
-    from datetime import datetime
     user.updated_at = datetime.utcnow()
     
     db.commit()
@@ -217,7 +270,6 @@ def deactivate_user(
         raise HTTPException(status_code=400, detail="Cannot deactivate your own account")
     
     user.is_active = False
-    from datetime import datetime
     user.updated_at = datetime.utcnow()
     
     db.commit()
@@ -227,8 +279,8 @@ def deactivate_user(
 
 @router.post("/{user_id}/reset-password")
 def reset_user_password(
+    password_data: dict,
     user_id: str = Path(...),
-    new_password: str = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_superuser),
 ):
@@ -239,8 +291,11 @@ def reset_user_password(
     if not user:
         raise HTTPException(status_code=404, detail=f"User with ID {user_id} not found")
     
+    new_password = password_data.get("new_password")
+    if not new_password:
+        raise HTTPException(status_code=400, detail="New password is required")
+    
     user.set_password(new_password)
-    from datetime import datetime
     user.updated_at = datetime.utcnow()
     
     db.commit()
