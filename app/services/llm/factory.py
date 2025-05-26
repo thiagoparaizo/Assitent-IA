@@ -1,6 +1,6 @@
 # app/services/llm/factory.py
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from app.db.models.tenant import Tenant
 from app.services.llm.base import LLMService
 from app.services.llm.openai_service import OpenAIService
@@ -9,7 +9,6 @@ from app.services.llm.deepseek_service import DeepSeekService
 from app.db.models.llm_provider import LLMProvider
 from app.db.models.llm_model import LLMModel
 
-from typing import Optional, Union
 from sqlalchemy.orm import Session
 import logging
 
@@ -89,16 +88,32 @@ class LLMServiceFactory:
         # Criar serviço adequado
         if not provider or not model:
             # Fallback para OpenAI
+            logger.info("Using OpenAI as fallback LLM service")
             return OpenAIService(api_key=get_api_key_for_provider("openai"))
         
         try:
             if provider.provider_type == "openai":
-                return OpenAIService(api_key=api_key, model=model.model_id, base_url=provider.base_url)
+                logger.info(f"Creating OpenAI service with model {model.model_id}")
+                return OpenAIService(
+                    api_key=api_key, 
+                    model=model.model_id, 
+                    base_url=provider.base_url
+                )
             elif provider.provider_type == "gemini":
-                return GeminiService(api_key=api_key, model=model.model_id)
+                logger.info(f"Creating Gemini service with model {model.model_id}")
+                return GeminiService(
+                    api_key=api_key, 
+                    model=model.model_id
+                )
             elif provider.provider_type == "deepseek":
-                return DeepSeekService(api_key=api_key, model=model.model_id, base_url=provider.base_url)
+                logger.info(f"Creating DeepSeek service with model {model.model_id}")
+                return DeepSeekService(
+                    api_key=api_key, 
+                    model=model.model_id, 
+                    base_url=provider.base_url
+                )
             else:
+                logger.warning(f"Unknown provider type: {provider.provider_type}, falling back to OpenAI")
                 # Fallback para OpenAI
                 return OpenAIService(api_key=get_api_key_for_provider("openai"))
         except Exception as e:
@@ -114,4 +129,5 @@ def get_api_key_for_provider(provider_type: str) -> str:
     elif provider_type == "deepseek":
         return os.getenv("DEEPSEEK_API_KEY", "")
     else:
+        logger.warning(f"Unknown provider type for API key: {provider_type}")
         return ""

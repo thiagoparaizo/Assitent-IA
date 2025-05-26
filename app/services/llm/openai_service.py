@@ -15,6 +15,10 @@ class OpenAIService(LLMService):
         # Instanciar o codificador para contagem de tokens
         self.tokenizer = self._get_tokenizer(model)
         
+    def supports_audio(self) -> bool:
+        """OpenAI não suporta processamento de áudio nesta implementação."""
+        return False
+        
     def _get_tokenizer(self, model: str):
         """Obtém o codificador tokenizer apropriado para o modelo."""
         try :
@@ -187,4 +191,15 @@ class OpenAIService(LLMService):
             # Return a random embedding as fallback (not ideal but allows testing)
             import random
             return [random.random() for _ in range(1536)]
+        
+    async def generate_response_with_audio(
+        self, 
+        messages: List[Dict[str, str]], 
+        audio_data: Dict[str, Any], 
+        **kwargs
+    ) -> Tuple[str, Dict[str, int]]:
+        """
+        OpenAI não suporta áudio, então ignora e processa apenas texto.
+        """
+        return await self.generate_response(messages, **kwargs)
         

@@ -79,6 +79,17 @@ async def process_webhook_event(
         await process_whatsapp_message(event, whatsapp_service, db)
         return {"status": "processed"}
     
+    # Verificar se há dados de áudio processado
+    audio_data = event.get("audio_data")
+    has_audio = audio_data is not None and audio_data.get("base64")
+    
+    if has_audio:
+        logger.info(f"Audio message received for processing: {event.get('device_id')}")
+        # Para mensagens de áudio, processar imediatamente (não enfileirar)
+        await process_whatsapp_message(event, whatsapp_service, db)
+        return {"status": "processed_audio"}
+    
+    
     # Extrair informações relevantes
     tenant_id = event.get("tenant_id")
     device_id = event.get("device_id")

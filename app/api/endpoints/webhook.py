@@ -28,6 +28,16 @@ from app.db.models.agent import Agent
 from app.schemas.webhook import WebhookCreate, WebhookResponse, WebhookLogResponse
 from app.api.utils.webhook_processor import process_whatsapp_message, send_webhook_request
 
+from app.utils.audio_helpers import (
+    get_audio_error_response,
+    get_error_response_generic,
+    llm_supports_audio, 
+    extract_audio_info, 
+    validate_audio_data,
+    get_audio_not_supported_response,
+    log_audio_processing
+)
+
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
@@ -281,17 +291,30 @@ async def get_webhook_logs(
 # função principal que processa as mensagens recebidas do WhatsApp
 async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: WhatsAppService, db: Session):
     """
-    Processa mensagens recebidas do WhatsApp usando o sistema de agentes inteligentes.
+    Processa mensagens recebidas do WhatsApp usando o sistema de agentes inteligentes, com suporte a áudio usando funções auxiliares.
     """
     try:
         # Extrair informações da mensagem
         device_id = data.get("device_id")
         tenant_id = data.get("tenant_id")
         
+        # Extrair e validar dados de áudio
+        audio_info = extract_audio_info(data)
+        has_valid_audio = audio_info and validate_audio_data(audio_info)
+        
+        if audio_info and not has_valid_audio:
+            logger.warning(f"Invalid audio data received from device {device_id}")
+            # Pode optar por continuar sem áudio ou retornar erro
+            audio_info = None
+        
         sender = data.get("event", {}).get("Info", {}).get("Sender", {})
         if 'User' in sender:
             sender = sender['User']
         chat_jid = data.get("event", {}).get("Info", {}).get("Chat")
+        
+        # # Verificar se há dados de áudio
+        # audio_data = data.get("audio_data")
+        # has_audio = audio_data is not None and audio_data.get("base64")
         
         # O contact_id pode ser o ID do remetente ou do chat, dependendo se é grupo ou não
         is_group = data.get("event", {}).get("Info", {}).get("IsGroup", False)
@@ -358,7 +381,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             if ext_text := event.get("Message", {}).get("ExtendedTextMessage", {}):
                 message_content = ext_text.get("Text", "")
         
-        if not message_content:
+        if not message_content and not has_valid_audio:
             # Ignorar mensagens sem conteúdo de texto
             logger.warning(f"Mensagem sem conteudo de texto do dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
             print(f"Mensagem sem conteudo de texto do dispositivo {device_id} do tenant {tenant_id}. Sera ignorada")
@@ -430,9 +453,71 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                     print(f"Nenhum agente geral ativo encontrado para o tenant {tenant_id}")
                     return 
         
+        
         # Inicializar serviços
         llm_service = await get_llm_service(db, str(tenant_id) if tenant_id else None) #LLMService(api_key=os.getenv("OPENAI_API_KEY"))
         rag_service = RAGServiceFAISS(tenant_id=tenant_id)
+        
+        if has_valid_audio and not llm_supports_audio(llm_service):
+            # Log do processamento
+            log_audio_processing(
+                device_id=device_id,
+                chat_jid=chat_jid,
+                audio_size=audio_info.get("size_estimate", 0),
+                llm_type=type(llm_service).__name__,
+                success=False,
+                error="LLM does not support audio"
+            )
+            
+            # Responder com mensagem padrão
+            response_message = get_audio_not_supported_response(agent.name if agent else None)
+            
+            await whatsapp_service.send_message(
+                device_id=device_id,
+                to=chat_jid,
+                message=response_message
+            )
+            logger.info(f"Audio not supported response sent to {chat_jid}")
+            return
+        
+        # Log de sucesso se áudio será processado
+        if has_valid_audio:
+            log_audio_processing(
+                device_id=device_id,
+                chat_jid=chat_jid,
+                audio_size=audio_info.get("size_estimate", 0),
+                llm_type=type(llm_service).__name__,
+                success=True
+            )
+        
+        # # Se há áudio mas o modelo não suporta, responder diretamente
+        # if has_audio and not _llm_supports_audio(llm_service):
+        #     logger.info(f"Audio message received but LLM doesn't support audio: {type(llm_service).__name__}")
+            
+        #     # Responder diretamente sem processar pelo orquestrador # TODO implmentar paramtrização da resposta
+        #     audio_not_supported_message = "Por favor, escreva. Não estou conseguindo processar áudios nesse momento."
+            
+        #     await whatsapp_service.send_message(
+        #         device_id=device_id,
+        #         to=chat_jid,
+        #         message=audio_not_supported_message
+        #     )
+        #     logger.info(f"Audio not supported response sent to {chat_jid}")
+        #     return
+        
+        # Preparar conteúdo da mensagem
+        event_message = data.get("event", {}).get("Message", {})
+        message_content = event_message.get("Conversation", "")
+        
+        if not message_content:
+            # Tentar extrair de outros tipos de mensagem
+            if ext_text := event_message.get("ExtendedTextMessage", {}):
+                message_content = ext_text.get("Text", "")
+        
+        # Se é áudio sem texto, usar placeholder
+        if has_valid_audio and not message_content:
+            message_content = "[Mensagem de áudio]"
+        
         
         # Criar o serviço de contagem de tokens (novo)
         token_counter_service = TokenCounterService(db)
@@ -480,7 +565,13 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         await redis_client.expire(conversation_key, 60 * 60 * 24)  # 24 hours
         
         # Processar a mensagem usando o orquestrador
-        result = await orchestrator.process_message(conversation_id, message_content, agent_id=agent.id, contact_id=contact_id)
+        result = await orchestrator.process_message(
+            conversation_id, 
+            message_content, 
+            agent_id=agent.id, 
+            contact_id=contact_id,
+            audio_data=audio_info if has_valid_audio else None  # NOVO PARÂMETRO
+        )
         
         # Check if the conversation ID changed (due to timeout/limit reset)
         if result.get("new_conversation_id") and result.get("new_conversation_id") != conversation_id:
@@ -500,6 +591,30 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                 message=result["response"]
             )
             logger.info(f"Resposta enviada para {chat_jid}: {result['response'][:50]}...")
+        
+        elif "error_audio_processing" in result:
+            
+                # Responder com mensagem padrão de audio não processado
+                response_message_audio = get_audio_error_response(agent.name if agent else None)
+                
+                await whatsapp_service.send_message(
+                    device_id=device_id,
+                    to=chat_jid,
+                    message=response_message_audio
+                )
+        
+        else:
+            logger.warning(f"Resposta não encontrada para {chat_jid}: {result}")
+            
+            # Responder com mensagem padrão
+            response_message_audio = get_error_response_generic(agent.name if agent else None)
+            
+            await whatsapp_service.send_message(
+                device_id=device_id,
+                to=chat_jid,
+                message=response_message_audio
+            )
+        
         
         # Processar ações especiais, como escalação para humano
         if "actions" in result:
@@ -600,6 +715,13 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         logger.error(f"Erro ao processar mensagem do WhatsApp: {e}")
         logger.exception(e)
         
+
+# def _llm_supports_audio(llm_service) -> bool:
+#     """Verifica se o serviço LLM suporta processamento de áudio."""
+#     from app.services.llm.gemini_service import GeminiService
+    
+#     # Apenas Gemini suporta áudio por enquanto # TODO add mais serviços quando for necessário
+#     return isinstance(llm_service, GeminiService)
 
 def format_whatsapp_number(raw_number):
     # Remover tudo que não for número

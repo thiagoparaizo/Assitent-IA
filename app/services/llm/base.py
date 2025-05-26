@@ -1,6 +1,6 @@
 # app/services/llm/base.py
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 class LLMService(ABC):
     """Interface abstrata para serviços LLM."""
@@ -26,3 +26,19 @@ class LLMService(ABC):
     async def count_tokens(self, text: str) -> int:
        """Conta tokens em um texto."""
        pass
+   
+    async def generate_response_with_audio(
+        self, 
+        messages: List[Dict[str, str]], 
+        audio_data: Dict[str, Any], 
+        **kwargs
+    ) -> Tuple[str, Dict[str, int]]:
+        """
+        Gera uma resposta com suporte a áudio.
+        Implementação padrão delega para generate_response (sem áudio).
+        """
+        return await self.generate_response(messages, **kwargs)
+    
+    def supports_audio(self) -> bool:
+        """Indica se este serviço suporta processamento de áudio."""
+        return False

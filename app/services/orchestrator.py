@@ -153,7 +153,7 @@ class AgentOrchestrator:
         
         return conversation_id
     
-    async def process_message(self, conversation_id: str, message: str, agent_id: str, contact_id: str) -> Dict[str, Any]:
+    async def process_message(self, conversation_id: str, message: str, agent_id: str, contact_id: str, audio_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Processes a message within a conversation."""
         # Get the system config for this tenant
         state = await self.get_conversation_state(conversation_id)
@@ -428,12 +428,21 @@ class AgentOrchestrator:
                 logging.error(f"Erro ao agendar geração de resumo: {str(e)}")
                 # Continue sem interromper o fluxo principal
         
-        # Prepare prompt with history, context, and memories
-        prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id)
+        # Prepare prompt with history, context, memories and audio
+        prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id, audio_data)
         
         # Get response from LLM
-        response, token_usage = await self.llm.generate_response(prompt)
-        
+        if audio_data and self.llm.supports_audio:
+            # Para modelos que suportam áudio, usar método especial
+            response, token_usage = await self.llm.generate_response_with_audio(prompt, audio_data)
+            if response is None or 'Erro na geração com áudio' in response or 'Audio input modality is not enabled for models' in response:
+                print("Erro na geração com áudio ou audio input modality is not enabled for models: ", response)
+                logging.error(f"Erro na geração com áudio ou audio input modality is not enabled for models: {response}")
+                response = "error_audio_processing"
+        else:
+            # Get response from LLM - Método padrão para texto
+            response, token_usage = await self.llm.generate_response(prompt)
+
         # Registrar uso de tokens - Implementação melhorada
         if hasattr(self, 'token_counter_service') and self.token_counter_service:
             try:
@@ -685,7 +694,15 @@ class AgentOrchestrator:
         
         return result
     
-    def _prepare_prompt(self, state: ConversationState, agent: Agent, rag_context: List[Any], memory_context: List[Dict[str, Any]] = None, contact_id: str = None) -> List[Dict[str, str]]:
+    def _prepare_prompt(
+        self, 
+        state: ConversationState, 
+        agent: Agent, 
+        rag_context: List[Any], 
+        memory_context: List[Dict[str, Any]] = None, 
+        contact_id: str = None,
+        audio_data: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, str]]:
         """
         Prepares the prompt for the LLM, including history, RAG context, and memories.
         """
@@ -708,6 +725,9 @@ class AgentOrchestrator:
                 memory_type_label = memory["type"].value.replace("_", " ").title()
                 system_prompt += f"\n{memory_type_label}: {memory['content']}\n"
         
+        if audio_data:
+            system_prompt += "\n\n## Áudio Recebido:\n"
+            system_prompt += "O usuário enviou uma mensagem de áudio. Use o conteúdo do áudio para responder adequadamente.\n"
         
         # linguagem de resposta
         system_prompt += "\n\n## Linguagem de resposta: Portugues Brasileiro\n"

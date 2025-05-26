@@ -939,30 +939,57 @@ class MemoryService:
                 preferences_json = preferences_response
             
             preferences_json = str(preferences_json).strip() if preferences_json else "[]"
-            
+            # Remove "json\n" substituindo por uma string vazia
+            # Remove os marcadores ```json\n no início e \n``` no final
+            cleaned_json = (
+                preferences_json.strip()
+                .removeprefix('```json\n')
+                .removesuffix('\n```')
+                .strip()
+            )
             try:
-                if not preferences_json or preferences_json.strip() == "" or preferences_json.strip() == "null":
+                if not cleaned_json or cleaned_json.strip() == "" or cleaned_json.strip() == "null" or cleaned_json.strip() == "```json\n[]\n```":
                     logger.info("Nenhuma preferência encontrada para esta conversa.")
-                    preferences_json = "[]"
+                    cleaned_json = "[]"
                 
-                preferences = json.loads(preferences_json)
-                if isinstance(preferences, list):
-                    for pref in preferences:
-                        if isinstance(pref, str) and pref.strip():
-                            # Create preference memory
-                            memory_id = f"pref_{conversation_id}_{hashlib.md5(pref.encode()).hexdigest()[:8]}"
-                            memory = MemoryEntry(
-                                id=memory_id,
-                                tenant_id=tenant_id,
-                                user_id=user_id,
-                                type=MemoryType.USER_PREFERENCE,
-                                content=pref,
-                                metadata={
-                                    "source_conversation": conversation_id,
-                                    "extracted_at": time.time()
-                                }
-                            )
-                            await self.add_memory(memory)
+                # Parse do JSON
+                preferences: List[Dict[str, Any]] = json.loads(cleaned_json)
+
+                # Validação da estrutura
+                if not isinstance(preferences, list):
+                    logging.warning("Estrutura de preferências inválida (não é uma lista)")
+                    return
+
+                for pref in preferences:
+                    # Verifica se é um dicionário com os campos necessários
+                    if not isinstance(pref, dict):
+                        continue
+
+                    if not all(key in pref for key in ["preferencia", "observacao"]):
+                        logging.warning(f"Preferência incompleta: {pref}")
+                        continue
+
+                    # Criação da memória
+                    memory_id = (
+                        f"pref_{conversation_id}_"
+                        f"{hashlib.md5(json.dumps(pref, sort_keys=True).encode()).hexdigest()[:8]}"
+                    )
+                    
+                    memory = MemoryEntry(
+                        id=memory_id,
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                        type=MemoryType.USER_PREFERENCE,
+                        content={
+                            "preferencia": pref["preferencia"],
+                            "observacao": pref["observacao"]
+                        },
+                        metadata={
+                            "source_conversation": conversation_id,
+                            "extracted_at": time.time()
+                        }
+                    )
+                    await self.add_memory(memory)
             except json.JSONDecodeError as e:
                 logging.warning(f"Erro ao parsear preferências JSON: {e}")
             except Exception as e:
@@ -983,34 +1010,64 @@ class MemoryService:
                 issues_json = issues_response
             
             issues_json = str(issues_json).strip() if issues_json else "[]"
+            # Remove "json\n" substituindo por uma string vazia
+            # Remove os marcadores ```json\n no início e \n``` no final
+            cleaned_json = (
+                issues_json.strip()
+                .removeprefix('```json\n')
+                .removesuffix('\n```')
+                .strip()
+            )
             
             try:
-                if not issues_json or issues_json.strip() == "" or issues_json.strip() == "null":
-                    logger.info("Nenhum problema/issue encontrada na conversa.")
-                    issues_json = "[]"
+                # Casos de JSON vazio/inválido
+                if not cleaned_json or cleaned_json.lower() == "null" or cleaned_json == "[]":
+                    logger.info("Nenhum problema identificado nesta conversa.")
+                    return
+
+                # Parse e validação do JSON
+                issues = json.loads(cleaned_json)
+                
+                if not isinstance(issues, list):
+                    logger.warning("Formato inválido de issues (deveria ser uma lista)")
+                    return
+
+                for issue in issues:
+                    # Validação da estrutura do issue
+                    if not isinstance(issue, dict):
+                        logger.warning(f"Issue ignorado - formato inválido: {issue}")
+                        continue
+                        
+                    if not all(key in issue for key in ["problema", "detalhes"]):
+                        logger.warning(f"Issue incompleto - campos faltando: {issue}")
+                        continue
+
+                    # Cria hash estável baseado no conteúdo
+                    issue_content = json.dumps(issue, sort_keys=True, ensure_ascii=False)
+                    memory_id = f"issue_{conversation_id}_{hashlib.md5(issue_content.encode()).hexdigest()[:8]}"
                     
-                issues = json.loads(issues_json)
-                if isinstance(issues, list):
-                    for issue in issues:
-                        if isinstance(issue, str) and issue.strip():
-                            # Create issue memory
-                            memory_id = f"issue_{conversation_id}_{hashlib.md5(issue.encode()).hexdigest()[:8]}"
-                            memory = MemoryEntry(
-                                id=memory_id,
-                                tenant_id=tenant_id,
-                                user_id=user_id,
-                                type=MemoryType.ISSUE,
-                                content=issue,
-                                metadata={
-                                    "source_conversation": conversation_id,
-                                    "extracted_at": time.time()
-                                }
-                            )
-                            await self.add_memory(memory)
+                    # Criação da entrada de memória
+                    memory = MemoryEntry(
+                        id=memory_id,
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                        type=MemoryType.ISSUE,
+                        content={
+                            "problema": issue["problema"],
+                            "detalhes": issue["detalhes"]
+                        },
+                        metadata={
+                            "source_conversation": conversation_id,
+                            "extracted_at": time.time(),
+                            "status": "unresolved"  # Status inicial padrão
+                        }
+                    )
+                    await self.add_memory(memory)
+
             except json.JSONDecodeError as e:
-                logging.warning(f"Erro ao parsear issues JSON: {e}")
+                logger.error(f"Falha ao decodificar JSON de issues: {e}\nConteúdo: {issues_json}")
             except Exception as e:
-                logging.error(f"Erro ao processar issues: {e}")
+                logger.error(f"Erro inesperado ao processar issues: {e}", exc_info=True)
             
             # Extract important facts
             facts_prompt = [
@@ -1027,34 +1084,65 @@ class MemoryService:
                 facts_json = facts_response
             
             facts_json = str(facts_json).strip() if facts_json else "[]"
-            
+            # Remove "json\n" substituindo por uma string vazia
+            # Remove os marcadores ```json\n no início e \n``` no final
             try:
-                if not facts_json or facts_json.strip() == "" or facts_json.strip() == "null":
-                    logger.info("Nenhum fato importante encontrado na conversa.")
-                    facts_json = "[]"
-                
-                facts = json.loads(facts_json)
-                if isinstance(facts, list):
-                    for fact in facts:
-                        if isinstance(fact, str) and fact.strip():
-                            # Create fact memory
-                            memory_id = f"fact_{conversation_id}_{hashlib.md5(fact.encode()).hexdigest()[:8]}"
-                            memory = MemoryEntry(
-                                id=memory_id,
-                                tenant_id=tenant_id,
-                                user_id=user_id,
-                                type=MemoryType.FACT,
-                                content=fact,
-                                metadata={
-                                    "source_conversation": conversation_id,
-                                    "extracted_at": time.time()
-                                }
-                            )
-                            await self.add_memory(memory)
+                # Tratamento inicial do JSON (limpeza de marcadores)
+                cleaned_json = (
+                    facts_json.strip()
+                    .removeprefix('```json\n')
+                    .removesuffix('\n```')
+                    .strip()
+                )
+
+                # Casos de JSON vazio/inválido
+                if not cleaned_json or cleaned_json.lower() == "null" or cleaned_json == "[]":
+                    logging.info("Nenhum fato encontrado para esta conversa.")
+                    return
+
+                # Parse do JSON
+                facts: List[Dict[str, Any]] = json.loads(cleaned_json)
+
+                # Validação da estrutura
+                if not isinstance(facts, list):
+                    logging.warning("Estrutura de fatos inválida (não é uma lista)")
+                    return
+
+                for fact in facts:
+                    # Verifica se é um dicionário com os campos necessários
+                    if not isinstance(fact, dict):
+                        continue
+
+                    if not all(key in fact for key in ["fato", "detalhes"]):
+                        logging.warning(f"Fato incompleto: {fact}")
+                        continue
+
+                    # Criação da memória
+                    memory_id = (
+                        f"fact_{conversation_id}_"
+                        f"{hashlib.md5(json.dumps(fact, sort_keys=True).encode()).hexdigest()[:8]}"
+                    )
+                    
+                    memory = MemoryEntry(
+                        id=memory_id,
+                        tenant_id=tenant_id,
+                        user_id=user_id,
+                        type=MemoryType.FACT,
+                        content={
+                            "fato": fact["fato"],
+                            "detalhes": fact["detalhes"]
+                        },
+                        metadata={
+                            "source_conversation": conversation_id,
+                            "extracted_at": time.time()
+                        }
+                    )
+                    await self.add_memory(memory)
+
             except json.JSONDecodeError as e:
-                logging.warning(f"Erro ao parsear facts JSON: {e}")
+                logging.warning(f"Erro ao decodificar JSON de fatos: {e}")
             except Exception as e:
-                logging.error(f"Erro ao processar facts: {e}")
+                logging.error(f"Erro inesperado no processamento de fatos: {e}", exc_info=True)
             
             # Also store the conversation summary as a memory
             summary_memory_id = f"summary_{conversation_id}"
@@ -1093,27 +1181,31 @@ class MemoryService:
         """
         # In a real implementation, this would call an embedding model
         # For now, we'll use a simple placeholder
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.openai.com/v1/embeddings",
-                    headers={
-                        "Content-Type": "application/json",
-                        "Authorization": f"Bearer {self.llm.api_key}"
-                    },
-                    json={
-                        "model": "text-embedding-ada-002",
-                        "input": text[:8000]  # Truncate to avoid token limits
-                    },
-                    timeout=10.0
-                )
-                response.raise_for_status()
-                return response.json()["data"][0]["embedding"]
-        except Exception as e:
-            print(f"Error getting embedding: {e}")
-            # Return a random embedding as fallback (not ideal but allows testing)
-            import random
-            return [random.random() for _ in range(1536)]
+        
+        return self.llm.get_embeddings(text)
+        
+        # # recuperando a chave API da OpenAI para uso no embedding -- {self.llm.api_key}
+        # try:
+        #     async with httpx.AsyncClient() as client:
+        #         response = await client.post(
+        #             "https://api.openai.com/v1/embeddings",
+        #             headers={
+        #                 "Content-Type": "application/json",
+        #                 "Authorization": f"Bearer {Settings.OPENAI_API_KEY}"
+        #             },
+        #             json={
+        #                 "model": "text-embedding-ada-002",
+        #                 "input": text[:8000]  # Truncate to avoid token limits
+        #             },
+        #             timeout=10.0
+        #         )
+        #         response.raise_for_status()
+        #         return response.json()["data"][0]["embedding"]
+        # except Exception as e:
+        #     print(f"Error getting embedding: {e}")
+        #     # Return a random embedding as fallback (not ideal but allows testing)
+        #     import random
+        #     return [random.random() for _ in range(1536)]
     
     def _calculate_similarity(self, vec1: List[float], vec2: List[float]) -> float:
         """

@@ -47,6 +47,10 @@ class Settings(BaseSettings):
 
     # LLMs API_KEYs
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
+    # Modelo LLM para conversão de Audio
+    LLM_MODEL_FOR_AUDIO: str = os.getenv("LLM_MODEL_FOR_AUDIO", "gemini-2.0-flash")
     
     #Email config
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "no-reply@yourdomain.com")
@@ -55,6 +59,12 @@ class Settings(BaseSettings):
     SMTP_USER: str = os.getenv("SMTP_USER", "")
     SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "")
     SMTP_TLS: bool = os.getenv("SMTP_TLS", "true").lower() == "true"
+    
+    # Configurações de áudio
+    AUDIO_MAX_SIZE_MB: int = os.getenv("AUDIO_MAX_SIZE_MB", 10)  # Tamanho máximo em MB # TODO verificar 
+    AUDIO_SUPPORTED_FORMATS: List[str] = ["mp3", "ogg", "wav"]
+    AUDIO_PROCESSING_TIMEOUT: int = os.getenv("AUDIO_PROCESSING_TIMEOUT", 30)  # Timeout em segundos
+
     
     @validator("SQLALCHEMY_DATABASE_URI", pre=True)
     def assemble_db_connection(cls, v: str, values: dict) -> str:
