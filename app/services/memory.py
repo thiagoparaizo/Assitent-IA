@@ -278,8 +278,9 @@ class MemoryService:
         from langchain_openai import OpenAIEmbeddings
         
         # Usar OpenAI Embeddings diretamente - sem nest_asyncio
+        openai_api_key_from_env = os.getenv("OPENAI_API_KEY", "")
         return OpenAIEmbeddings(
-            openai_api_key=self.llm.api_key,
+            openai_api_key=openai_api_key_from_env,
             model="text-embedding-ada-002"
         )
     
@@ -925,7 +926,7 @@ class MemoryService:
         try:
             # Extract user preferences
             preferences_prompt = [
-                {"role": "system", "content": "Extraia as preferências do usuário desta conversa como um array JSON. Inclua apenas preferências claras e objetivas."},
+                {"role": "system", "content": "Extraia as preferências do usuário desta conversa como um array JSON (no formato {preferencia: 'string', valor: 'string'}). Inclua apenas preferências claras e objetivas."},
                 {"role": "user", "content": f"Extrair preferências desta conversa:\n{conversation_text}"}
             ]
             
@@ -965,7 +966,7 @@ class MemoryService:
                     if not isinstance(pref, dict):
                         continue
 
-                    if not all(key in pref for key in ["preferencia", "observacao"]):
+                    if not all(key in pref for key in ["prefercncia", "valor"]):
                         logging.warning(f"Preferência incompleta: {pref}")
                         continue
 
@@ -997,7 +998,7 @@ class MemoryService:
             
             # Extract issues/problems
             issues_prompt = [
-                {"role": "system", "content": "Extraia problemas, questões ou reclamações do usuário desta conversa como um array JSON."},
+                {"role": "system", "content": "Extraia problemas, questões ou reclamações do usuário desta conversa como um array JSON (no formato [{problema: 'string', detalhes: 'string'}])."},
                 {"role": "user", "content": f"Extrair problemas desta conversa:\n{conversation_text}"}
             ]
             
@@ -1071,7 +1072,7 @@ class MemoryService:
             
             # Extract important facts
             facts_prompt = [
-                {"role": "system", "content": "Extraia fatos importantes sobre o usuário desta conversa como um array JSON."},
+                {"role": "system", "content": "Extraia fatos importantes sobre o usuário desta conversa como um array JSON (no formato {fato: 'string', detalhes: 'string'})."},
                 {"role": "user", "content": f"Extrair fatos importantes desta conversa:\n{conversation_text}"}
             ]
             
