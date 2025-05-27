@@ -955,6 +955,7 @@ class MemoryService:
                 
                 # Parse do JSON
                 preferences: List[Dict[str, Any]] = json.loads(cleaned_json)
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências parsed:", preferences)
 
                 # Validação da estrutura
                 if not isinstance(preferences, list):
@@ -1028,6 +1029,7 @@ class MemoryService:
 
                 # Parse e validação do JSON
                 issues = json.loads(cleaned_json)
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Issues parsed:", issues)
                 
                 if not isinstance(issues, list):
                     logger.warning("Formato inválido de issues (deveria ser uma lista)")
@@ -1103,6 +1105,7 @@ class MemoryService:
 
                 # Parse do JSON
                 facts: List[Dict[str, Any]] = json.loads(cleaned_json)
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts parsed:", facts)
 
                 # Validação da estrutura
                 if not isinstance(facts, list):
@@ -1183,7 +1186,7 @@ class MemoryService:
         # In a real implementation, this would call an embedding model
         # For now, we'll use a simple placeholder
         
-        return self.llm.get_embeddings(text)
+        return await self.llm.get_embeddings(text)
         
         # # recuperando a chave API da OpenAI para uso no embedding -- {self.llm.api_key}
         # try:

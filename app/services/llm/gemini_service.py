@@ -19,6 +19,7 @@ class GeminiService(LLMService):
         
         # Configure Gemini
         genai.configure(api_key=api_key)
+        print(f"Gemini configurado com sucesso. API Key: {api_key[-10:]}")
         
         # Configurações de segurança permissivas para uso comercial
         self.safety_settings = [
@@ -339,11 +340,14 @@ class GeminiService(LLMService):
     def _generate_sync(self, messages, generation_config):
         """Método síncrono para gerar resposta com Gemini."""
         try:
+            # Configurar o modelo
             model = genai.GenerativeModel(
                 model_name=self.model,
                 safety_settings=self.safety_settings,
                 generation_config=generation_config
             )
+            
+            print(f"[DEBUG] _generate_sync: Model: {model.model_name} | API Key: {self.api_key[-10:]}")
             
             # CORREÇÃO: Usar o formato correto para conversas
             if len(messages) == 1:
@@ -360,6 +364,7 @@ class GeminiService(LLMService):
             
         except Exception as e:
             logger.error(f"Error in sync generation: {e}")
+            print(f"[DEBUG][DEBUG] _generate_sync: Error in sync generation: {e} | API Key: {self.api_key[-10:]}") 
             # Retornar um objeto mock com texto de erro
             class MockResponse:
                 def __init__(self, text):
