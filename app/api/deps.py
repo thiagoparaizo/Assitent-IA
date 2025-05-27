@@ -128,6 +128,7 @@ async def get_agent_service(
 async def get_rag_service(tenant_id: str = Depends(get_tenant_id)):
     """Obtém o serviço RAG."""
     openai_api_key = os.getenv("OPENAI_API_KEY")
+    
     return RAGServiceFAISS(tenant_id=tenant_id, openai_api_key=openai_api_key)
 
 # LLM Service

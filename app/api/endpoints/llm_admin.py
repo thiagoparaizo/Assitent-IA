@@ -1,7 +1,7 @@
 # app/api/endpoints/llm_admin.py
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Path
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_db, get_current_active_superuser
 from app.db.models.user import User
@@ -63,28 +63,44 @@ def get_models(
     
     return result
 
-@router.post("/models", response_model=LLMModelResponse)
-def create_model(
-    model: LLMModelCreate,
+# @router.post("/models", response_model=LLMModelResponse)
+# def create_model(
+#     model: LLMModelCreate,
+#     db: Session = Depends(get_db),
+#     current_user: User = Depends(get_current_active_superuser),
+# ):
+#     """Cria um novo modelo LLM."""
+#     # Verificar se o provedor existe
+#     provider = db.query(LLMProvider).filter(LLMProvider.id == model.provider_id).first()
+#     if not provider:
+#         raise HTTPException(status_code=404, detail="Provider not found")
+    
+#     db_model = LLMModel(**model.dict())
+#     db.add(db_model)
+#     db.commit()
+#     db.refresh(db_model)
+    
+#     # Adicionar nome do provedor para response
+#     result = db_model.__dict__.copy()
+#     result["provider_name"] = provider.name
+    
+#     return result
+
+@router.get("/models", response_model=List[LLMModelResponse])
+def list_models(
+    provider_id: int = Query(None, description="Filtrar por provider"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_superuser),
 ):
-    """Cria um novo modelo LLM."""
-    # Verificar se o provedor existe
-    provider = db.query(LLMProvider).filter(LLMProvider.id == model.provider_id).first()
-    if not provider:
-        raise HTTPException(status_code=404, detail="Provider not found")
+    """Lista todos os modelos LLM."""
+    query = db.query(LLMModel).options(joinedload(LLMModel.provider))
     
-    db_model = LLMModel(**model.dict())
-    db.add(db_model)
-    db.commit()
-    db.refresh(db_model)
+    if provider_id:
+        query = query.filter(LLMModel.provider_id == provider_id)
     
-    # Adicionar nome do provedor para response
-    result = db_model.__dict__.copy()
-    result["provider_name"] = provider.name
+    models = query.all()
     
-    return result
+    return [LLMModelResponse(**model.to_response_dict()) for model in models]
 
 @router.get("/models/{model_id}", response_model=LLMModelResponse)
 def get_model(
@@ -93,10 +109,15 @@ def get_model(
     current_user: User = Depends(get_current_active_superuser),
 ):
     """Obtém detalhes de um modelo LLM específico."""
-    model = db.query(LLMModel).filter(LLMModel.id == model_id).first()
+    # Fazer join com provider para carregar o nome
+    model = db.query(LLMModel).options(
+        joinedload(LLMModel.provider)
+    ).filter(LLMModel.id == model_id).first()
+    
     if not model:
         raise HTTPException(status_code=404, detail="Modelo LLM não encontrado")
-    return model
+    
+    return LLMModelResponse(**model.to_response_dict())
 
 @router.put("/models/{model_id}", response_model=LLMModelResponse)
 def update_model(
@@ -114,9 +135,13 @@ def update_model(
     for field, value in model_update.dict(exclude_unset=True).items():
         setattr(model, field, value)
     
+    # Atualizar timestamp
+    from datetime import datetime
+    model.updated_at = datetime.utcnow()
+    
     db.commit()
     db.refresh(model)
-    return model
+    return LLMModelResponse(**model.to_response_dict())
 
 @router.delete("/models/{model_id}")
 def delete_model(
