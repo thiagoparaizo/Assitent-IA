@@ -28,6 +28,8 @@ class LLMServiceFactory:
         model = None
         api_key = None
         
+        print(f"[DEBUG] LLMServiceFactory.create_service: tenant_id: {tenant_id}, provider_id: {provider_id}, model_id: {model_id}")
+        
         # Verificar se db é uma instância de Session e não Depends
         if not isinstance(db, Session):
             logger.error(f"Parâmetro db inválido: {type(db)}")
@@ -65,23 +67,33 @@ class LLMServiceFactory:
         
         # Sobrepor com provider_id e model_id se especificados
         if provider_id:
+            # Obter configurações do provider
+            print(f"[DEBUG] LLMServiceFactory.create_service: provider_id: {provider_id}")
             try:
                 provider = db.query(LLMProvider).filter(LLMProvider.id == provider_id).first()
                 if provider:
+                    # Usar configurações do provider
+                    print(f"[DEBUG] LLMServiceFactory.create_service: usando configurações do provider: {provider}")
                     model = db.query(LLMModel).filter(
                         LLMModel.provider_id == provider.id, 
                         LLMModel.is_active == True
                     ).first()
                     api_key = get_api_key_for_provider(provider.provider_type)
+                    print(f"[DEBUG] LLMServiceFactory.create_service: usando configurações do provider: {provider} model: {model}")
+                    print(f"[DEBUG] LLMServiceFactory.create_service: usando configurações do provider: {provider} api_key: {api_key[-10:]}")
             except Exception as e:
                 logger.error(f"Erro ao obter provider {provider_id}: {e}")
         
         if model_id:
+            # Obter configurações do model
+            print(f"[DEBUG] LLMServiceFactory.create_service: model_id: {model_id}")
             try:
                 model = db.query(LLMModel).filter(LLMModel.id == model_id).first()
                 if model:
                     provider = model.provider
+                    print(f"[DEBUG] LLMServiceFactory.create_service: usando configurações do model: {model}")
                     api_key = get_api_key_for_provider(provider.provider_type) if provider else get_api_key_for_provider("openai")
+                    print(f"[DEBUG] LLMServiceFactory.create_service: usando configurações do model: {model} api_key: {api_key[-10:]}")
             except Exception as e:
                 logger.error(f"Erro ao obter model {model_id}: {e}")
         
@@ -89,6 +101,7 @@ class LLMServiceFactory:
         if not provider or not model:
             # Fallback para OpenAI
             logger.info("Using OpenAI as fallback LLM service")
+            print("[DEBUG] LLMServiceFactory.create_service: Using OpenAI as fallback LLM service")
             return OpenAIService(api_key=get_api_key_for_provider("openai"))
         
         try:
