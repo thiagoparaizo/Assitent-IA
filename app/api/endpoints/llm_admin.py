@@ -63,28 +63,28 @@ def get_models(
     
     return result
 
-# @router.post("/models", response_model=LLMModelResponse)
-# def create_model(
-#     model: LLMModelCreate,
-#     db: Session = Depends(get_db),
-#     current_user: User = Depends(get_current_active_superuser),
-# ):
-#     """Cria um novo modelo LLM."""
-#     # Verificar se o provedor existe
-#     provider = db.query(LLMProvider).filter(LLMProvider.id == model.provider_id).first()
-#     if not provider:
-#         raise HTTPException(status_code=404, detail="Provider not found")
+@router.post("/models", response_model=LLMModelResponse)
+def create_model(
+    model: LLMModelCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_superuser),
+):
+    """Cria um novo modelo LLM."""
+    # Verificar se o provedor existe
+    provider = db.query(LLMProvider).filter(LLMProvider.id == model.provider_id).first()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
     
-#     db_model = LLMModel(**model.dict())
-#     db.add(db_model)
-#     db.commit()
-#     db.refresh(db_model)
+    db_model = LLMModel(**model.dict())
+    db.add(db_model)
+    db.commit()
+    db.refresh(db_model)
     
-#     # Adicionar nome do provedor para response
-#     result = db_model.__dict__.copy()
-#     result["provider_name"] = provider.name
+    # Adicionar nome do provedor para response
+    result = db_model.__dict__.copy()
+    result["provider_name"] = provider.name
     
-#     return result
+    return result
 
 @router.get("/models", response_model=List[LLMModelResponse])
 def list_models(

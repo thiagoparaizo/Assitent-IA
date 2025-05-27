@@ -65,9 +65,11 @@ class GeminiService(LLMService):
         """
         Gera uma resposta usando o Gemini e retorna o texto gerado e informações de uso de tokens.
         """
+        print(f"[DEBUG] GeminiService.generate_response: messages: {messages}")
         try:
             # Converter mensagens para o formato do Gemini
             gemini_messages = self._convert_to_gemini_format(messages)
+            print(f"[DEBUG] GeminiService.generate_response: gemini_messages: {gemini_messages}")
             
             # Configurações de geração
             generation_config = {
@@ -79,12 +81,17 @@ class GeminiService(LLMService):
             
             # Executar geração em thread separada para evitar bloqueio
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self._executor,
-                self._generate_sync,
-                gemini_messages,
-                generation_config
-            )
+            try:
+                response = await loop.run_in_executor(
+                    self._executor,
+                    self._generate_sync,
+                    gemini_messages,
+                    generation_config
+                )
+            except Exception as e:
+                print(f"[DEBUG] GeminiService.generate_response: Error setting default executor: {e}")
+                logger.error(f"Error setting default executor: {e}")    
+            
             
             # Calcular tokens (aproximado já que Gemini não fornece contagem exata)
             prompt_text = " ".join([msg.get("content", "") for msg in messages])
