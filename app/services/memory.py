@@ -3,6 +3,7 @@
 from enum import Enum
 import logging
 import os
+import shutil
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime, timedelta
 import time
@@ -57,35 +58,139 @@ class MemoryService:
     """Service for managing long-term memory."""
     
     def __init__(self, llm_service, db_connection_string=None, 
-                 vector_db_url=None, vector_db_path=None, use_local_storage=True):
+             vector_db_url=None, vector_db_path=None, use_local_storage=True):
         self.llm = llm_service
         self.db_url = db_connection_string
         self.vector_db_url = vector_db_url
         self.vector_db_path = vector_db_path or settings.VECTOR_DB_PATH
         self.use_local_storage = use_local_storage
         
-        # In-memory fallback if no storage is configured
+        # Armazenar múltiplos índices por tenant/provider
+        self.faiss_indices = {}  # {tenant_id: faiss_index}
+        self.embedding_dimensions = {}  # {tenant_id: dimension_size}
+        
+        # In-memory fallback
         self._memory_entries = []
         self._summaries = []
         
-        # FAISS index para armazenamento local
-        self.faiss_index = None
-        self.faiss_docstore = None
+    async def _init_faiss_index(self, tenant_id: str):
+        """
+        Inicializa o índice FAISS para um tenant específico, garantindo consistência dimensional.
+        """
+        # Verificar se já existe índice para este tenant
+        if tenant_id in self.faiss_indices:
+            return self.faiss_indices[tenant_id]
         
-        # Inicializar armazenamento FAISS se necessário
-        if self.use_local_storage and self.vector_db_path:
-            # Criar diretório se não existir
-            os.makedirs(self.vector_db_path, exist_ok=True)
+        try:
+            from langchain_community.vectorstores import FAISS
+            from langchain.schema import Document
+            import numpy as np
             
-            # Verificar se já existe um index
-            index_file = os.path.join(self.vector_db_path, "memory_index.faiss")
-            if os.path.exists(index_file):
-                # O index será carregado na primeira vez que for necessário
-                pass
+            # Criar diretório específico para o tenant
+            tenant_vector_path = os.path.join(self.vector_db_path, f"tenant_{tenant_id}")
+            os.makedirs(tenant_vector_path, exist_ok=True)
+            
+            index_file = os.path.join(tenant_vector_path, "index.faiss")
+            metadata_file = os.path.join(tenant_vector_path, "embedding_info.json")
+            
+            # Obter informações sobre dimensões do embedding atual
+            test_embedding = await self._get_embedding("test")
+            current_dimensions = len(test_embedding)
+            
+            # Verificar se existe índice e se as dimensões são compatíveis
+            if os.path.exists(index_file) and os.path.exists(metadata_file):
+                try:
+                    # Carregar metadados do embedding
+                    with open(metadata_file, 'r') as f:
+                        metadata = json.load(f)
+                    
+                    stored_dimensions = metadata.get('dimensions', current_dimensions)
+                    llm_type = metadata.get('llm_type', 'unknown')
+                    
+                    # Verificar compatibilidade dimensional
+                    if stored_dimensions == current_dimensions:
+                        # Dimensões compatíveis, carregar índice existente
+                        embedding_adapter = self._create_embedding_adapter()
+                        
+                        faiss_index = FAISS.load_local(
+                            tenant_vector_path,
+                            embedding_adapter,
+                            "index",
+                            allow_dangerous_deserialization=True
+                        )
+                        
+                        self.faiss_indices[tenant_id] = faiss_index
+                        self.embedding_dimensions[tenant_id] = current_dimensions
+                        
+                        logger.info(f"Loaded existing FAISS index for tenant {tenant_id} with {stored_dimensions}D embeddings")
+                        return faiss_index
+                    
+                    else:
+                        # Dimensões incompatíveis, recriar índice
+                        logger.warning(f"Embedding dimensions changed for tenant {tenant_id}: {stored_dimensions} -> {current_dimensions}. Recreating index.")
+                        
+                        # Backup do índice antigo
+                        backup_dir = os.path.join(tenant_vector_path, f"backup_{int(time.time())}")
+                        os.makedirs(backup_dir, exist_ok=True)
+                        
+                        if os.path.exists(index_file):
+                            shutil.move(index_file, os.path.join(backup_dir, "index.faiss"))
+                        if os.path.exists(f"{tenant_vector_path}/index.pkl"):
+                            shutil.move(f"{tenant_vector_path}/index.pkl", os.path.join(backup_dir, "index.pkl"))
+                        
+                except Exception as e:
+                    logger.warning(f"Error loading existing index for tenant {tenant_id}: {e}")
+            
+            # Criar novo índice
+            embedding_adapter = self._create_embedding_adapter()
+            
+            # Documento inicial para criar o índice
+            temp_doc = Document(
+                page_content="Documento inicial para inicialização do índice de memórias",
+                metadata={
+                    "temp": True,
+                    "tenant_id": tenant_id,
+                    "created_at": time.time(),
+                    "init_doc": True
+                }
+            )
+            
+            # Criar índice FAISS
+            faiss_index = FAISS.from_documents([temp_doc], embedding_adapter)
+            
+            # Salvar índice
+            faiss_index.save_local(tenant_vector_path, "index")
+            
+            # Salvar metadados do embedding
+            embedding_metadata = {
+                'dimensions': current_dimensions,
+                'llm_type': type(self.llm).__name__,
+                'created_at': time.time(),
+                'tenant_id': tenant_id
+            }
+            
+            with open(metadata_file, 'w') as f:
+                json.dump(embedding_metadata, f, indent=2)
+            
+            # Armazenar em cache
+            self.faiss_indices[tenant_id] = faiss_index
+            self.embedding_dimensions[tenant_id] = current_dimensions
+            
+            logger.info(f"Created new FAISS index for tenant {tenant_id} with {current_dimensions}D embeddings")
+            return faiss_index
+            
+        except Exception as e:
+            logger.error(f"Error initializing FAISS index for tenant {tenant_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Não desabilitar permanentemente, apenas retornar None
+            return None
             
     async def _init_faiss_index(self):
         """Inicializa o índice FAISS para armazenamento local."""
         if self.faiss_index is not None:
+            logger.debug("FAISS index already initialized")
             return
         
         try:
@@ -96,11 +201,14 @@ class MemoryService:
             
             # Verificar se já existe um index
             index_file = os.path.join(self.vector_db_path, "index.faiss")
+            logger.debug(f"Index file: {index_file}")
+            
             
             if os.path.exists(index_file):
                 # Carregar index existente
                 # Adaptador para compatibilidade com FAISS
                 embedding_adapter = self._create_embedding_adapter()
+                logger.debug(f"Embedding adapter created")
                 
                 self.faiss_index = FAISS.load_local(
                     self.vector_db_path, 
@@ -109,7 +217,8 @@ class MemoryService:
                     allow_dangerous_deserialization=True
                 )
                 
-                print(f"FAISS index loaded from {self.vector_db_path}")
+                logger.debug(f"FAISS index loaded from {self.vector_db_path}")
+                
             else:
                 # Criar um novo index vazio
                 # Para criar um index vazio, precisamos de pelo menos um documento
@@ -299,6 +408,7 @@ class MemoryService:
         
         # Usar serviço vetorial HTTP se configurado e não estiver usando armazenamento local
         if self.vector_db_url and not self.use_local_storage:
+            logger.debug(f"Storing memory in vector database at url {self.vector_db_url}")
             try:
                 async with httpx.AsyncClient() as client:
                     response = await client.post(
@@ -310,18 +420,19 @@ class MemoryService:
                     return response.json()["id"]
             except Exception as e:
                 print(f"Error storing memory in vector database: {e}")
+                logger.error(f"Error storing memory in vector database: {e}")
                 # Fall back to local storage or in-memory
         
         # Usar FAISS se armazenamento local estiver habilitado
         if self.use_local_storage and self.vector_db_path:
             try:
-                # Inicializar FAISS se necessário
-                await self._init_faiss_index()
+                # Inicializar FAISS para este tenant
+                faiss_index = await self._init_faiss_index(entry.tenant_id)
                 
-                if self.faiss_index:
+                if faiss_index:
                     from langchain.schema import Document
                     
-                    # Converter MemoryEntry para Document com metadados corretos
+                    # Converter MemoryEntry para Document
                     doc = Document(
                         page_content=entry.content,
                         metadata={
@@ -337,36 +448,18 @@ class MemoryService:
                         }
                     )
                     
-                    # CORREÇÃO: Usar add_documents ao invés de add_embeddings
-                    # para evitar problemas com metadados
-                    import numpy as np
-                    
-                    # Criar um documento temporário para adicionar ao FAISS
-                    texts = [doc.page_content]
-                    metadatas = [doc.metadata]
-                    embeddings = [entry.embedding]
-                    
-                    # Adicionar usando o método correto
-                    # self.faiss_index.add_texts(
-                    #     texts=texts,
-                    #     metadatas=metadatas,
-                    #     embeddings=embeddings
-                    # )
-                    temp_texts = [doc.page_content]
-                    temp_metadatas = [doc.metadata]
-                    self.faiss_index.add_texts(temp_texts, temp_metadatas)
+                    # Adicionar documento ao índice específico do tenant
+                    faiss_index.add_documents([doc])
                     
                     # Salvar alterações
-                    self.faiss_index.save_local(self.vector_db_path, "index")
+                    tenant_vector_path = os.path.join(self.vector_db_path, f"tenant_{entry.tenant_id}")
+                    faiss_index.save_local(tenant_vector_path, "index")
                     
                     return entry.id
             except Exception as e:
-                print(f"Error storing memory in FAISS: {e}")
-                import traceback
-                traceback.print_exc()
-                # Fall back to in-memory
+                logger.error(f"Error storing memory in FAISS for tenant {entry.tenant_id}: {e}")
         
-        # In-memory fallback
+        # Fallback para in-memory
         self._memory_entries.append(entry)
         return entry.id
     
@@ -393,9 +486,11 @@ class MemoryService:
         """
         # Generate embedding for the query
         query_embedding = await self._get_embedding(query)
+        logger.debug(f"Query embedding ({query}): {query_embedding}")
         
         # 1. Tentar usar serviço HTTP se configurado e não estiver usando armazenamento local
         if self.vector_db_url and not self.use_local_storage:
+            logger.debug(f"Querying vector database at {self.vector_db_url}")
             try:
                 params = {
                     "tenant_id": tenant_id,
@@ -427,24 +522,23 @@ class MemoryService:
         # 2. Tentar usar FAISS local se habilitado
         if self.use_local_storage and self.vector_db_path:
             try:
-                # Inicializar FAISS se necessário
-                await self._init_faiss_index()
+                # Obter índice específico do tenant
+                faiss_index = await self._init_faiss_index(tenant_id)
                 
-                if self.faiss_index:
+                if faiss_index:
                     # Realizar busca por similaridade
-                    # Buscar mais resultados do que necessário para poder filtrar
-                    docs_with_scores = self.faiss_index.similarity_search_with_score(
+                    docs_with_scores = faiss_index.similarity_search_with_score(
                         query, k=limit * 3
                     )
                     
-                    # Filtrar por tenant_id e user_id
+                    # Filtrar e processar resultados
                     filtered_results = []
                     for doc, score in docs_with_scores:
                         doc_tenant_id = doc.metadata.get("tenant_id")
                         doc_user_id = doc.metadata.get("user_id")
                         doc_type = doc.metadata.get("type")
                         
-                        # Verificar se corresponde aos filtros
+                        # Verificar filtros
                         if doc_tenant_id == tenant_id and doc_user_id == user_id:
                             # Verificar filtro de tipo se fornecido
                             if memory_types and doc_type:
@@ -464,25 +558,22 @@ class MemoryService:
                                 type=MemoryType(doc_type) if doc_type else MemoryType.FACT,
                                 content=doc.page_content,
                                 metadata=entry_metadata,
-                                embedding=query_embedding,  # Usar embedding da query como placeholder
+                                embedding=query_embedding,
                                 importance=doc.metadata.get("importance", 0.5),
                                 created_at=doc.metadata.get("created_at", time.time()),
-                                last_accessed=time.time(),  # Atualizar último acesso
-                                access_count=doc.metadata.get("access_count", 0) + 1  # Incrementar
+                                last_accessed=time.time(),
+                                access_count=doc.metadata.get("access_count", 0) + 1
                             )
                             
-                            # Calcular relevância
-                            relevance = 1.0 / (1.0 + score)  # Converter distância para relevância
+                            relevance = 1.0 / (1.0 + score)
                             filtered_results.append((entry, relevance))
                     
-                    # Ordenar por relevância
+                    # Ordenar por relevância e retornar
                     filtered_results.sort(key=lambda x: x[1], reverse=True)
-                    
-                    # Limitar ao número desejado
                     return [entry for entry, _ in filtered_results[:limit]]
+                    
             except Exception as e:
-                print(f"Error searching FAISS index: {e}")
-                # Fall back to in-memory
+                logger.error(f"Error searching FAISS index for tenant {tenant_id}: {e}")
         
         # 3. Fallback para busca em memória
         if not self._memory_entries:
