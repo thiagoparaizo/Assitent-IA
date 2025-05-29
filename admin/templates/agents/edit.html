@@ -551,10 +551,15 @@
                         <div class="mb-3">
                             <label class="form-label">Lista de Contatos</label>
                             <div class="input-group mb-2">
-                                <input type="text" class="form-control" 
-                                       id="contact-input-{{ device.id }}" 
-                                       placeholder="ID do contato (ex: 5511999999999@s.whatsapp.net)">
-                                <button class="btn btn-outline-primary add-contact-btn" 
+                                <input type="text" class="form-control phone-input"
+                                    id="contact-input-{{ device.id }}"
+                                    placeholder="55DDDNÚMERO"
+                                    maxlength="13"
+                                    pattern="^55\d{10,11}$"
+                                    title="Digite o número no formato: 55DDDNÚMERO"
+                                    oninput="updateWhatsAppID(this)">
+                                <span class="input-group-text">@s.whatsapp.net</span>
+                                <button class="btn btn-outline-primary add-contact-btn"
                                         type="button"
                                         data-device-id="{{ device.id }}">
                                     Adicionar
@@ -567,13 +572,13 @@
                                     APENAS contatos nesta lista receberão respostas do agente.
                                 {% endif %}
                             </div>
-                            
+
                             <div class="contact-list mt-3" id="contact-list-{{ device.id }}">
                                 {% for contact in device.contacts %}
                                 <div class="contact-item d-flex justify-content-between align-items-center border-bottom py-2">
                                     <div>{{ contact }}</div>
-                                    <button class="btn btn-sm btn-outline-danger remove-contact-btn" 
-                                            data-device-id="{{ device.id }}" 
+                                    <button class="btn btn-sm btn-outline-danger remove-contact-btn"
+                                            data-device-id="{{ device.id }}"
                                             data-contact-id="{{ contact }}">
                                         <i class="bi bi-trash"></i>
                                     </button>
