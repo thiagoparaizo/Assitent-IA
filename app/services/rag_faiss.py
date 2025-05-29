@@ -1,5 +1,6 @@
 # \app\services\rag_faiss.py
 import asyncio
+import logging
 import os
 from typing import Any, Dict, List, Optional
 import httpx
@@ -11,6 +12,10 @@ from langchain.schema import Document
 from app.core.config import Settings, settings
 from app.services.llm.factory import LLMServiceFactory
 from app.db.session import SessionLocal
+
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.rag")
 
 class RAGServiceFAISS:
     """

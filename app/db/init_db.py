@@ -1,4 +1,4 @@
-# Create this file as app/db/init_db.py
+#app/db/init_db.py
 
 import asyncio
 import logging
@@ -18,8 +18,8 @@ from app.db.models.agent import Agent
 #from app.db.models.appointment import Appointment
 from app.db.models.webhook import Webhook, WebhookLog
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.db.init_db")
 
 def init_db():
     """Initialize database with required tables."""

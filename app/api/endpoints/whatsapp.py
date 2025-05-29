@@ -10,6 +10,9 @@ from app.services.whatsapp import WhatsAppService
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.whatsapp")
 
 @router.get("/devices/", response_model=List[schemas.Device])
 async def get_devices(

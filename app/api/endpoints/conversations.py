@@ -15,6 +15,10 @@ from app.api.deps import get_current_active_user, get_db, get_tenant_id, get_enh
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.conversations")
+
 @router.post("/")
 async def start_conversation(
     user_id: str = Body(...),

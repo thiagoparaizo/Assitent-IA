@@ -7,6 +7,10 @@ import json
 
 from admin.config import Config
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.webhooks")
+
 webhooks_bp = Blueprint('webhooks', __name__, url_prefix='/webhooks')
 
 def get_api_headers():

@@ -16,6 +16,9 @@ from app.core.rag_categories import DEFAULT_CATEGORIES
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.knowledge")
 
 @router.post("/upload")
 async def upload_documents(

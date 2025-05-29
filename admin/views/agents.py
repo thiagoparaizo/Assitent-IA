@@ -6,6 +6,10 @@ import json
 
 from admin.config import Config
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.agents")
+
 agents_bp = Blueprint('agents', __name__, url_prefix='/agents')
 
 def get_api_headers():

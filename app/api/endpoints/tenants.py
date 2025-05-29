@@ -11,6 +11,10 @@ from app.schemas.tenant import TenantCreate, TenantUpdate, TenantResponse
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.tenants")
+
 @router.get("/", response_model=List[TenantResponse])
 def read_tenants(
     skip: int = 0,

@@ -6,6 +6,10 @@ import json
 
 from admin.config import Config
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.whatsapp")
+
 whatsapp_bp = Blueprint('whatsapp', __name__, url_prefix='/whatsapp')
 
 def get_api_headers():

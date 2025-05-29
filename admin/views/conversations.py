@@ -7,6 +7,10 @@ from datetime import datetime
 
 from admin.config import Config
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.conversations")
+
 conversations_bp = Blueprint('conversations', __name__, url_prefix='/conversations')
 
 def get_api_headers():

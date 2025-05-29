@@ -6,6 +6,10 @@ from datetime import datetime, timedelta
 
 from admin.config import Config
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.tokens")
+
 tokens_bp = Blueprint('tokens', __name__, url_prefix='/tokens')
 
 def get_api_headers():

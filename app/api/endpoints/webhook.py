@@ -39,7 +39,9 @@ from app.utils.audio_helpers import (
 )
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.webhook")
 
 
 @router.post("")

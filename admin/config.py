@@ -5,7 +5,7 @@ from datetime import timedelta
 class Config:
     # Configurações básicas
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'your-secret-key-here-2025-abc'
-    DEBUG = os.environ.get('FLASK_DEBUG') or False
+    DEBUG = os.environ.get('FLASK_DEBUG', "false") .lower() == "true"
     LOGIN_DISABLED = False
     
     # Configuração do banco de dados

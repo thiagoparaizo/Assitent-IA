@@ -14,6 +14,10 @@ from app.schemas.user import UserCreate, UserUpdate, UserResponse
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.users")
+
 @router.get("/", response_model=List[dict])  # Mudamos para dict para evitar problemas de schema
 def read_users(
     skip: int = 0,

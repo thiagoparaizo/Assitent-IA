@@ -21,8 +21,8 @@ from app.services.token_counter import TokenCounterService
 #from app.services.rag import RAGService
 from app.db.models.conversation import ConversationState, AgentScore
 
-
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.orchestrator")
 
 # class ConversationState(BaseModel):
 #     conversation_id: str

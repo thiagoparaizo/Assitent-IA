@@ -17,6 +17,10 @@ from app.schemas.user import UserCreate, UserResponse
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.auth")
+
 @router.post("/login", response_model=Token)
 def login_access_token(
     db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()

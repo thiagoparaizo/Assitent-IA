@@ -12,7 +12,9 @@ from app.db.models.llm_model import LLMModel
 from sqlalchemy.orm import Session
 import logging
 
-logger = logging.getLogger(__name__)
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.llm.factory")
 
 class LLMServiceFactory:
     """Factory para criar instâncias de serviços LLM."""

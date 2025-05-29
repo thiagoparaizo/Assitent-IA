@@ -7,7 +7,8 @@ import tiktoken
 
 from app.services.llm.base import LLMService
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.llm.deepseek_service")
 
 class DeepSeekService(LLMService):
     def __init__(self, api_key: str, model: str = "deepseek-chat", base_url: str = None):

@@ -7,6 +7,10 @@ import uuid
 
 from admin.config import Config
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.knowledge")
+
 knowledge_bp = Blueprint('knowledge', __name__, url_prefix='/knowledge')
 
 def get_api_headers():

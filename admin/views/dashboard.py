@@ -6,6 +6,10 @@ import logging
 
 from admin.config import Config
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.dashboard")
+
 dashboard_bp = Blueprint('dashboard', __name__, url_prefix='/dashboard')
 
 # Configure logging

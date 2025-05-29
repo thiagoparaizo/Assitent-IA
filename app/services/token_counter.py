@@ -16,7 +16,8 @@ from app.db.models.llm_model import LLMModel
 from app.services.notification import NotificationService
 from app.core.config import settings
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.token_counter")
 
 class TokenCounterService:
     """Serviço para contagem, registro e monitoramento de uso de tokens LLM."""

@@ -1,12 +1,13 @@
 # admin/views/user.py
-import logging
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 import requests
 
 from admin.config import Config
 
-logger = logging.getLogger(__name__)
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("admin.views.user")
 
 user_bp = Blueprint('user', __name__, url_prefix='/user')
 

@@ -14,6 +14,10 @@ from app.schemas.llm import (
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.llm_admin")
+
 # Endpoints para gerenciamento de provedores LLM
 @router.get("/providers", response_model=List[LLMProviderResponse])
 def get_providers(

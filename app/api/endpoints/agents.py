@@ -1,4 +1,5 @@
 # app/routes/agents.py
+
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import List, Dict, Any, Optional
 
@@ -12,6 +13,9 @@ from app.services.agent import AgentService, Agent, AgentType, AgentPrompt
 from app.api.deps import get_current_active_user, get_tenant_id, get_agent_service
 
 router = APIRouter()
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.agents")
 
 @router.post("/", response_model=schemas.Agent)
 async def create_agent(

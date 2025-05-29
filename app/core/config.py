@@ -10,12 +10,11 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     PROJECT_NAME: str = os.getenv("PROJECT_NAME", "AI Assistant API")
     API_V1_STR: str = "/api/v1"
-    DEBUG: bool = os.getenv("DEBUG", False)
+    DEBUG: bool = os.getenv("DEBUG","false").lower() == "true"
     
     # Segurança
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here-2025-abc")  # Alterar em produção!
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 dias
-    #LOGIN_DISABLED: bool = True # TODO ajustar
     
     # CORS
     CORS_ORIGINS: List[Union[str, AnyHttpUrl]] = ["http://localhost:3000", "http://localhost:5000"]

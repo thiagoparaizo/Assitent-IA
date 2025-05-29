@@ -9,7 +9,8 @@ import time
 
 from app.services.llm.base import LLMService
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.llm.gemini_service")
 
 class GeminiService(LLMService):
     def __init__(self, api_key: str, model: str = "gemini-1.5-flash", base_url: str = None):

@@ -1,4 +1,5 @@
 # app/services/llm/openai_service.py
+import logging
 from typing import Any, Dict, List, Tuple
 import httpx
 
@@ -6,6 +7,10 @@ import httpx
 from app.services.llm.base import LLMService
 import tiktoken
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.llm.openai_service")
+    
 class OpenAIService(LLMService):
     def __init__(self, api_key: str, model: str = "gpt-4o-mini", base_url: str = None):
         self.api_key = api_key

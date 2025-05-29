@@ -17,7 +17,8 @@ from app.schemas.agent import Agent, AgentPrompt, AgentType
 from app.services.whatsapp import WhatsAppService
 import logging
 
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.agent")
 
 class AgentType(str, Enum):
     GENERAL = "general"           # Assistente principal para clientes

@@ -1,4 +1,4 @@
-# Criar arquivo: app/utils/audio_helpers.py
+#app/utils/audio_helpers.py
 
 import logging
 from typing import Dict, Any, Optional

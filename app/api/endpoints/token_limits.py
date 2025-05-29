@@ -17,6 +17,10 @@ from app.services.token_counter import TokenCounterService
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.token_limits")
+
 # Endpoints para gerenciamento de limites
 @router.get("/limits", response_model=List[TokenUsageLimitResponse])
 async def get_token_limits(

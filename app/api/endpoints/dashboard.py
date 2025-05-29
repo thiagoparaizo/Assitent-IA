@@ -19,6 +19,10 @@ from app.services.token_counter import TokenCounterService
 
 router = APIRouter()
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.dashboard")
+
 @router.get("/stats")
 async def get_dashboard_stats(
     tenant_id: str = Depends(get_tenant_id),

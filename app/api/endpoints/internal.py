@@ -13,7 +13,9 @@ from app.services.whatsapp import WhatsAppService
 import logging
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.endpoints.internal")
 
 # Este router é para uso interno e não deve ser exposto publicamente
 # Futuramente, poderá ter validação de requisições locais apenas

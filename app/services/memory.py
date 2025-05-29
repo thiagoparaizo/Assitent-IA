@@ -16,8 +16,8 @@ from langchain_community.vectorstores import FAISS
 from app.core.config import Settings, settings
 from langchain.schema import Document
 
-
-logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.services.memory")
 
 class MemoryType(str, Enum):
     """Types of memory entries."""
