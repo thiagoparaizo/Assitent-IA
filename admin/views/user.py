@@ -1,9 +1,12 @@
 # admin/views/user.py
+import logging
 from flask import Blueprint, render_template, redirect, url_for, flash, request, jsonify
 from flask_login import login_required, current_user
 import requests
 
 from admin.config import Config
+
+logger = logging.getLogger(__name__)
 
 user_bp = Blueprint('user', __name__, url_prefix='/user')
 
@@ -123,13 +126,16 @@ def get_user_profile_data(user_id):
         
         if response.status_code == 200:
             profile_data = response.json()
+            logger.debug(f"User profile data received:{profile_data}")
             return jsonify(profile_data)
         else:
+            logger.error(f"Error getting user profile data: {response.status_code}")
             return jsonify({
                 "error": f"Erro ao obter perfil: {response.status_code}",
                 "message": response.text
             }), response.status_code
     except Exception as e:
+        logger.error(f"Error connecting to API: {str(e)}")
         return jsonify({
             "error": "Erro ao conectar à API",
             "message": str(e)

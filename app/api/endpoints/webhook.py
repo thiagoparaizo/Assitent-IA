@@ -342,7 +342,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                 # Chave para armazenar o estado do agente para esta conversa
                 agent_control_key = f"agent_control:{tenant_id}:{chat_jid}"
                 
-                if message_content == "@stop":
+                if message_content == "@stop" or message_content == "@parar" or message_content == "@desativar":
                     # Desativar o agente para esta conversa
                     await redis_client.set(agent_control_key, "disabled")
                     await redis_client.expire(agent_control_key, 60 * 60 * 24 * 7)  # 7 dias
@@ -356,7 +356,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                     )
                     return
                 
-                elif message_content == "@ok":
+                elif message_content == "@ok" or message_content == "@ativar" or message_content == "@start" or message_content == "@reativar" or message_content == "@restart" or message_content == "@reiniciar" or message_content == "@eu":
                     # Reativar o agente para esta conversa
                     await redis_client.delete(agent_control_key)
                     

@@ -556,10 +556,12 @@ class MemoryService:
         try:
             # Generate brief summary (1-2 sentences)
             brief_summary_prompt = [
-                {"role": "system", "content": "Você é especialista em resumir conversas em 1 ou 2 frases, capturando a essência."},
+                {"role": "system", "content": "Você é especialista em resumir conversas, diálogos ou parrágrafos em 1 ou 2 frases, capturando a essência."},
                 {"role": "user", "content": f"Resuma esta conversa em 1-2 frases:\n{conversation_text}"}
             ]
             brief_summary_response = await self.llm.generate_response(brief_summary_prompt)
+            logger.debug(f"MemoryService.generate_conversation_summary: brief_summary_response: {brief_summary_response}")
+            
             
             # Handle tuple response - extract the text part
             if isinstance(brief_summary_response, tuple):
@@ -570,6 +572,8 @@ class MemoryService:
             # Ensure it's a string and clean it
             brief_summary = str(brief_summary).strip() if brief_summary else "Resumo não disponível"
             
+            logger.debug(f"MemoryService.generate_conversation_summary: brief_summary: {brief_summary}")
+                        
             # Generate detailed summary (paragraph)
             detailed_summary_prompt = [
                 {"role": "system", "content": "Você é especialista em resumir conversas em um parágrafo detalhado, porém conciso e objetivo."},
@@ -577,30 +581,39 @@ class MemoryService:
             ]
             detailed_summary_response = await self.llm.generate_response(detailed_summary_prompt)
             
+            logger.debug(f"MemoryService.generate_conversation_summary: detailed_summary_response: {detailed_summary_response}")
+            
             # Handle tuple response - extract the text part
             if isinstance(detailed_summary_response, tuple):
                 detailed_summary = detailed_summary_response[0] if detailed_summary_response else ""
+                logger.debug(f"MemoryService.generate_conversation_summary: if detailed_summary[0]: {detailed_summary}")
             else:
                 detailed_summary = detailed_summary_response
+                logger.debug(f"MemoryService.generate_conversation_summary: else detailed_summary: {detailed_summary}")
             
             # Ensure it's a string and clean it
             detailed_summary = str(detailed_summary).strip() if detailed_summary else "Resumo detalhado não disponível"
+            logger.debug(f"MemoryService.generate_conversation_summary: final detailed_summary: {detailed_summary}")
             
             # Extract key points
             key_points_prompt = [
-                {"role": "system", "content": "Você é um especialista em extrair pontos-chave de conversas."},
+                {"role": "system", "content": "Você é um especialista em extrair pontos-chave de conversas ou de um texto. Extraia sempre no formato json array. Por exemplo: [\"ponto-chave 1\", \"ponto-chave 2\", \"ponto-chave 3\", \"ponto-chave 4\"]"},
                 {"role": "user", "content": f"Extraia 3 a 5 pontos-chave desta conversa como um JSON array:\n{conversation_text}"}
             ]
             key_points_response = await self.llm.generate_response(key_points_prompt)
+            logger.debug(f"MemoryService.generate_conversation_summary: key_points_response: {key_points_response}")
             
             # Handle tuple response - extract the text part
             if isinstance(key_points_response, tuple):
                 key_points_json = key_points_response[0] if key_points_response else "[]"
+                logger.debug(f"MemoryService.generate_conversation_summary: if key_points_response[0]: {key_points_json}")
             else:
                 key_points_json = key_points_response
+                logger.debug(f"MemoryService.generate_conversation_summary: else key_points_response: {key_points_json}")
             
             # Ensure it's a string
             key_points_json = str(key_points_json).strip() if key_points_json else "[]"
+            logger.debug(f"MemoryService.generate_conversation_summary: final key_points_json: {key_points_json}")
             
             # Parse key points from JSON
             try:
@@ -616,15 +629,19 @@ class MemoryService:
                 {"role": "user", "content": f"Extraia entidades desta conversa como um objeto JSON com categorias como chaves:\n{conversation_text}"}
             ]
             entities_response = await self.llm.generate_response(entities_prompt)
+            logger.debug(f"MemoryService.generate_conversation_summary: entities_response: {entities_response}")
             
             # Handle tuple response - extract the text part
             if isinstance(entities_response, tuple):
                 entities_json = entities_response[0] if entities_response else "{}"
+                logger.debug(f"MemoryService.generate_conversation_summary: if entities_response[0]: {entities_json}")
             else:
                 entities_json = entities_response
+                logger.debug(f"MemoryService.generate_conversation_summary: else entities_response: {entities_json}")
             
             # Ensure it's a string
             entities_json = str(entities_json).strip() if entities_json else "{}"
+            logger.debug(f"MemoryService.generate_conversation_summary: final entities_json: {entities_json}")
             
             # Parse entities from JSON
             try:
@@ -640,15 +657,19 @@ class MemoryService:
                 {"role": "user", "content": f"Determine o sentimento desta conversa:\n{conversation_text}"}
             ]
             sentiment_response = await self.llm.generate_response(sentiment_prompt)
+            logger.debug(f"MemoryService.generate_conversation_summary: sentiment_response: {sentiment_response}")
             
             # Handle tuple response - extract the text part
             if isinstance(sentiment_response, tuple):
                 sentiment = sentiment_response[0] if sentiment_response else "neutro"
+                logger.debug(f"MemoryService.generate_conversation_summary: if sentiment_response[0]: {sentiment}")
             else:
                 sentiment = sentiment_response
+                logger.debug(f"MemoryService.generate_conversation_summary: else sentiment_response: {sentiment}")
             
             # Ensure it's a string and clean it
             sentiment = str(sentiment).strip().lower() if sentiment else "neutro"
+            logger.debug(f"MemoryService.generate_conversation_summary: final sentiment: {sentiment}")
             
             # Create and return summary
             summary = ConversationSummary(
@@ -672,8 +693,10 @@ class MemoryService:
                             json=summary.dict(),
                             timeout=10.0
                         )
+                    logging.info(f"Summary stored in vector database")
                 except Exception as e:
                     print(f"Error storing summary in vector database: {e}")
+                    logging.error(f"Error storing summary in vector database: {e}")
                     # Fall back to in-memory
             
             # In-memory fallback
@@ -932,14 +955,19 @@ class MemoryService:
             
             # CORREÇÃO: Tratar resposta em tupla
             preferences_response = await self.llm.generate_response(preferences_prompt)
+            print("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas:", preferences_response)
             
             # Handle tuple response
             if isinstance(preferences_response, tuple):
                 preferences_json = preferences_response[0] if preferences_response else "[]"
+                logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (tupla):", preferences_json)
             else:
                 preferences_json = preferences_response
+                logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (string):", preferences_json)
             
             preferences_json = str(preferences_json).strip() if preferences_json else "[]"
+            logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (string):", preferences_json)
+            
             # Remove "json\n" substituindo por uma string vazia
             # Remove os marcadores ```json\n no início e \n``` no final
             cleaned_json = (
@@ -1004,14 +1032,18 @@ class MemoryService:
             ]
             
             issues_response = await self.llm.generate_response(issues_prompt)
+            print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos:", issues_response)
             
             # Handle tuple response
             if isinstance(issues_response, tuple):
                 issues_json = issues_response[0] if issues_response else "[]"
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (tupla):", issues_json)
             else:
                 issues_json = issues_response
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (string):", issues_json)
             
             issues_json = str(issues_json).strip() if issues_json else "[]"
+            print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (string):", issues_json)
             # Remove "json\n" substituindo por uma string vazia
             # Remove os marcadores ```json\n no início e \n``` no final
             cleaned_json = (
@@ -1079,14 +1111,18 @@ class MemoryService:
             ]
             
             facts_response = await self.llm.generate_response(facts_prompt)
+            print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted:", facts_response)
             
             # Handle tuple response
             if isinstance(facts_response, tuple):
                 facts_json = facts_response[0] if facts_response else "[]"
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (tupla):", facts_json)
             else:
                 facts_json = facts_response
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (string):", facts_json)
             
             facts_json = str(facts_json).strip() if facts_json else "[]"
+            print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (string):", facts_json)
             # Remove "json\n" substituindo por uma string vazia
             # Remove os marcadores ```json\n no início e \n``` no final
             try:
@@ -1165,6 +1201,7 @@ class MemoryService:
                 }
             )
             await self.add_memory(summary_memory)
+            logger.debug(f"MemoryService._extract_memories_from_conversation: [DEBUG] Memória de resumo da conversa {conversation_id} armazenadas. ID: {summary_memory_id}. \nbrief_summary: {summary.brief_summary}\nkey_points: {summary.key_points}\nsentiment: {summary.sentiment}\nentities: {summary.entities}")
             
             logging.info(f"Memórias extraídas e armazenadas para conversa {conversation_id}")
             
