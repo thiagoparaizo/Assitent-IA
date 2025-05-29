@@ -1,6 +1,6 @@
 # app/services/llm/gemini_service.py
 import base64
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import google.generativeai as genai
 import asyncio
 import logging
