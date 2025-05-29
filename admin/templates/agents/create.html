@@ -212,7 +212,7 @@
                                                     <div class="col-lg-4 col-md-6 mb-2 category-item">
                                                         <div class="form-check">
                                                             <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                                id="category-{{ category.id }}">
                                                             <label class="form-check-label" for="category-{{ category.id }}">
                                                                 <span class="fw-bold">{{ category.name }}</span>
                                                                 <small class="text-muted d-block">{{ category.description }}</small>
@@ -232,7 +232,7 @@
                                                     <div class="col-lg-4 col-md-6 mb-2 category-item">
                                                         <div class="form-check">
                                                             <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                                id="category-{{ category.id }}">
                                                             <label class="form-check-label" for="category-{{ category.id }}">
                                                                 <span class="fw-bold">{{ category.name }}</span>
                                                                 <small class="text-muted d-block">{{ category.description }}</small>
@@ -252,7 +252,7 @@
                                                     <div class="col-lg-4 col-md-6 mb-2 category-item">
                                                         <div class="form-check">
                                                             <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                                id="category-{{ category.id }}">
                                                             <label class="form-check-label" for="category-{{ category.id }}">
                                                                 <span class="fw-bold">{{ category.name }}</span>
                                                                 <small class="text-muted d-block">{{ category.description }}</small>
@@ -272,7 +272,7 @@
                                                     <div class="col-lg-4 col-md-6 mb-2 category-item">
                                                         <div class="form-check">
                                                             <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                                id="category-{{ category.id }}">
                                                             <label class="form-check-label" for="category-{{ category.id }}">
                                                                 <span class="fw-bold">{{ category.name }}</span>
                                                                 <small class="text-muted d-block">{{ category.description }}</small>
@@ -295,7 +295,7 @@
                                                     <div class="col-lg-4 col-md-6 mb-2 category-item">
                                                         <div class="form-check">
                                                             <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                                                id="category-{{ category.id }}">
                                                             <label class="form-check-label" for="category-{{ category.id }}">
                                                                 <span class="fw-bold">{{ category.name }}</span>
                                                                 <small class="text-muted d-block">{{ category.description }}</small>
@@ -471,7 +471,26 @@
     
     function showExampleModal(editIndex = null) {
         // Implementar modal para adicionar/editar exemplos
-        // ...
+        // Por enquanto, usar prompt simples
+        const userText = prompt("Digite o texto do usuário:");
+        if (!userText) return;
+        
+        const assistantText = prompt("Digite a resposta do assistente:");
+        if (!assistantText) return;
+        
+        const example = {
+            "Usuário": userText,
+            "Assistente": assistantText
+        };
+        
+        if (editIndex !== null) {
+            examples[editIndex] = example;
+        } else {
+            examples.push(example);
+        }
+        
+        renderExamples();
+        updateExamplesField();
     }
     
     document.getElementById('add-example-btn').addEventListener('click', function() {
@@ -558,6 +577,21 @@
             loadingDiv.style.display = 'none';
             errorDiv.style.display = 'block';
             errorDiv.textContent = 'Erro ao testar prompt: ' + error.message;
+        });
+    });
+    
+    // Filtro de categorias
+    document.getElementById('category-search').addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        const categoryItems = document.querySelectorAll('.category-item');
+        
+        categoryItems.forEach(item => {
+            const label = item.querySelector('label').textContent.toLowerCase();
+            if (label.includes(searchTerm)) {
+                item.style.display = 'block';
+            } else {
+                item.style.display = 'none';
+            }
         });
     });
     
