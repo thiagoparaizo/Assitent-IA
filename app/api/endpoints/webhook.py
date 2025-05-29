@@ -514,9 +514,20 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             if ext_text := event_message.get("ExtendedTextMessage", {}):
                 message_content = ext_text.get("Text", "")
         
-        # Se é áudio sem texto, usar placeholder
-        if has_valid_audio and not message_content:
-            message_content = "[Mensagem de áudio]"
+        # Se é áudio, obter transcrição primeiro
+        if has_valid_audio:
+            try:
+                transcription = await llm_service.get_audio_transcription(audio_info)
+                if transcription:
+                    if message_content:
+                        message_content = f"{message_content} [Áudio transcrito: {transcription}]"
+                    else:
+                        message_content = f"[Mensagem de áudio] {transcription}"
+                else:
+                    message_content = message_content or "[Mensagem de áudio - transcrição não disponível]"
+            except Exception as e:
+                logger.warning(f"Erro ao transcrever áudio: {e}")
+                message_content = message_content or "[Mensagem de áudio - erro na transcrição]"
         
         
         # Criar o serviço de contagem de tokens (novo)
@@ -564,13 +575,21 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         await redis_client.set(conversation_key, conversation_id)
         await redis_client.expire(conversation_key, 60 * 60 * 24)  # 24 hours
         
+        ## Comentado pois o audio já foi transcrito
         # Processar a mensagem usando o orquestrador
+        # result = await orchestrator.process_message(
+        #     conversation_id, 
+        #     message_content, 
+        #     agent_id=agent.id, 
+        #     contact_id=contact_id,
+        #     audio_data=audio_info if has_valid_audio else None  # NOVO PARÂMETRO
+        # )
+        
         result = await orchestrator.process_message(
             conversation_id, 
             message_content, 
             agent_id=agent.id, 
-            contact_id=contact_id,
-            audio_data=audio_info if has_valid_audio else None  # NOVO PARÂMETRO
+            contact_id=contact_id
         )
         
         # Check if the conversation ID changed (due to timeout/limit reset)

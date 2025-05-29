@@ -431,17 +431,21 @@ class AgentOrchestrator:
         # Prepare prompt with history, context, memories and audio
         prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id, audio_data)
         
-        # Get response from LLM
-        if audio_data and self.llm.supports_audio:
-            # Para modelos que suportam áudio, usar método especial
-            response, token_usage = await self.llm.generate_response_with_audio(prompt, audio_data)
-            if response is None or 'Erro na geração com áudio' in response or 'Audio input modality is not enabled for models' in response:
-                print("Erro na geração com áudio ou audio input modality is not enabled for models: ", response)
-                logging.error(f"Erro na geração com áudio ou audio input modality is not enabled for models: {response}")
-                response = "error_audio_processing"
-        else:
-            # Get response from LLM - Método padrão para texto
-            response, token_usage = await self.llm.generate_response(prompt)
+        ## Comentado pois o audio foi transcrito no inicio
+        # # Get response from LLM
+        # if audio_data and self.llm.supports_audio:
+        #     # Para modelos que suportam áudio, usar método especial
+        #     response, token_usage = await self.llm.generate_response_with_audio(prompt, audio_data)
+        #     if response is None or 'Erro na geração com áudio' in response or 'Audio input modality is not enabled for models' in response:
+        #         print("Erro na geração com áudio ou audio input modality is not enabled for models: ", response)
+        #         logging.error(f"Erro na geração com áudio ou audio input modality is not enabled for models: {response}")
+        #         response = "error_audio_processing"
+        # else:
+        #     # Get response from LLM - Método padrão para texto
+        #     response, token_usage = await self.llm.generate_response(prompt)
+        
+        # Get response from LLM - sempre usar método de texto já que áudio foi transcrito
+        response, token_usage = await self.llm.generate_response(prompt)
 
         # Registrar uso de tokens - Implementação melhorada
         if hasattr(self, 'token_counter_service') and self.token_counter_service:

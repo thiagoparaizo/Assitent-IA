@@ -261,6 +261,36 @@ class GeminiService(LLMService):
     #         return None, None
 
 
+    async def get_audio_transcription(self, audio_data: Dict[str, Any]) -> Optional[str]:
+        """Extrai transcrição do áudio usando Gemini."""
+        try:
+            # Usar o mesmo modelo que processa áudio
+            model = genai.GenerativeModel('gemini-2.0-flash')
+            
+            audio_base64 = audio_data.get("base64", "")
+            audio_bytes = base64.b64decode(audio_base64)
+            
+            # Prompt específico para transcrição
+            content_parts = [
+                "Transcreva este áudio em português brasileiro. Retorne apenas a transcrição, sem comentários adicionais.",
+                {
+                    "mime_type": "audio/mp3",
+                    "data": audio_bytes
+                }
+            ]
+            
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: model.generate_content(content_parts)
+            )
+            
+            return response.text if response.text else None
+            
+        except Exception as e:
+            logger.error(f"Erro ao transcrever áudio: {e}")
+            return None
+
     async def generate_response_with_audio(
         self, 
         messages: List[Dict[str, str]], 

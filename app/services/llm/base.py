@@ -39,6 +39,10 @@ class LLMService(ABC):
         """
         return await self.generate_response(messages, **kwargs)
     
+    async def get_audio_transcription(self, audio_data: Dict[str, Any]) -> Optional[str]:
+        """Obtém a transcrição de um áudio (implementação opcional)."""
+        return None
+    
     def supports_audio(self) -> bool:
         """Indica se este serviço suporta processamento de áudio."""
         return False
