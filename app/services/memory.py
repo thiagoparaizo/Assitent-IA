@@ -187,80 +187,82 @@ class MemoryService:
             # Não desabilitar permanentemente, apenas retornar None
             return None
             
-    async def _init_faiss_index(self):
-        """Inicializa o índice FAISS para armazenamento local."""
-        if self.faiss_index is not None:
-            logger.debug("FAISS index already initialized")
-            return
+    # async def _init_faiss_index(self):
+    #     """Inicializa o índice FAISS para armazenamento local."""
+    #     if self.faiss_index is not None:
+    #         logger.debug("FAISS index already initialized")
+    #         return
         
-        try:
-            #from langchain.vectorstores import FAISS
-            from langchain_community.vectorstores import FAISS
-            from langchain.schema import Document
-            import uuid
+    #     try:
+    #         #from langchain.vectorstores import FAISS
+    #         from langchain_community.vectorstores import FAISS
+    #         from langchain.schema import Document
+    #         import uuid
             
-            # Verificar se já existe um index
-            index_file = os.path.join(self.vector_db_path, "index.faiss")
-            logger.debug(f"Index file: {index_file}")
+    #         # Verificar se já existe um index
+    #         index_file = os.path.join(self.vector_db_path, "index.faiss")
+    #         logger.debug(f"Index file: {index_file}")
             
             
-            if os.path.exists(index_file):
-                # Carregar index existente
-                # Adaptador para compatibilidade com FAISS
-                embedding_adapter = self._create_embedding_adapter()
-                logger.debug(f"Embedding adapter created")
+    #         if os.path.exists(index_file):
+    #             # Carregar index existente
+    #             # Adaptador para compatibilidade com FAISS
+    #             embedding_adapter = self._create_embedding_adapter()
+    #             logger.debug(f"Embedding adapter created")
                 
-                self.faiss_index = FAISS.load_local(
-                    self.vector_db_path, 
-                    embedding_adapter,  # Usando o adaptador
-                    "index",
-                    allow_dangerous_deserialization=True
-                )
+    #             self.faiss_index = FAISS.load_local(
+    #                 self.vector_db_path, 
+    #                 embedding_adapter,  # Usando o adaptador
+    #                 "index",
+    #                 allow_dangerous_deserialization=True
+    #             )
                 
-                logger.debug(f"FAISS index loaded from {self.vector_db_path}")
+    #             logger.debug(f"FAISS index loaded from {self.vector_db_path}")
                 
-            else:
-                # Criar um novo index vazio
-                # Para criar um index vazio, precisamos de pelo menos um documento
-                temp_doc = Document(
-                    page_content="Temporary document for FAISS initialization",
-                    metadata={"temp": True, "id": str(uuid.uuid4())}
-                )
+    #         else:
+    #             # Criar um novo index vazio
+    #             # Para criar um index vazio, precisamos de pelo menos um documento
+    #             temp_doc = Document(
+    #                 page_content="Temporary document for FAISS initialization",
+    #                 metadata={"temp": True, "id": str(uuid.uuid4())}
+    #             )
                 
-                # Vamos fazer uma abordagem alternativa - criar um embedding manualmente
-                temp_embedding = await self._get_embedding(temp_doc.page_content)
+    #             # Vamos fazer uma abordagem alternativa - criar um embedding manualmente
+    #             temp_embedding = await self._get_embedding(temp_doc.page_content)
                 
-                # Em vez de usar o adapter, vamos criar os documentos manualmente
-                import numpy as np
-                from langchain.schema.embeddings import Embeddings
+    #             # Em vez de usar o adapter, vamos criar os documentos manualmente
+    #             import numpy as np
+    #             from langchain.schema.embeddings import Embeddings
                 
-                # Criar um embedding simples do tipo numpy array            
-                class SimpleEmbeddings(Embeddings):
-                    def embed_documents(self, texts):
-                        # Retornar embedding fixo para cada texto
-                        return [np.array([0.1] * 1536, dtype=np.float32) for _ in texts]
+    #             # Criar um embedding simples do tipo numpy array            
+    #             class SimpleEmbeddings(Embeddings):
+    #                 def embed_documents(self, texts):
+    #                     # Retornar embedding fixo para cada texto
+    #                     return [np.array([0.1] * 1536, dtype=np.float32) for _ in texts]
                     
-                    def embed_query(self, text):
-                        # Retornar embedding fixo para query
-                        return np.array([0.1] * 1536, dtype=np.float32)
+    #                 def embed_query(self, text):
+    #                     # Retornar embedding fixo para query
+    #                     return np.array([0.1] * 1536, dtype=np.float32)
                 
-                # Criar um novo index com embedding estático
-                self.faiss_index = FAISS.from_documents([temp_doc], SimpleEmbeddings())
+    #             # Criar um novo index com embedding estático
+    #             self.faiss_index = FAISS.from_documents([temp_doc], SimpleEmbeddings())
                 
-                # Salvar o index
-                self.faiss_index.save_local(self.vector_db_path, "index")
+    #             # Salvar o index
+    #             self.faiss_index.save_local(self.vector_db_path, "index")
                 
-                print(f"New FAISS index created at {self.vector_db_path}")
+    #             print(f"New FAISS index created at {self.vector_db_path}")
             
-            # Armazenar referência ao docstore
-            self.faiss_docstore = self.faiss_index.docstore
+    #         # Armazenar referência ao docstore
+    #         self.faiss_docstore = self.faiss_index.docstore
             
-        except Exception as e:
-            print(f"Error initializing FAISS index: {e}")
-            import traceback
-            traceback.print_exc()
-            self.use_local_storage = False  # Fallback para memória
+    #     except Exception as e:
+    #         print(f"Error initializing FAISS index: {e}")
+    #         import traceback
+    #         traceback.print_exc()
+    #         self.use_local_storage = False  # Fallback para memória
 
+    # -----
+    
     # def _create_embedding_adapter(self):
     #     """Cria um adaptador compatível com FAISS"""
     #     from langchain.schema.embeddings import Embeddings
@@ -1101,13 +1103,12 @@ class MemoryService:
                         tenant_id=tenant_id,
                         user_id=user_id,
                         type=MemoryType.USER_PREFERENCE,
-                        content={
-                            "preferencia": pref["preferencia"],
-                            "observacao": pref["observacao"]
-                        },
+                        content=f"{pref['preferencia']}: {pref['valor']}",
                         metadata={
                             "source_conversation": conversation_id,
-                            "extracted_at": time.time()
+                            "extracted_at": time.time(),
+                            "preferencia": pref["preferencia"],
+                            "valor": pref["valor"]
                         }
                     )
                     await self.add_memory(memory)
@@ -1178,14 +1179,13 @@ class MemoryService:
                         tenant_id=tenant_id,
                         user_id=user_id,
                         type=MemoryType.ISSUE,
-                        content={
-                            "problema": issue["problema"],
-                            "detalhes": issue["detalhes"]
-                        },
+                        content=f"{issue['problema']}: {issue['detalhes']}",
                         metadata={
                             "source_conversation": conversation_id,
                             "extracted_at": time.time(),
-                            "status": "unresolved"  # Status inicial padrão
+                            "status": "unresolved",
+                            "problema": issue["problema"],
+                            "detalhes": issue["detalhes"]
                         }
                     )
                     await self.add_memory(memory)
@@ -1259,13 +1259,12 @@ class MemoryService:
                         tenant_id=tenant_id,
                         user_id=user_id,
                         type=MemoryType.FACT,
-                        content={
-                            "fato": fact["fato"],
-                            "detalhes": fact["detalhes"]
-                        },
+                        content=f"{fact['fato']}: {fact['detalhes']}",
                         metadata={
                             "source_conversation": conversation_id,
-                            "extracted_at": time.time()
+                            "extracted_at": time.time(),
+                            "fato": fact["fato"],
+                            "detalhes": fact["detalhes"]
                         }
                     )
                     await self.add_memory(memory)
