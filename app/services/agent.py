@@ -452,10 +452,10 @@ class AgentService:
             # Determinar se este agente deve responder
             if whitelist:
                 # Se existe uma whitelist, o contato deve estar nela
-                should_response = contact_id in whitelist
+                should_response = contact_id in whitelist or contact_id.replace("@s.whatsapp.net", "") in whitelist
             elif blacklist:
                 # Se existe uma blacklist, o contato NÃO deve estar nela
-                should_response = contact_id not in blacklist
+                should_response = contact_id not in blacklist  or contact_id.replace("@s.whatsapp.net", "") in blacklist
             else:
                 # Se não há listas, o agente responde a todos
                 should_response = True
