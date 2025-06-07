@@ -22,6 +22,7 @@ class OpenAIService(LLMService):
         
     def supports_audio(self) -> bool:
         """OpenAI não suporta processamento de áudio nesta implementação."""
+        logger.debug("OpenAI does not support audio processing.")
         return False
         
     def _get_tokenizer(self, model: str):
@@ -206,5 +207,6 @@ class OpenAIService(LLMService):
         """
         OpenAI não suporta áudio, então ignora e processa apenas texto.
         """
+        logger.warning("OpenAI does not support audio, ignoring audio data.")
         return await self.generate_response(messages, **kwargs)
         

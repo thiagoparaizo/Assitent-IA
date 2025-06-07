@@ -43,7 +43,7 @@ async def list_agents(
     current_user: User = Depends(get_current_active_user),
 ):
     """Lista os agentes de um tenant."""
-    agents = await agent_service.get_agents_by_tenant(tenant_id)
+    agents = agent_service.get_agents_by_tenant(tenant_id)
     
     if agent_type:
         try:
@@ -125,7 +125,7 @@ async def update_agent(
     if "list_escalation_agent_ids" in agent_data:
         # Validar que os IDs de agentes pertencem ao mesmo tenant
         for esc_agent_id in agent_data["list_escalation_agent_ids"]:
-            esc_agent = await agent_service.get_agent(esc_agent_id)
+            esc_agent = agent_service.get_agent(esc_agent_id)
             if not esc_agent or esc_agent.tenant_id != int(tenant_id):
                 raise HTTPException(
                     status_code=400, 
@@ -201,7 +201,7 @@ async def manage_agent_contacts(
 ):
     """Gerencia a configuração de contatos para um agente em um dispositivo específico."""
     # Verificar permissões
-    agent = await agent_service.get_agent(agent_id)
+    agent = agent_service.get_agent(agent_id)
     if not agent or agent.tenant_id != int(tenant_id):
         raise HTTPException(status_code=404, detail="Agente não encontrado")
     
