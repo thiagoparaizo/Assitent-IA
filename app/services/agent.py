@@ -261,7 +261,24 @@ class AgentService:
             db_agent.human_escalation_contact = agent_data["human_escalation_contact"]
         
         if "list_escalation_agent_ids" in agent_data:
-            db_agent.list_escalation_agent_ids = json.dumps(agent_data["list_escalation_agent_ids"]) if agent_data["list_escalation_agent_ids"] else None
+            # CORREÇÃO: Converter strings para objetos UUID
+            escalation_ids = agent_data["list_escalation_agent_ids"]
+            if escalation_ids:
+                try:
+                    # Converter cada ID string para UUID
+                    uuid_list = []
+                    for agent_id_str in escalation_ids:
+                        if isinstance(agent_id_str, str):
+                            uuid_list.append(uuid.UUID(agent_id_str))
+                        elif isinstance(agent_id_str, uuid.UUID):
+                            uuid_list.append(agent_id_str)
+                    
+                    db_agent.list_escalation_agent_ids = uuid_list
+                except ValueError as e:
+                    logging.error(f"Erro ao converter UUID: {e}")
+                    raise ValueError(f"ID de agente inválido: {e}")
+            else:
+                db_agent.list_escalation_agent_ids = None
             
         if "type" in agent_data:
             agent_type = agent_data["type"]
