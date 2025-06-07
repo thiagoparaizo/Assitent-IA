@@ -259,6 +259,9 @@ class AgentService:
             
         if "human_escalation_contact" in agent_data:
             db_agent.human_escalation_contact = agent_data["human_escalation_contact"]
+        
+        if "list_escalation_agent_ids" in agent_data:
+            db_agent.list_escalation_agent_ids = json.dumps(agent_data["list_escalation_agent_ids"]) if agent_data["list_escalation_agent_ids"] else None
             
         if "type" in agent_data:
             agent_type = agent_data["type"]

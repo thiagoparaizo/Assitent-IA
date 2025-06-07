@@ -105,6 +105,8 @@ async def update_agent(
     # Verificar se o agente existe e pertence ao tenant
     agent = agent_service.get_agent(agent_id)
     
+    logging.info(f"update_agent> Agent data: {agent_data}")
+    
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agente {agent_id} não encontrado")
     
@@ -117,20 +119,28 @@ async def update_agent(
     # Garantir que os campos opcionais estejam inicializados corretamente
     if "specialties" in agent_data and agent_data["specialties"] is None:
         agent_data["specialties"] = []
+        logging.info("update_agent> specialties is None")
         
     if "list_escalation_agent_ids" in agent_data and agent_data["list_escalation_agent_ids"] is None:
         agent_data["list_escalation_agent_ids"] = []
+        logging.info("update_agent> list_escalation_agent_ids is None")
+        
     
     # Processar a lista de agentes de escalação se presente
     if "list_escalation_agent_ids" in agent_data:
         # Validar que os IDs de agentes pertencem ao mesmo tenant
+        logging.info(f"update_agent> Validar que os IDs de agentes pertencem ao mesmo tenant: list_escalation_agent_ids: {agent_data['list_escalation_agent_ids']}")
         for esc_agent_id in agent_data["list_escalation_agent_ids"]:
+            logging.info(f"update_agent> esc_agent_id: {esc_agent_id}")
+            # Verificar se o agente de escalação existe
             esc_agent = agent_service.get_agent(esc_agent_id)
+            
             if not esc_agent or esc_agent.tenant_id != int(tenant_id):
                 raise HTTPException(
                     status_code=400, 
                     detail=f"Agente de escalação {esc_agent_id} não encontrado ou não pertence ao tenant"
                 )
+            logging.info(f"update_agent> esc_agent: {esc_agent.id} | tenant_id: {esc_agent.name} | tenant_id: {esc_agent.tenant_id}")
     
     try:
         updated_agent = agent_service.update_agent(agent_id, agent_data)
