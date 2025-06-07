@@ -328,7 +328,20 @@ class AgentService:
         
         # Garantir que especialidades e agentes de escalação existam
         specialties = json.loads(db_agent.specialties) if db_agent.specialties else []
-        list_escalation_agent_ids = json.loads(db_agent.list_escalation_agent_ids) if db_agent.list_escalation_agent_ids else []
+        # list_escalation_agent_ids = json.loads(db_agent.list_escalation_agent_ids) if db_agent.list_escalation_agent_ids else []
+        
+        list_escalation_agent_ids = []
+        if db_agent.list_escalation_agent_ids:
+            if isinstance(db_agent.list_escalation_agent_ids, list):
+                # Se for um array nativo (lista de UUIDs), converter para strings
+                list_escalation_agent_ids = [str(uuid_obj) for uuid_obj in db_agent.list_escalation_agent_ids]
+            elif isinstance(db_agent.list_escalation_agent_ids, str):
+                # Compatibilidade: se ainda vier como JSON string
+                try:
+                    list_escalation_agent_ids = json.loads(db_agent.list_escalation_agent_ids)
+                except json.JSONDecodeError:
+                    # Se não conseguir fazer parse como JSON, assumir que é uma string única
+                    list_escalation_agent_ids = [db_agent.list_escalation_agent_ids]
         
         # Criar objeto Agent
         return Agent(
