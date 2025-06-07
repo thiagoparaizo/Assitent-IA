@@ -59,25 +59,14 @@ class Agent(Base):
             return json.loads(self.mcp_functions)
         return []
     
-    # def get_escalation_agent_ids(self):
-    #     """Retorna a lista de IDs de agentes para escalação."""
-    #     if self.list_escalation_agent_ids:
-    #         if isinstance(self.list_escalation_agent_ids, str):
-    #             # Se for armazenado como JSON string
-    #             return json.loads(self.list_escalation_agent_ids)
-    #         # Se for ARRAY nativo
-    #         return self.list_escalation_agent_ids
-    #     return []
-    
     def get_escalation_agent_ids(self):
         """Retorna a lista de IDs de agentes para escalação."""
         if self.list_escalation_agent_ids:
-            # Se for ARRAY nativo do PostgreSQL (já são objetos UUID)
-            if isinstance(self.list_escalation_agent_ids, list):
-                # Converter UUIDs para strings se necessário
-                return [str(uuid_obj) if isinstance(uuid_obj, uuid.UUID) else uuid_obj 
-                    for uuid_obj in self.list_escalation_agent_ids]
-            # Se por algum motivo ainda vier como JSON string (compatibilidade)
-            elif isinstance(self.list_escalation_agent_ids, str):
+            if isinstance(self.list_escalation_agent_ids, str):
+                # Se for armazenado como JSON string
                 return json.loads(self.list_escalation_agent_ids)
+            # Se for ARRAY nativo
+            return self.list_escalation_agent_ids
         return []
+    
+    
