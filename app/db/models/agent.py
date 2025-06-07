@@ -70,7 +70,7 @@ class Agent(Base):
     #     return []
     
     def get_escalation_agent_ids(self):
-        """Retorna a lista de IDs de agentes para escalação."""
+        """Retorna a lista de IDs de agentes para escalação. Compatibilidade."""
         if self.list_escalation_agent_ids:
             # Se for ARRAY nativo do PostgreSQL (já são objetos UUID)
             if isinstance(self.list_escalation_agent_ids, list):
