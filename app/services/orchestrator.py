@@ -1247,7 +1247,9 @@ class AgentOrchestrator:
             "technology": 0.0,
             "legal": 0.0,
             "escalation": 0.0,
-            "transfer": 0.0
+            "transfer": 0.0,
+            "commercial": 0.0,
+            "support": 0.0
         }
         
         # Palavras-chave expandidas por categoria (inglês e português)
