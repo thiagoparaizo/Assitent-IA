@@ -1512,24 +1512,47 @@ class AgentOrchestrator:
                 "quero falar com alguém", "não resolve", "preciso de ajuda", "outra pessoa"
             ],
             
+            "commercial": [
+                # Comercial/Vendas
+                "orçamento", "proposta", "preço", "valor", "custo", "contratar", "comprar",
+                "vendas", "comercial", "kit", "comodato", "mensalidade", "adesão",
+                "arena", "quadra", "campo", "instalação", "câmera", "sistema viplay",
+                # Inglês
+                "quote", "proposal", "price", "cost", "buy", "purchase", "sales", "commercial"
+            ],
+            
+            "support": [
+                # Suporte Técnico
+                "problema", "erro", "não funciona", "quebrou", "ajuda", "suporte",
+                "câmera offline", "sistema não grava", "senha", "login", "site",
+                "app", "ewelink", "painel", "configuração", "compartilhamento",
+                # Inglês
+                "problem", "error", "not working", "broken", "help", "support",
+                "offline", "password", "configuration"
+            ],
+            
             "transfer": [
                 # Inglês
                 "transfer", "redirect", "connect", "forward", "route", "send to", "pass to", 
                 "different department", "another agent", "specialist", "expert", "technical support",
                 "transferring to agent","transferring to department", "transferring to area","transferring to",
+                "specialist", "expert", "transfer", "forward", "escalate",
                 # Português
                 "transferir", "redirecionar", "conectar", "encaminhar", "enviar para", "passar para",
                 "outro departamento", "outro agente", "especialista", "expert", "suporte técnico",
-                "setor específico", "departamento", "área", "transferindo"
+                "setor específico", "departamento", "área", "transferindo",
+                "especialista", "comercial", "suporte", "técnico", "vendas",
+                "quero falar com", "preciso de", "transferir", "encaminhar",
             ]
         }
         
-        # Calculate raw scores based on keyword presence
-        all_text_lower = all_text.lower()
+        # Calcular scores
+        all_text_lower = f"{current_message} {' '.join([msg.get('content', '') for msg in recent_messages])}".lower()
+    
         for category, words in keywords.items():
             for word in words:
                 if word in all_text_lower:
-                    categories[category] += 0.2  # Increment score for each keyword found
+                    categories[category] += 0.3  # Increment score for each keyword found
         
         # Ensure general category gets a minimum score
         categories["general"] = max(0.3, 1.0 - sum(categories.values()))
@@ -1576,6 +1599,21 @@ class AgentOrchestrator:
         score += focus_score
         if focus_score > 0.3:
             reasons.append(f"Relevância do tópico: {focus_score:.2f}")
+            
+        # Boost para agentes especializados quando há correspondência
+        if focus_score > 0.2 and agent.type == AgentType.SPECIALIST:
+            score += 0.4  # Boost adicional para especialistas
+            reasons.append("Agente especialista relevante")
+
+        # Boost específico para contexto comercial/vendas
+        if conversation_focus.get("commercial", 0) > 0.15 and "comercial" in agent.name.lower():
+            score += 0.5
+            reasons.append("Contexto comercial detectado")
+
+        # Boost específico para contexto de suporte
+        if conversation_focus.get("support", 0) > 0.15 and "suporte" in agent.name.lower():
+            score += 0.5
+            reasons.append("Contexto de suporte detectado")
         
         # 3. Check if the agent has the right RAG categories for this conversation
         if agent.rag_categories and message:
@@ -1711,7 +1749,13 @@ class AgentOrchestrator:
             
             # Jurídico
             "legal": 0.0,
-            "law": 0.0
+            "law": 0.0,
+            
+            "transfer": 0.0,
+            "commercial": 0.0,
+            "sales": 0.0,
+            "support": 0.0,
+            "technical_support": 0.0,
         }
         
         # Default score based on agent type
@@ -1731,6 +1775,7 @@ class AgentOrchestrator:
             "technical_issue": ["technical", "support", "help", "troubleshoot", "issue", "técnico", "suporte", "ajuda", "problema", "defeito"],
             "billing": ["billing", "payment", "invoice", "financial", "refund", "pagamento", "fatura", "cobrança", "financeiro", "reembolso"],
             "complaint": ["complaint", "escalation", "resolution", "satisfaction", "reclamação", "problema", "insatisfação", "resolução"],
+            
             
             # Saúde e Bem-Estar
             "healthcare": ["saúde", "médico", "clínica", "hospital", "tratamento", "consulta", "health", "doctor", "clinic", "treatment"],
@@ -1805,18 +1850,35 @@ class AgentOrchestrator:
             
             # Jurídico
             "legal": ["jurídico", "legal", "direito", "legal", "law", "rights"],
-            "law": ["advogado", "processo", "contrato", "lawyer", "lawsuit", "contract"]
+            "law": ["advogado", "processo", "contrato", "lawyer", "lawsuit", "contract"],
+            
+            "commercial": ["comercial", "vendas", "sales", "specialist comercial", "commercial"],
+            "sales": ["vendas", "sales", "comercial", "orçamento", "proposta"],
+            "support": ["suporte", "support", "técnico", "technical", "problema", "issue"],
+            "technical_support": ["suporte técnico", "technical support", "técnico", "problema técnico"],
+            "transfer": ["transfer", "escalation", "specialist", "especialista"],
         }
         
         # Calcular pontuação para cada especialidade
         for category, keywords in specialty_keywords.items():
             for keyword in keywords:
                 if keyword in agent_text:
-                    specialties[category] += 0.3
+                    specialties[category] += 0.4
         
         # Cap scores at 1.0
         for category in specialties:
             specialties[category] = min(specialties[category], 1.0)
+            
+        # Boost específico para agentes especializados # TODO verificar mais opções aqui
+        if "comercial" in agent_text or "vendas" in agent_text:
+            specialties["commercial"] = 0.9
+            specialties["sales"] = 0.9
+            specialties["transfer"] = 0.8
+            
+        if "suporte" in agent_text or "support" in agent_text:
+            specialties["support"] = 0.9
+            specialties["technical_support"] = 0.9
+            specialties["transfer"] = 0.8
         
         return specialties
 

@@ -9,8 +9,8 @@ import os
 class AgentTransferConfig(BaseModel):
     """Configuration for agent transfers."""
     enabled: bool = True
-    default_threshold: float = 0.6
-    min_messages_before_transfer: int = 2
+    default_threshold: float = 0.4
+    min_messages_before_transfer: int = 1
     max_transfers_per_conversation: int = 5
     default_transfer_penalty: float = 0.1
     cool_down_messages: int = 3  # Min messages before considering another transfer

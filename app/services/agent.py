@@ -74,6 +74,15 @@ class AgentPrompt(BaseModel):
             prompt += "envie um comando para escalar a conversa, usando: <comando>ESCALAR_PARA_HUMANO</comando>\n"
             prompt += "Exemplo: \"Entendo sua situação. Vou transferir você para um atendente humano que poderá ajudá-lo melhor. <comando>ESCALAR_PARA_HUMANO</comando> Aguarde um momento, por favor.\"\n\n"
         
+        if self.escalation_enabled and self.list_escalation_agent_ids:
+            prompt += "### Transferência para Agentes Especializados:\n"
+            prompt += "Quando identificar que a solicitação do cliente requer conhecimento especializado (comercial, suporte técnico, etc.), "
+            prompt += "use: <comando>CONSULTAR_ESPECIALISTA:tipo_de_especialização</comando>\n"
+            prompt += "Exemplos:\n"
+            prompt += "- Para questões comerciais/vendas: \"Vou conectar você com nosso especialista comercial. <comando>CONSULTAR_ESPECIALISTA:comercial</comando>\"\n"
+            prompt += "- Para questões técnicas/suporte: \"Vou transferir para nosso especialista técnico. <comando>CONSULTAR_ESPECIALISTA:suporte</comando>\"\n"
+            prompt += "- Use termos como: comercial, vendas, suporte, técnico, especialista\n\n"
+        
         if self.mcp_enabled:
             prompt += "### Execução de Funções Externas:\n"
             prompt += "Para executar funções externas, use: <comando>EXECUTAR_MCP:{\"name\":\"nome_da_função\",\"parameters\":{...}}</comando>\n"
