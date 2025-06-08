@@ -642,79 +642,92 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             for action in result["actions"]:
                 if action["type"] == "human_escalation":
                     escalation_contact = action["contact"]
-                    try:
-                        escalation_contact =format_whatsapp_number(escalation_contact)
-                        print(f"Contato de escalação: {escalation_contact}")
-                        
-                        # Extrair número do cliente a partir do chat_jid
-                        client_number = chat_jid.replace('@s.whatsapp.net', '')
-                        print(f"Número do cliente: {client_number}")
-                        
-                        # Montar link clicável para abrir chat com o cliente
-                        wa_link = f"https://wa.me/{client_number}"
-                        
-                        conversation_summary = action["conversation_summary"]
                     
-                        escalation_message = (
-                            f"🔔 *ESCALAÇÃO PARA ATENDIMENTO HUMANO*\n\n"
-                            f"Um cliente solicitou atendimento humano.\n\n"
-                            f"*Resumo da conversa:*\n{conversation_summary}\n\n"
-                            f"Telefone do cliente: {client_number}\n"
-                            f"👉 Clique para abrir o WhatsApp: {wa_link}\n\n"
-                            f"Por favor, entre em contato com o cliente."
-                        )
+                    escalation_contacts = [escalation_contact]
+                    
+                    if escalation_contact is not None and "#" in escalation_contact:
+                        escalation_contacts = escalation_contact.split("#")
                         
+                    # iterar sobre os contatos e enviar uma mensagem para cada um
+                    for escalation_contact in escalation_contacts:
+                        escalation_contact = escalation_contact.strip()    
+                        
+                        logger.info(f"Enviando mensagem de escalação para {escalation_contact}")
+                        
+                        # Formatar o contato de escalação
                         try:
-                            # Enviar para o contato de escalação
-                            await whatsapp_service.send_message(
-                                device_id=device_id,
-                                to=escalation_contact,
-                                message=escalation_message
-                            )
+                            escalation_contact =format_whatsapp_number(escalation_contact)
+                            print(f"Contato de escalação: {escalation_contact}")
+                            
+                            # Extrair número do cliente a partir do chat_jid
+                            client_number = chat_jid.replace('@s.whatsapp.net', '')
+                            print(f"Número do cliente: {client_number}")
+                            
+                            # Montar link clicável para abrir chat com o cliente
+                            wa_link = f"https://wa.me/{client_number}"
+                            
+                            conversation_summary = action["conversation_summary"]
                         
-                            # Informar ao cliente que a escalação foi realizada
-                            await whatsapp_service.send_message(
-                                device_id=device_id,
-                                to=chat_jid,
-                                message="Sua solicitação foi encaminhada para um atendente. Em breve alguém entrará em contato."
+                            escalation_message = (
+                                f"🔔 *ESCALAÇÃO PARA ATENDIMENTO HUMANO*\n\n"
+                                f"Um cliente solicitou atendimento humano.\n\n"
+                                f"*Resumo da conversa:*\n{conversation_summary}\n\n"
+                                f"Telefone do cliente: {client_number}\n"
+                                f"👉 Clique para abrir o WhatsApp: {wa_link}\n\n"
+                                f"Por favor, entre em contato com o cliente."
                             )
-                        except Exception as e:
-                            logger.error(f"Erro ao enviar mensagem para o contato de escalação: {e}")
-                            print(f"Erro ao enviar mensagem para o contato de escalação: {e}")
+                            
+                            try:
+                                # Enviar para o contato de escalação
+                                await whatsapp_service.send_message(
+                                    device_id=device_id,
+                                    to=escalation_contact,
+                                    message=escalation_message
+                                )
+                            
+                                # Informar ao cliente que a escalação foi realizada
+                                await whatsapp_service.send_message(
+                                    device_id=device_id,
+                                    to=chat_jid,
+                                    message="Sua solicitação foi encaminhada para um atendente. Em breve alguém entrará em contato."
+                                )
+                            except Exception as e:
+                                logger.error(f"Erro ao enviar mensagem para o contato de escalação: {e}")
+                                print(f"Erro ao enviar mensagem para o contato de escalação: {e}")
+                                
+                                # TODO implementar mensagem de erro para um contato de administração
+                                # await whatsapp_service.send_message(
+                                #         device_id=device_id,
+                                #         to=chat_jid_administracao,
+                                #         message="Não foi possível encaminhar a solicitação do cliente {{chat_jid}} para um atendente {{escalation_contact}} agora. Verifique para mais detalhes."
+                                #     )
+                                
+                                # Informar ao cliente que a escalação foi realizada
+                                await whatsapp_service.send_message(
+                                    device_id=device_id,
+                                    to=chat_jid,
+                                    message="Infelizmente, não foi possível encaminhar sua solicitação para um atendente agora. Peço que tente novamente mais tarde."
+                                )
+                            
+                        except ValueError as e:
+                            logger.error(f"Erro ao formatar o contato de escalação '{escalation_contact}': {e}")
+                            print(f"Erro ao formatar o contato de escalação '{escalation_contact}': {e}")
                             
                             # TODO implementar mensagem de erro para um contato de administração
                             # await whatsapp_service.send_message(
                             #         device_id=device_id,
                             #         to=chat_jid_administracao,
-                            #         message="Não foi possível encaminhar a solicitação do cliente {{chat_jid}} para um atendente {{escalation_contact}} agora. Verifique para mais detalhes."
+                            #         message=message="Não foi possível encaminhar a solicitação do cliente {{chat_jid}} para um atendente {{escalation_contact}} agora. Verifique para mais detalhes."
                             #     )
                             
-                            # Informar ao cliente que a escalação foi realizada
                             await whatsapp_service.send_message(
-                                device_id=device_id,
-                                to=chat_jid,
-                                message="Infelizmente, não foi possível encaminhar sua solicitação para um atendente agora. Peço que tente novamente mais tarde."
-                            )
+                                    device_id=device_id,
+                                    to=chat_jid,
+                                    message="Infelizmente, não foi possível encaminhar sua solicitação para um atendente agora. Peço que tente novamente mais tarde."
+                                )
+                            
                         
-                    except ValueError as e:
-                        logger.error(f"Erro ao formatar o contato de escalação '{escalation_contact}': {e}")
-                        print(f"Erro ao formatar o contato de escalação '{escalation_contact}': {e}")
-                        
-                        # TODO implementar mensagem de erro para um contato de administração
-                        # await whatsapp_service.send_message(
-                        #         device_id=device_id,
-                        #         to=chat_jid_administracao,
-                        #         message=message="Não foi possível encaminhar a solicitação do cliente {{chat_jid}} para um atendente {{escalation_contact}} agora. Verifique para mais detalhes."
-                        #     )
-                        
-                        await whatsapp_service.send_message(
-                                device_id=device_id,
-                                to=chat_jid,
-                                message="Infelizmente, não foi possível encaminhar sua solicitação para um atendente agora. Peço que tente novamente mais tarde."
-                            )
-                        
-                    
-                    # Enviar notificação para o contato de escalação
+                        # Enviar notificação para o contato de escalação
                     
                     
         
