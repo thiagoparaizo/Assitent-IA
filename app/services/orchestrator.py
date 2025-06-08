@@ -9,7 +9,6 @@ import time
 import uuid
 from app.core.config import Settings, settings
 
-from pydantic import BaseModel
 
 from app.services.memory import MemoryService, MemoryEntry, MemoryType, ConversationSummary
 
@@ -164,8 +163,8 @@ class AgentOrchestrator:
         reset_reason = None
         
         if not state:
-            logger.info(f"Conversation {conversation_id} not found, creating a new one")
-            print(f"Conversation {conversation_id} not found, creating a new one")
+            logger.info(f"process_message > Conversation {conversation_id} not found, creating a new one")
+            print(f"process_message > Conversation {conversation_id} not found, creating a new one")
             
             # Para criar uma nova conversa, precisamos do tenant_id e do user_id
             # Tente extrair do formato conversation_id, se possível
@@ -185,7 +184,7 @@ class AgentOrchestrator:
                 
             # Create new conversation
             new_conversation_id = await self.start_conversation(tenant_id, user_id, agent_id)
-            logger.info(f"Created new conversation {new_conversation_id} as {conversation_id} was not found")
+            logger.info(f"process_message > Created new conversation {new_conversation_id} as {conversation_id} was not found")
             
             # Get the new state
             state = await self.get_conversation_state(new_conversation_id)
@@ -213,8 +212,8 @@ class AgentOrchestrator:
         
         # Check conversation length limit
         if len(state.history) >= tenant_config.max_conversation_length:
-            logger.info(f"Conversation {conversation_id} reached message limit. Creating new conversation.")
-            print(f"Conversation {conversation_id} reached message limit. Creating new conversation.")
+            logger.info(f"process_message > Conversation {conversation_id} reached message limit. Creating new conversation.")
+            print(f"process_message > Conversation {conversation_id} reached message limit. Creating new conversation.")
             # Set reason for archiving
             state.metadata["archive_reason"] = "max_length_exceeded"
             
@@ -246,8 +245,8 @@ class AgentOrchestrator:
         time_diff_minutes = (current_time - last_update_time) / 60
         
         if time_diff_minutes > tenant_config.conversation_timeout_minutes: #verificar se o agente for pessoal, não expirar conversa
-            logger.info(f"Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
-            print(f"Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
+            logger.info(f"process_message > Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
+            print(f"process_message > Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
             # Set reason for archiving
             state.metadata["archive_reason"] = "conversation_timeout"
             
@@ -316,7 +315,7 @@ class AgentOrchestrator:
                 })
                 
                 # Também podemos adicionar um log para acompanhamento
-                logging.info(f"Detectada necessidade de escalação automática na conversa {conversation_id}")
+                logging.info(f"process_message > Detectada necessidade de escalação automática na conversa {conversation_id}")
         
        
         
@@ -325,12 +324,15 @@ class AgentOrchestrator:
         transfer_to_id = None
         transfer_reason = None
         
+        logging.info(f"process_message > Current agent: {current_agent_id}")
+        
         if current_agent.escalation_enabled:
-            logger.info(f"Current agent {current_agent_id} is escalation enabled.")
-            print(f"Current agent {current_agent_id} is escalation enabled.")
+            logger.info(f"process_message > Current agent {current_agent_id} is escalation enabled.")
+            print(f"process_message > Current agent {current_agent_id} is escalation enabled.")
             # Rest of the processing logic remains similar...
             # Evaluate whether we should transfer to another agent
             agent_scores = await self.evaluate_agent_transfer(state, message)
+            logging.info(f"process_message > Agent scores: {agent_scores}")
             
             # Get the best agent (might be the current one)
             best_agent_score = agent_scores[0]
@@ -341,19 +343,20 @@ class AgentOrchestrator:
             
             # Check if best agent is different from current and meets threshold
             if best_agent_score.agent_id != current_agent_id and best_agent_score.score > transfer_threshold:
+                logger.info(f"process_message > Best agent {best_agent_score.agent_id} has score {best_agent_score.score}, above threshold {transfer_threshold}. Transferring...")
                 transfer_to_id = best_agent_score.agent_id
                 transfer_reason = best_agent_score.reason
                 
                 # Update transfer count
                 state.metadata["transfer_count"] = state.metadata.get("transfer_count", 0) + 1
         else:
-            logger.info(f"Current agent {current_agent_id} is not escalation enabled.")
-            print(f"Current agent {current_agent_id} is not escalation enabled.")
+            logger.info(f"process_message > Current agent {current_agent_id} is not escalation enabled.")
+            print(f"process_message > Current agent {current_agent_id} is not escalation enabled.")
         
         # Get current agent (either the same or after transfer)
         if transfer_to_id is not None:
             # Log the transfer decision
-            logging.info(f"Transferring conversation {conversation_id} from agent {current_agent_id} to {transfer_to_id}: {transfer_reason}")
+            logging.info(f"process_message > Transferring conversation {conversation_id} from agent {current_agent_id} to {transfer_to_id}: {transfer_reason}")
             
             state.history.append({
                 "role": "system",
@@ -364,14 +367,21 @@ class AgentOrchestrator:
             # Update current agent
             state.current_agent_id = transfer_to_id
             current_agent = self.agent_service.get_agent(transfer_to_id)
+            logging.info(f"process_message > Updated current agent to {transfer_to_id} and name {current_agent.name}")    
+            
+        
         else:
+            logger.info(f"process_message > Not transferring conversation {conversation_id} from agent {current_agent_id}.")
+            # Update current agent
             current_agent = self.agent_service.get_agent(current_agent_id)
         
         # Retrieve RAG context based on agent settings and config
         rag_context = []
         if tenant_config.rag.enabled and current_agent.rag_categories:
+            logger.info(f"process_message > Retrieving RAG context for agent {current_agent_id}")
             # Limit the number of categories to search
             categories_to_search = current_agent.rag_categories[:tenant_config.rag.categories_hard_limit]
+            logger.info(f"process_message > Categories to search: {categories_to_search}")
             
             for category in categories_to_search:
                 docs = await self.rag_service.search(
@@ -383,6 +393,8 @@ class AgentOrchestrator:
                 # Filter by relevance threshold
                 relevant_docs = [doc for doc in docs if doc.get("relevance_score", 0) >= tenant_config.rag.min_relevance_score]
                 rag_context.extend(relevant_docs)
+                
+            logging.debug(f"Retrieved {len(rag_context)} relevant RAG docs for conversation {conversation_id}")
         
         # Retrieve relevant memories if enabled
         memory_context = []
@@ -808,7 +820,7 @@ class AgentOrchestrator:
     async def get_conversation_state(self, conversation_id: str) -> Optional[ConversationState]:
         """Recupera o estado da conversa do Redis."""
         if not self.redis:
-            print(f"[DEBUG] Cliente Redis não inicializado")
+            logging.debug(f"[DEBUG] Cliente Redis não inicializado")
             return None
         
         # Garantir que o conversation_id seja uma string
@@ -816,28 +828,28 @@ class AgentOrchestrator:
             conversation_id = conversation_id.decode('utf-8')
         
         key = f"conversation:{conversation_id}"
-        print(f"[DEBUG] Buscando estado da conversa com a chave: {key}")
+        logging.debug(f"[DEBUG] Buscando estado da conversa com a chave: {key}")
         try:
             data = await self.redis.get(key)
             
             if not data:
-                print(f"[DEBUG] Nenhum dado encontrado para a chave {key}")
+                logging.debug(f"[DEBUG] Nenhum dado encontrado para a chave {key}")
                 
                 # Tentar buscar diretamente se o conversation_id já contém o prefixo
                 if conversation_id.startswith("conversation:"):
                     direct_key = conversation_id
-                    print(f"[DEBUG] Tentando buscar diretamente com a chave: {direct_key}")
+                    logging.debug(f"[DEBUG] Tentando buscar diretamente com a chave: {direct_key}")
                     data = await self.redis.get(direct_key)
                     if not data:
-                        print(f"[DEBUG] Nenhum dado encontrado para a chave direta {direct_key}")
+                        logging.debug(f"[DEBUG] Nenhum dado encontrado para a chave direta {direct_key}")
                         return None
                 else:
                     return None
             
-            print(f"[DEBUG] Dados encontrados para conversa {conversation_id}")
+            logging.debug(f"[DEBUG] Dados encontrados para conversa {conversation_id}")
             return ConversationState.parse_raw(data)
         except Exception as e:
-            print(f"[DEBUG] Erro ao recuperar estado da conversa: {e}")
+            logging.debug(f"[DEBUG] Erro ao recuperar estado da conversa: {e}")
             return None
     
     # async def _generate_and_store_summary(self, state: ConversationState) -> None:
@@ -1048,6 +1060,7 @@ class AgentOrchestrator:
         
         # Normalize to 0-1 range
         distance = min(1.0, squared_diff_sum ** 0.5)
+        logging.debug(f"_calculate_topic_change > Topic change distance: {distance}")
         
         return distance
     
@@ -1060,9 +1073,11 @@ class AgentOrchestrator:
         """
         # Get transfer config
         transfer_config = self.config.agent_transfer
+        logging.debug("evaluate_agent_transfer > Transfer config: %s", transfer_config)
         
         # Check if transfers are enabled #TODO inlcuir verificação de transfer no agent atual
         if not transfer_config.enabled:
+            logging.debug("evaluate_agent_transfer > Transfers disabled")
             # Return only current agent with max score
             current_agent = self.agent_service.get_agent(state.current_agent_id)
             return [AgentScore(
@@ -1073,9 +1088,11 @@ class AgentOrchestrator:
         
         # Get current agent
         current_agent = self.agent_service.get_agent(state.current_agent_id)
+        logging.debug("evaluate_agent_transfer > Current agent id: %s", current_agent.id)
         
         # Check minimum messages before transfer
         if len(state.history) < transfer_config.min_messages_before_transfer:
+            logging.debug(f"evaluate_agent_transfer > Not enough messages before transfer (current length history: {len(state.history)}). Returning current agent")
             return [AgentScore(
                 agent_id=current_agent.id,
                 score=1.0,
@@ -1085,6 +1102,7 @@ class AgentOrchestrator:
         # Check max transfers per conversation
         transfer_count = state.metadata.get("transfer_count", 0)
         if transfer_count >= transfer_config.max_transfers_per_conversation:
+            logging.debug("evaluate_agent_transfer > Max transfers per conversation reached. Current transfer count: %s. Returning current agent", transfer_count)
             return [AgentScore(
                 agent_id=current_agent.id,
                 score=1.0,
@@ -1094,13 +1112,14 @@ class AgentOrchestrator:
         # Check cool down period after last transfer
         last_transfer_index = -1
         for i, msg in enumerate(reversed(state.history)):
-            if msg.get("role") == "system" and "Transferring to agent" in msg.get("content", ""):
+            if msg.get("role") == "system" and ("Transferring to agent" in msg.get("content", "") or "Transferring to general agent" in msg.get("content", "") or "Transferindo para agente" in msg.get("content", "")):
                 last_transfer_index = len(state.history) - i - 1
                 break
         
         if last_transfer_index != -1:
             messages_since_transfer = len(state.history) - last_transfer_index - 1
             if messages_since_transfer < transfer_config.cool_down_messages:
+                logging.debug("evaluate_agent_transfer > Cool down period after last transfer. Messages since last transfer: %s. Returning current agent", messages_since_transfer)
                 return [AgentScore(
                     agent_id=current_agent.id,
                     score=1.0,
@@ -1112,7 +1131,7 @@ class AgentOrchestrator:
         
         # Get all agents for this tenant
         all_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(state.tenant_id, state.current_agent_id) # TODO trocar por get_agents_by_tenant_and_relationship_with_current_agent
-        
+        logging.debug("evaluate_agent_transfer > All agents in tenant: %s", all_agents)
         
         # Initialize scores
         agent_scores = []
@@ -1125,16 +1144,20 @@ class AgentOrchestrator:
         
         # Calculate the conversation focus
         conversation_focus = await self._analyze_conversation_focus(recent_messages, message)
+        logging.debug("evaluate_agent_transfer > Conversation focus: %s", conversation_focus)
         
         # Check for repetitive transfers (avoid transfer loops)
         recent_transfers = self._count_recent_transfers(state, 10)  # Look at last 10 exchanges
         transfer_penalty = min(transfer_config.default_transfer_penalty * recent_transfers, 0.5)
+        logging.debug("evaluate_agent_transfer > Recent transfers: %s. Transfer penalty: %s", recent_transfers, transfer_penalty)
         
         # Check for topic change
         previous_focus = state.metadata.get("previous_focus", {})
         topic_change_score = 0
         if previous_focus:
             topic_change_score = self._calculate_topic_change(previous_focus, conversation_focus)
+            
+        logging.debug("evaluate_agent_transfer > Topic change score: %s", topic_change_score)
         
         # Store current focus for future comparison
         state.metadata["previous_focus"] = conversation_focus
@@ -1160,11 +1183,13 @@ class AgentOrchestrator:
             
             # Apply transfer penalty to avoid loops
             if recent_transfers > 1:
+                logging.debug("evaluate_agent_transfer > Applying transfer penalty")
                 score -= transfer_penalty
                 reason += f" (Transfer penalty: -{transfer_penalty:.2f})"
             
             # Apply topic change bonus if applicable
             if topic_change_score > 0.3 and score > 0.4:
+                logging.debug("evaluate_agent_transfer > Applying topic change bonus")
                 topic_bonus = min(transfer_config.topic_change_bonus, 0.3)
                 score += topic_bonus
                 reason += f" (Topic change bonus: +{topic_bonus:.2f})"
@@ -1179,7 +1204,7 @@ class AgentOrchestrator:
         result = sorted(agent_scores, key=lambda x: x.score, reverse=True)
         
         # Log the evaluation result
-        logging.debug(f"Agent transfer evaluation: {[f'{a.agent_id}: {a.score:.2f} ({a.reason})' for a in result[:3]]}")
+        logging.debug(f"evaluate_agent_transfer > RESUTADO Agent transfer evaluation: {[f'{a.agent_id}: {a.score:.2f} ({a.reason})' for a in result[:3]]}")
         
         return result
 
@@ -1221,77 +1246,282 @@ class AgentOrchestrator:
             "wellness": 0.0,
             "technology": 0.0,
             "legal": 0.0,
-            "escalation": 0.0  # Para detectar necessidade de escalação
+            "escalation": 0.0,
+            "transfer": 0.0
         }
         
-        # Palavras-chave expandidas por categoria
+        # Palavras-chave expandidas por categoria (inglês e português)
         keywords = {
-            "appointment": ["appointment", "schedule", "book", "reservation", "meeting", "reschedule", "cancel", 
-                            "agendar", "marcar", "horário", "consulta", "reservar", "cancelar"],
-                            
-            "product_info": ["product", "information", "details", "specs", "how does", "features", 
-                            "produto", "informação", "detalhes", "especificações", "funcionalidades"],
-                            
-            "technical_issue": ["problem", "issue", "error", "not working", "broken", "help", "fix", 
-                                "problema", "erro", "não funciona", "quebrado", "ajuda", "consertar"],
-                                
-            "billing": ["bill", "payment", "charge", "refund", "price", "cost", "subscription",
-                        "conta", "pagamento", "cobrança", "reembolso", "preço", "custo", "assinatura"],
-                        
-            "complaint": ["unhappy", "disappointed", "complaint", "manager", "supervisor", "unsatisfied", "poor",
-                        "insatisfeito", "decepcionado", "reclamação", "gerente", "supervisor", "ruim"],
-                        
-            # Novas categorias de saúde
-            "healthcare": ["doctor", "medical", "health", "clinic", "hospital", "patient", "treatment",
-                        "médico", "saúde", "clínica", "hospital", "paciente", "tratamento", "receita"],
-                        
-            "retail": ["store", "shop", "purchase", "buy", "shipping", "item", "product", "stock",
-                    "loja", "compra", "comprar", "entrega", "item", "produto", "estoque"],
-                    
-            "sports": ["sport", "gym", "fitness", "training", "coach", "workout", "exercise",
-                    "esporte", "academia", "fitness", "treino", "treinador", "exercício"],
-                    
-            "crafts": ["craft", "handmade", "custom", "art", "creative", "design", "personalized",
-                    "artesanato", "feito à mão", "personalizado", "arte", "criativo", "design"],
-                    
-            "professional": ["service", "professional", "consulting", "contract", "project", "business",
-                            "serviço", "profissional", "consultoria", "contrato", "projeto", "negócio"],
-                            
-            "finance": ["bank", "financial", "investment", "account", "money", "loan", "credit",
-                        "banco", "financeiro", "investimento", "conta", "dinheiro", "empréstimo", "crédito"],
-                        
-            "tourism": ["travel", "trip", "tourist", "vacation", "holiday", "tour", "booking",
-                        "viagem", "turista", "férias", "feriado", "passeio", "reserva"],
-                        
-            "education": ["school", "course", "class", "student", "teacher", "learn", "study",
-                        "escola", "curso", "aula", "aluno", "professor", "aprender", "estudar"],
-                        
-            "real_estate": ["property", "house", "apartment", "rent", "buy", "real estate", "lease",
-                            "imóvel", "casa", "apartamento", "alugar", "comprar", "imobiliária", "locação"],
-                            
-            "automotive": ["car", "vehicle", "auto", "repair", "maintenance", "garage", "mechanic",
-                        "carro", "veículo", "automóvel", "reparo", "manutenção", "oficina", "mecânico"],
-                        
-            "logistics": ["delivery", "shipping", "package", "tracking", "courier", "shipment", "transport",
-                        "entrega", "envio", "pacote", "rastreamento", "correio", "transporte"],
-                        
-            "events": ["event", "party", "concert", "show", "ticket", "booking", "reservation",
-                    "evento", "festa", "concerto", "show", "ingresso", "reserva"],
-                    
-            "pets": ["pet", "animal", "dog", "cat", "veterinary", "grooming", "care",
-                    "pet", "animal", "cachorro", "gato", "veterinário", "banho", "cuidado"],
-                    
-            "wellness": ["spa", "massage", "beauty", "treatment", "relaxation", "therapy", "well-being",
-                        "spa", "massagem", "beleza", "tratamento", "relaxamento", "terapia", "bem-estar"],
-                        
-            "technology": ["computer", "software", "hardware", "tech", "IT", "system", "digital",
-                        "computador", "software", "hardware", "tecnologia", "TI", "sistema", "digital"],
-                        
-            "legal": ["lawyer", "legal", "law", "attorney", "rights", "contract", "lawsuit",
-                    "advogado", "jurídico", "lei", "direito", "contrato", "processo"],
-                    
-            "escalation": ["speak to manager", "talk to human", "need supervisor", "escalate", "real person",
-                        "falar com gerente", "atendente humano", "preciso supervisor", "escalar", "pessoa real"]
+            "appointment": [
+                # Inglês
+                "appointment", "schedule", "book", "booking", "reservation", "meeting", "reschedule", 
+                "cancel", "available", "time slot", "calendar", "diary", "slot", "date", "when",
+                # Português
+                "agendar", "agendamento", "marcar", "horário", "consulta", "reservar", "reserva", 
+                "cancelar", "reagendar", "disponível", "horários", "calendário", "agenda", "data", 
+                "quando", "que horas", "que dia", "disponibilidade", "vaga", "compromisso"
+            ],
+            
+            "product_info": [
+                # Inglês
+                "product", "information", "details", "specs", "specifications", "how does", "features", 
+                "what is", "tell me about", "description", "catalog", "manual", "guide", "how to use",
+                "benefits", "advantages", "characteristics", "model", "version", "size", "color",
+                # Português
+                "produto", "informação", "informações", "detalhes", "especificações", "funcionalidades", 
+                "características", "como funciona", "o que é", "me fale sobre", "descrição", "catálogo", 
+                "manual", "guia", "como usar", "benefícios", "vantagens", "modelo", "versão", "tamanho", 
+                "cor", "ficha técnica", "dados técnicos"
+            ],
+            
+            "technical_issue": [
+                # Inglês
+                "problem", "issue", "error", "not working", "broken", "help", "fix", "bug", "crash",
+                "freeze", "slow", "malfunction", "defect", "fault", "trouble", "difficulty", "support",
+                "repair", "maintenance", "troubleshoot", "restore", "recover",
+                # Português
+                "problema", "erro", "não funciona", "quebrado", "quebrou", "ajuda", "consertar", 
+                "defeito", "travou", "lento", "mau funcionamento", "falha", "dificuldade", "suporte", 
+                "reparo", "manutenção", "resolver", "restaurar", "recuperar", "bug", "travando", 
+                "parou de funcionar", "não liga", "não abre", "falhou"
+            ],
+            
+            "billing": [
+                # Inglês
+                "bill", "billing", "payment", "charge", "charged", "refund", "price", "cost", "subscription",
+                "invoice", "receipt", "transaction", "account", "balance", "fee", "money", "pay", "paid",
+                "credit card", "debit", "installment", "discount", "promotion", "offer",
+                # Português
+                "conta", "cobrança", "pagamento", "cobrado", "reembolso", "preço", "custo", "assinatura",
+                "fatura", "nota fiscal", "recibo", "transação", "saldo", "taxa", "dinheiro", "pagar", 
+                "cartão de crédito", "débito", "parcela", "desconto", "promoção", "oferta", "valor", 
+                "mensalidade", "anuidade", "grátis", "gratuito"
+            ],
+            
+            "complaint": [
+                # Inglês
+                "unhappy", "disappointed", "complaint", "complain", "manager", "supervisor", "unsatisfied", 
+                "poor", "bad", "terrible", "awful", "worst", "angry", "frustrated", "furious", "outraged",
+                "unacceptable", "disgusted", "horrible", "disgusting", "pathetic", "useless",
+                # Português
+                "insatisfeito", "decepcionado", "reclamação", "reclamar", "gerente", "supervisor", 
+                "ruim", "péssimo", "terrível", "horrível", "pior", "raiva", "frustrado", "furioso", 
+                "inaceitável", "nojento", "patético", "inútil", "indignado", "revoltado", "chateado",
+                "descontente", "irritado", "aborrecido"
+            ],
+            
+            "healthcare": [
+                # Inglês
+                "doctor", "medical", "health", "clinic", "hospital", "patient", "treatment", "medicine",
+                "prescription", "appointment", "diagnosis", "therapy", "surgery", "nurse", "physician",
+                "dentist", "pharmacy", "medication", "symptom", "pain", "illness", "disease",
+                # Português
+                "médico", "saúde", "clínica", "hospital", "paciente", "tratamento", "remédio", "receita",
+                "consulta", "diagnóstico", "terapia", "cirurgia", "enfermeiro", "dentista", "farmácia",
+                "medicamento", "sintoma", "dor", "doença", "enfermidade", "mal-estar", "exame", 
+                "laboratório", "raio-x", "ultrassom"
+            ],
+            
+            "retail": [
+                # Inglês
+                "store", "shop", "shopping", "purchase", "buy", "buying", "shipping", "delivery", "item", 
+                "product", "stock", "inventory", "sale", "discount", "promotion", "catalog", "order",
+                "cart", "checkout", "online", "website", "marketplace", "brand", "size", "color",
+                # Português
+                "loja", "compra", "comprar", "comprando", "entrega", "item", "produto", "estoque", 
+                "venda", "desconto", "promoção", "catálogo", "pedido", "carrinho", "site", "online",
+                "mercado", "marca", "tamanho", "cor", "shopping", "varejo", "atacado", "liquidação"
+            ],
+            
+            "sports": [
+                # Inglês
+                "sport", "sports", "gym", "fitness", "training", "coach", "workout", "exercise", "athlete",
+                "team", "match", "game", "competition", "tournament", "league", "championship", "player",
+                "equipment", "gear", "nutrition", "diet", "performance", "muscle", "strength",
+                # Português
+                "esporte", "esportes", "academia", "fitness", "treino", "treinador", "exercício", 
+                "atleta", "time", "jogo", "partida", "competição", "torneio", "campeonato", "jogador",
+                "equipamento", "nutrição", "dieta", "performance", "músculo", "força", "condicionamento",
+                "modalidade", "futebol", "basquete", "vôlei", "natação"
+            ],
+            
+            "crafts": [
+                # Inglês
+                "craft", "crafts", "handmade", "custom", "customized", "art", "creative", "design", 
+                "personalized", "DIY", "hobby", "create", "make", "build", "paint", "draw", "sew",
+                "knit", "wood", "pottery", "jewelry", "decoration", "gift", "unique",
+                # Português
+                "artesanato", "feito à mão", "personalizado", "arte", "criativo", "design", "criar",
+                "fazer", "construir", "pintar", "desenhar", "costurar", "tricô", "madeira", "cerâmica",
+                "joias", "decoração", "presente", "único", "exclusivo", "customizado", "bordado",
+                "crochê", "scrapbook", "bricolagem"
+            ],
+            
+            "professional": [
+                # Inglês
+                "service", "professional", "consulting", "consultation", "contract", "project", "business",
+                "corporate", "company", "office", "meeting", "presentation", "proposal", "client",
+                "customer", "enterprise", "organization", "management", "strategy", "solution",
+                # Português
+                "serviço", "profissional", "consultoria", "consulta", "contrato", "projeto", "negócio",
+                "empresa", "escritório", "reunião", "apresentação", "proposta", "cliente", "corporativo",
+                "organização", "gestão", "estratégia", "solução", "atendimento", "assessoria",
+                "prestação de serviços", "terceirizado"
+            ],
+            
+            "finance": [
+                # Inglês
+                "bank", "banking", "financial", "finance", "investment", "invest", "account", "money",
+                "loan", "credit", "debit", "interest", "rate", "mortgage", "insurance", "savings",
+                "budget", "tax", "stock", "bond", "portfolio", "currency", "exchange",
+                # Português
+                "banco", "financeiro", "finanças", "investimento", "investir", "conta", "dinheiro",
+                "empréstimo", "crédito", "débito", "juros", "taxa", "financiamento", "seguro", 
+                "poupança", "orçamento", "imposto", "ação", "câmbio", "moeda", "carteira", 
+                "aplicação", "rendimento", "capital"
+            ],
+            
+            "tourism": [
+                # Inglês
+                "travel", "traveling", "trip", "tourist", "tourism", "vacation", "holiday", "tour", 
+                "booking", "hotel", "flight", "destination", "package", "guide", "excursion", "resort",
+                "passport", "visa", "luggage", "sightseeing", "adventure", "cruise", "rental",
+                # Português
+                "viagem", "viajar", "turista", "turismo", "férias", "feriado", "passeio", "reserva",
+                "hotel", "voo", "destino", "pacote", "guia", "excursão", "resort", "passaporte",
+                "visto", "bagagem", "pontos turísticos", "aventura", "cruzeiro", "aluguel",
+                "roteiro", "hospedagem", "pousada"
+            ],
+            
+            "education": [
+                # Inglês
+                "school", "education", "educational", "course", "class", "lesson", "student", "teacher",
+                "professor", "learn", "learning", "study", "studying", "university", "college", "degree",
+                "certificate", "training", "workshop", "seminar", "exam", "test", "grade", "homework",
+                # Português
+                "escola", "educação", "educacional", "curso", "aula", "lição", "aluno", "estudante",
+                "professor", "professora", "aprender", "estudar", "universidade", "faculdade", "diploma",
+                "certificado", "treinamento", "workshop", "seminário", "prova", "teste", "nota",
+                "tarefa", "ensino", "aprendizado", "disciplina"
+            ],
+            
+            "real_estate": [
+                # Inglês
+                "property", "real estate", "house", "home", "apartment", "rent", "rental", "buy", 
+                "purchase", "sell", "sale", "lease", "mortgage", "landlord", "tenant", "neighborhood",
+                "location", "furnished", "unfurnished", "utilities", "deposit", "contract", "broker",
+                # Português
+                "imóvel", "imobiliária", "casa", "lar", "apartamento", "alugar", "aluguel", "comprar",
+                "vender", "venda", "locação", "financiamento", "proprietário", "inquilino", "bairro",
+                "localização", "mobiliado", "sem móveis", "condomínio", "depósito", "fiador", "corretor",
+                "terreno", "lote", "construção", "reforma"
+            ],
+            
+            "automotive": [
+                # Inglês
+                "car", "vehicle", "auto", "automobile", "repair", "maintenance", "garage", "mechanic",
+                "engine", "brake", "tire", "oil", "service", "inspection", "insurance", "license",
+                "registration", "fuel", "gas", "battery", "transmission", "dealer", "warranty",
+                # Português
+                "carro", "veículo", "automóvel", "auto", "reparo", "manutenção", "oficina", "mecânico",
+                "motor", "freio", "pneu", "óleo", "serviço", "revisão", "seguro", "licença", "habilitação",
+                "combustível", "gasolina", "bateria", "câmbio", "concessionária", "garantia",
+                "peças", "acessórios", "lavagem", "detalhamento"
+            ],
+            
+            "logistics": [
+                # Inglês
+                "delivery", "shipping", "package", "parcel", "tracking", "courier", "shipment", 
+                "transport", "transportation", "freight", "cargo", "warehouse", "distribution",
+                "supply chain", "pickup", "drop-off", "express", "standard", "overnight",
+                # Português
+                "entrega", "envio", "pacote", "encomenda", "rastreamento", "correio", "transportadora",
+                "transporte", "frete", "carga", "depósito", "armazém", "distribuição", "logística",
+                "retirada", "express", "sedex", "pac", "motoboy", "coleta", "expedição"
+            ],
+            
+            "events": [
+                # Inglês
+                "event", "events", "party", "celebration", "concert", "show", "performance", "ticket",
+                "booking", "reservation", "venue", "location", "date", "time", "guest", "invitation",
+                "wedding", "birthday", "anniversary", "conference", "meeting", "seminar", "festival",
+                # Português
+                "evento", "eventos", "festa", "celebração", "comemoração", "show", "espetáculo", 
+                "ingresso", "reserva", "local", "data", "horário", "convidado", "convite", "casamento",
+                "aniversário", "conferência", "reunião", "seminário", "festival", "formatura",
+                "buffet", "decoração", "organização"
+            ],
+            
+            "pets": [
+                # Inglês
+                "pet", "pets", "animal", "animals", "dog", "cat", "bird", "fish", "veterinary", "vet",
+                "grooming", "care", "food", "toy", "training", "health", "vaccine", "medicine",
+                "shelter", "adoption", "breed", "puppy", "kitten", "walk", "exercise",
+                # Português
+                "pet", "pets", "animal", "animais", "cachorro", "cão", "gato", "pássaro", "peixe",
+                "veterinário", "banho", "tosa", "cuidado", "ração", "brinquedo", "adestramento",
+                "saúde", "vacina", "remédio", "abrigo", "adoção", "raça", "filhote", "passeio",
+                "exercício", "petshop", "aquário"
+            ],
+            
+            "wellness": [
+                # Inglês
+                "spa", "massage", "beauty", "treatment", "relaxation", "therapy", "well-being", "wellness",
+                "facial", "manicure", "pedicure", "hair", "salon", "skin", "cosmetic", "aesthetic",
+                "meditation", "yoga", "stress", "mental health", "self-care", "mindfulness",
+                # Português
+                "spa", "massagem", "beleza", "tratamento", "relaxamento", "terapia", "bem-estar",
+                "facial", "manicure", "pedicure", "cabelo", "salão", "pele", "cosmético", "estético",
+                "meditação", "yoga", "estresse", "saúde mental", "autocuidado", "mindfulness",
+                "estética", "depilação", "limpeza de pele", "hidratação"
+            ],
+            
+            "technology": [
+                # Inglês
+                "computer", "software", "hardware", "tech", "technology", "IT", "system", "digital",
+                "internet", "website", "app", "application", "programming", "coding", "database",
+                "server", "network", "security", "backup", "cloud", "artificial intelligence", "AI",
+                # Português
+                "computador", "software", "hardware", "tecnologia", "TI", "sistema", "digital",
+                "internet", "site", "aplicativo", "app", "programação", "código", "banco de dados",
+                "servidor", "rede", "segurança", "backup", "nuvem", "inteligência artificial", "IA",
+                "informática", "dados", "plataforma", "desenvolvimento"
+            ],
+            
+            "legal": [
+                # Inglês
+                "lawyer", "attorney", "legal", "law", "rights", "contract", "agreement", "lawsuit",
+                "court", "judge", "justice", "legislation", "regulation", "compliance", "liability",
+                "intellectual property", "patent", "copyright", "trademark", "litigation", "dispute",
+                # Português
+                "advogado", "jurídico", "lei", "direito", "direitos", "contrato", "acordo", "processo",
+                "tribunal", "juiz", "justiça", "legislação", "regulamentação", "compliance", 
+                "responsabilidade", "propriedade intelectual", "patente", "marca", "litígio", "disputa",
+                "advocacia", "legal", "jurisprudência", "documentos"
+            ],
+            
+            "escalation": [
+                # Inglês
+                "speak to manager", "talk to human", "need supervisor", "escalate", "real person",
+                "human agent", "transfer", "connect me", "not satisfied", "speak to someone else",
+                "this isn't helping", "I want to talk", "get me a person", "human support",
+                # Português
+                "falar com gerente", "atendente humano", "preciso supervisor", "escalar", "pessoa real",
+                "agente humano", "transferir", "me conectar", "não satisfeito", "falar com outra pessoa",
+                "isso não está ajudando", "quero falar", "me passar uma pessoa", "suporte humano",
+                "quero falar com alguém", "não resolve", "preciso de ajuda", "outra pessoa"
+            ],
+            
+            "transfer": [
+                # Inglês
+                "transfer", "redirect", "connect", "forward", "route", "send to", "pass to", 
+                "different department", "another agent", "specialist", "expert", "technical support",
+                "transferring to agent","transferring to department", "transferring to area","transferring to",
+                # Português
+                "transferir", "redirecionar", "conectar", "encaminhar", "enviar para", "passar para",
+                "outro departamento", "outro agente", "especialista", "expert", "suporte técnico",
+                "setor específico", "departamento", "área", "transferindo"
+            ]
         }
         
         # Calculate raw scores based on keyword presence
@@ -1382,6 +1612,8 @@ class AgentOrchestrator:
         
         # Generate final reason text
         reason = ", ".join(reasons) if reasons else "Sem forte correspondência"
+        
+        logging.debug(f"_calculate_agent_score > return Score: {score}, Reason: {reason}")
         
         return score, reason
 
