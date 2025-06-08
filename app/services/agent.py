@@ -356,6 +356,7 @@ class AgentService:
             rag_categories=rag_categories,
             mcp_enabled=db_agent.mcp_enabled,
             mcp_functions=mcp_functions,
+            escalation_enabled=db_agent.escalation_enabled,
             human_escalation_enabled=db_agent.human_escalation_enabled,
             human_escalation_contact=db_agent.human_escalation_contact,
             active=db_agent.active,
