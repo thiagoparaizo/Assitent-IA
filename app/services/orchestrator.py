@@ -80,7 +80,7 @@ class AgentOrchestrator:
                 self.token_counter_service = None
             
         # Log initialization
-        logging.info(f"AgentOrchestrator initialized with config: {self.config}")
+        logger.info(f"AgentOrchestrator initialized with config: {self.config}")
 
     def _setup_logging(self):
         """Set up logging based on configuration."""
@@ -315,7 +315,7 @@ class AgentOrchestrator:
                 })
                 
                 # Também podemos adicionar um log para acompanhamento
-                logging.info(f"process_message > Detectada necessidade de escalação automática na conversa {conversation_id}")
+                logger.info(f"process_message > Detectada necessidade de escalação automática na conversa {conversation_id}")
         
        
         
@@ -324,7 +324,7 @@ class AgentOrchestrator:
         transfer_to_id = None
         transfer_reason = None
         
-        logging.info(f"process_message > Current agent: {current_agent_id}")
+        logger.info(f"process_message > Current agent: {current_agent_id}")
         
         if current_agent.escalation_enabled:
             logger.info(f"process_message > Current agent {current_agent_id} is escalation enabled.")
@@ -332,7 +332,7 @@ class AgentOrchestrator:
             # Rest of the processing logic remains similar...
             # Evaluate whether we should transfer to another agent
             agent_scores = await self.evaluate_agent_transfer(state, message)
-            logging.info(f"process_message > Agent scores: {agent_scores}")
+            logger.info(f"process_message > Agent scores: {agent_scores}")
             
             # Get the best agent (might be the current one)
             best_agent_score = agent_scores[0]
@@ -356,7 +356,7 @@ class AgentOrchestrator:
         # Get current agent (either the same or after transfer)
         if transfer_to_id is not None:
             # Log the transfer decision
-            logging.info(f"process_message > Transferring conversation {conversation_id} from agent {current_agent_id} to {transfer_to_id}: {transfer_reason}")
+            logger.info(f"process_message > Transferring conversation {conversation_id} from agent {current_agent_id} to {transfer_to_id}: {transfer_reason}")
             
             state.history.append({
                 "role": "system",
@@ -367,7 +367,7 @@ class AgentOrchestrator:
             # Update current agent
             state.current_agent_id = transfer_to_id
             current_agent = self.agent_service.get_agent(transfer_to_id)
-            logging.info(f"process_message > Updated current agent to {transfer_to_id} and name {current_agent.name}")    
+            logger.info(f"process_message > Updated current agent to {transfer_to_id} and name {current_agent.name}")    
             
         
         else:
@@ -394,7 +394,7 @@ class AgentOrchestrator:
                 relevant_docs = [doc for doc in docs if doc.get("relevance_score", 0) >= tenant_config.rag.min_relevance_score]
                 rag_context.extend(relevant_docs)
                 
-            logging.debug(f"Retrieved {len(rag_context)} relevant RAG docs for conversation {conversation_id}")
+            logger.info(f"Retrieved {len(rag_context)} relevant RAG docs for conversation {conversation_id}")
         
         # Retrieve relevant memories if enabled
         memory_context = []
@@ -414,7 +414,7 @@ class AgentOrchestrator:
                         for m in relevant_memories
                     ]
                     
-                    logging.debug(f"Retrieved {len(memory_context)} relevant memories for conversation {conversation_id}")
+                    logger.info(f"Retrieved {len(memory_context)} relevant memories for conversation {conversation_id}")
             except Exception as e:
                 logging.error(f"Error retrieving memories: {e}")
         
@@ -627,7 +627,7 @@ class AgentOrchestrator:
                     # Clean response
                     result["response"] = result["response"].replace("ESCALAR_PARA_HUMANO", "")
                     
-                    logging.info(f"Human escalation triggered to {escalation_contact}")
+                    logger.info(f"Human escalation triggered to {escalation_contact}")
                 else:
                     # Remove the tag but add explanation
                     result["response"] = result["response"].replace(
@@ -656,7 +656,7 @@ class AgentOrchestrator:
                 # Process function calls (up to configured limit)
                 max_calls = min(len(function_calls), config.mcp.max_function_calls_per_message)
                 for i, function_call in enumerate(function_calls[:max_calls]):
-                    logging.info(f"Processing function call {i+1}/{max_calls}: {function_call.get('name')}")
+                    logger.info(f"Processing function call {i+1}/{max_calls}: {function_call.get('name')}")
                     
                     result["actions"].append({
                         "type": "mcp_function",
@@ -820,7 +820,7 @@ class AgentOrchestrator:
     async def get_conversation_state(self, conversation_id: str) -> Optional[ConversationState]:
         """Recupera o estado da conversa do Redis."""
         if not self.redis:
-            logging.debug(f"[DEBUG] Cliente Redis não inicializado")
+            logger.info(f"[DEBUG] Cliente Redis não inicializado")
             return None
         
         # Garantir que o conversation_id seja uma string
@@ -828,28 +828,28 @@ class AgentOrchestrator:
             conversation_id = conversation_id.decode('utf-8')
         
         key = f"conversation:{conversation_id}"
-        logging.debug(f"[DEBUG] Buscando estado da conversa com a chave: {key}")
+        logger.info(f"[DEBUG] Buscando estado da conversa com a chave: {key}")
         try:
             data = await self.redis.get(key)
             
             if not data:
-                logging.debug(f"[DEBUG] Nenhum dado encontrado para a chave {key}")
+                logger.info(f"[DEBUG] Nenhum dado encontrado para a chave {key}")
                 
                 # Tentar buscar diretamente se o conversation_id já contém o prefixo
                 if conversation_id.startswith("conversation:"):
                     direct_key = conversation_id
-                    logging.debug(f"[DEBUG] Tentando buscar diretamente com a chave: {direct_key}")
+                    logger.info(f"[DEBUG] Tentando buscar diretamente com a chave: {direct_key}")
                     data = await self.redis.get(direct_key)
                     if not data:
-                        logging.debug(f"[DEBUG] Nenhum dado encontrado para a chave direta {direct_key}")
+                        logger.info(f"[DEBUG] Nenhum dado encontrado para a chave direta {direct_key}")
                         return None
                 else:
                     return None
             
-            logging.debug(f"[DEBUG] Dados encontrados para conversa {conversation_id}")
+            logger.info(f"[DEBUG] Dados encontrados para conversa {conversation_id}")
             return ConversationState.parse_raw(data)
         except Exception as e:
-            logging.debug(f"[DEBUG] Erro ao recuperar estado da conversa: {e}")
+            logger.info(f"[DEBUG] Erro ao recuperar estado da conversa: {e}")
             return None
     
     # async def _generate_and_store_summary(self, state: ConversationState) -> None:
@@ -865,7 +865,7 @@ class AgentOrchestrator:
     #             logging.warning(f"Tentativa de gerar resumo, mas o serviço de memória não está ativo")
     #             return
             
-    #         logging.info(f"Gerando resumo para a conversa {state.conversation_id}")
+    #         logger.info(f"Gerando resumo para a conversa {state.conversation_id}")
             
     #         # Gerar resumo
     #         summary = await self.memory_service.generate_conversation_summary(
@@ -891,7 +891,7 @@ class AgentOrchestrator:
     #         # Salvar estado atualizado
     #         await self.save_conversation_state(state)
             
-    #         logging.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
+    #         logger.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
             
     #         # Verificar se precisa extrair memórias adicionais
     #         # Nota: O método generate_conversation_summary já extrai memórias básicas,
@@ -930,7 +930,7 @@ class AgentOrchestrator:
                 logging.warning(f"Tentativa de gerar resumo, mas o serviço de memória não está ativo")
                 return
             
-            logging.info(f"Gerando resumo para a conversa {state.conversation_id}")
+            logger.info(f"Gerando resumo para a conversa {state.conversation_id}")
             
             # Gerar resumo
             summary = await self.memory_service.generate_conversation_summary(
@@ -956,7 +956,7 @@ class AgentOrchestrator:
             # Salvar estado atualizado
             await self.save_conversation_state(state)
             
-            logging.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
+            logger.info(f"Resumo gerado e armazenado para conversa {state.conversation_id}")
             
         except Exception as e:
             logging.error(f"Erro ao gerar resumo da conversa: {str(e)}")
@@ -1031,7 +1031,7 @@ class AgentOrchestrator:
                             "timestamp": time.time()
                         })
                         
-                        logging.info(f"Carregado perfil do usuário {user_id} com {len(user_profile.get('recent_conversations', []))} conversas anteriores")
+                        logger.info(f"Carregado perfil do usuário {user_id} com {len(user_profile.get('recent_conversations', []))} conversas anteriores")
             except Exception as e:
                 logging.error(f"Error retrieving user profile for {user_id}: {e}")
         
@@ -1060,7 +1060,7 @@ class AgentOrchestrator:
         
         # Normalize to 0-1 range
         distance = min(1.0, squared_diff_sum ** 0.5)
-        logging.debug(f"_calculate_topic_change > Topic change distance: {distance}")
+        logger.info(f"_calculate_topic_change > Topic change distance: {distance}")
         
         return distance
     
@@ -1073,11 +1073,11 @@ class AgentOrchestrator:
         """
         # Get transfer config
         transfer_config = self.config.agent_transfer
-        logging.debug("evaluate_agent_transfer > Transfer config: %s", transfer_config)
+        logger.info("evaluate_agent_transfer > Transfer config: %s", transfer_config)
         
         # Check if transfers are enabled #TODO inlcuir verificação de transfer no agent atual
         if not transfer_config.enabled:
-            logging.debug("evaluate_agent_transfer > Transfers disabled")
+            logger.info("evaluate_agent_transfer > Transfers disabled")
             # Return only current agent with max score
             current_agent = self.agent_service.get_agent(state.current_agent_id)
             return [AgentScore(
@@ -1088,11 +1088,11 @@ class AgentOrchestrator:
         
         # Get current agent
         current_agent = self.agent_service.get_agent(state.current_agent_id)
-        logging.debug("evaluate_agent_transfer > Current agent id: %s", current_agent.id)
+        logger.info("evaluate_agent_transfer > Current agent id: %s", current_agent.id)
         
         # Check minimum messages before transfer
         if len(state.history) < transfer_config.min_messages_before_transfer:
-            logging.debug(f"evaluate_agent_transfer > Not enough messages before transfer (current length history: {len(state.history)}). Returning current agent")
+            logger.info(f"evaluate_agent_transfer > Not enough messages before transfer (current length history: {len(state.history)}). Returning current agent")
             return [AgentScore(
                 agent_id=current_agent.id,
                 score=1.0,
@@ -1102,7 +1102,7 @@ class AgentOrchestrator:
         # Check max transfers per conversation
         transfer_count = state.metadata.get("transfer_count", 0)
         if transfer_count >= transfer_config.max_transfers_per_conversation:
-            logging.debug("evaluate_agent_transfer > Max transfers per conversation reached. Current transfer count: %s. Returning current agent", transfer_count)
+            logger.info("evaluate_agent_transfer > Max transfers per conversation reached. Current transfer count: %s. Returning current agent", transfer_count)
             return [AgentScore(
                 agent_id=current_agent.id,
                 score=1.0,
@@ -1119,7 +1119,7 @@ class AgentOrchestrator:
         if last_transfer_index != -1:
             messages_since_transfer = len(state.history) - last_transfer_index - 1
             if messages_since_transfer < transfer_config.cool_down_messages:
-                logging.debug("evaluate_agent_transfer > Cool down period after last transfer. Messages since last transfer: %s. Returning current agent", messages_since_transfer)
+                logger.info("evaluate_agent_transfer > Cool down period after last transfer. Messages since last transfer: %s. Returning current agent", messages_since_transfer)
                 return [AgentScore(
                     agent_id=current_agent.id,
                     score=1.0,
@@ -1131,7 +1131,7 @@ class AgentOrchestrator:
         
         # Get all agents for this tenant
         all_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(state.tenant_id, state.current_agent_id) # TODO trocar por get_agents_by_tenant_and_relationship_with_current_agent
-        logging.debug("evaluate_agent_transfer > All agents in tenant: %s", all_agents)
+        logger.info("evaluate_agent_transfer > All agents in tenant: %s", all_agents)
         
         # Initialize scores
         agent_scores = []
@@ -1144,12 +1144,12 @@ class AgentOrchestrator:
         
         # Calculate the conversation focus
         conversation_focus = await self._analyze_conversation_focus(recent_messages, message)
-        logging.debug("evaluate_agent_transfer > Conversation focus: %s", conversation_focus)
+        logger.info("evaluate_agent_transfer > Conversation focus: %s", conversation_focus)
         
         # Check for repetitive transfers (avoid transfer loops)
         recent_transfers = self._count_recent_transfers(state, 10)  # Look at last 10 exchanges
         transfer_penalty = min(transfer_config.default_transfer_penalty * recent_transfers, 0.5)
-        logging.debug("evaluate_agent_transfer > Recent transfers: %s. Transfer penalty: %s", recent_transfers, transfer_penalty)
+        logger.info("evaluate_agent_transfer > Recent transfers: %s. Transfer penalty: %s", recent_transfers, transfer_penalty)
         
         # Check for topic change
         previous_focus = state.metadata.get("previous_focus", {})
@@ -1157,7 +1157,7 @@ class AgentOrchestrator:
         if previous_focus:
             topic_change_score = self._calculate_topic_change(previous_focus, conversation_focus)
             
-        logging.debug("evaluate_agent_transfer > Topic change score: %s", topic_change_score)
+        logger.info("evaluate_agent_transfer > Topic change score: %s", topic_change_score)
         
         # Store current focus for future comparison
         state.metadata["previous_focus"] = conversation_focus
@@ -1183,13 +1183,13 @@ class AgentOrchestrator:
             
             # Apply transfer penalty to avoid loops
             if recent_transfers > 1:
-                logging.debug("evaluate_agent_transfer > Applying transfer penalty")
+                logger.info("evaluate_agent_transfer > Applying transfer penalty")
                 score -= transfer_penalty
                 reason += f" (Transfer penalty: -{transfer_penalty:.2f})"
             
             # Apply topic change bonus if applicable
             if topic_change_score > 0.3 and score > 0.4:
-                logging.debug("evaluate_agent_transfer > Applying topic change bonus")
+                logger.info("evaluate_agent_transfer > Applying topic change bonus")
                 topic_bonus = min(transfer_config.topic_change_bonus, 0.3)
                 score += topic_bonus
                 reason += f" (Topic change bonus: +{topic_bonus:.2f})"
@@ -1204,7 +1204,7 @@ class AgentOrchestrator:
         result = sorted(agent_scores, key=lambda x: x.score, reverse=True)
         
         # Log the evaluation result
-        logging.debug(f"evaluate_agent_transfer > RESUTADO Agent transfer evaluation: {[f'{a.agent_id}: {a.score:.2f} ({a.reason})' for a in result[:3]]}")
+        logger.info(f"evaluate_agent_transfer > RESUTADO Agent transfer evaluation: {[f'{a.agent_id}: {a.score:.2f} ({a.reason})' for a in result[:3]]}")
         
         return result
 
@@ -1613,7 +1613,7 @@ class AgentOrchestrator:
         # Generate final reason text
         reason = ", ".join(reasons) if reasons else "Sem forte correspondência"
         
-        logging.debug(f"_calculate_agent_score > return Score: {score}, Reason: {reason}")
+        logger.info(f"_calculate_agent_score > return Score: {score}, Reason: {reason}")
         
         return score, reason
 

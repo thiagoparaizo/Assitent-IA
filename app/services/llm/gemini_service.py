@@ -66,11 +66,11 @@ class GeminiService(LLMService):
         """
         Gera uma resposta usando o Gemini e retorna o texto gerado e informações de uso de tokens.
         """
-        print(f"[DEBUG] GeminiService.generate_response: messages: {messages}")
+        logging.debug(f"[DEBUG] GeminiService.generate_response: messages: {messages}")
         try:
             # Converter mensagens para o formato do Gemini
             gemini_messages = self._convert_to_gemini_format(messages)
-            print(f"[DEBUG] GeminiService.generate_response: gemini_messages: {gemini_messages}")
+            logging.debug(f"[DEBUG] GeminiService.generate_response: gemini_messages: {gemini_messages}")
             
             # Configurações de geração
             generation_config = {
@@ -90,7 +90,7 @@ class GeminiService(LLMService):
                     generation_config
                 )
             except Exception as e:
-                print(f"[DEBUG] GeminiService.generate_response: Error setting default executor: {e}")
+                logger.error(f"[DEBUG] GeminiService.generate_response: Error setting default executor: {e}")
                 logger.error(f"Error setting default executor: {e}")    
             
             
@@ -385,7 +385,7 @@ class GeminiService(LLMService):
                 generation_config=generation_config
             )
             
-            print(f"[DEBUG] _generate_sync: Model: {model.model_name} | API Key: {self.api_key[-10:]}")
+            logging.info(f"[DEBUG] _generate_sync: Model: {model.model_name} | API Key: {self.api_key[-10:]}")
             
             # CORREÇÃO: Usar o formato correto para conversas
             if len(messages) == 1:
@@ -402,7 +402,7 @@ class GeminiService(LLMService):
             
         except Exception as e:
             logger.error(f"Error in sync generation: {e}")
-            print(f"[DEBUG][DEBUG] _generate_sync: Error in sync generation: {e} | API Key: {self.api_key[-10:]}") 
+            logger.error(f"[DEBUG][DEBUG] _generate_sync: Error in sync generation: {e} | API Key: {self.api_key[-10:]}") 
             # Retornar um objeto mock com texto de erro
             class MockResponse:
                 def __init__(self, text):

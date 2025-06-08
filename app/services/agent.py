@@ -198,7 +198,7 @@ class AgentService:
         # Buscar o agente atual
         current_agent = self.get_agent(current_agent_id)
         if not current_agent or not current_agent.escalation_enabled or not current_agent.list_escalation_agent_ids:
-            logging.debug("get_agents_by_tenant_and_relationship_with_current_agent > Agent not found or escalation is disabled")
+            logger.info("get_agents_by_tenant_and_relationship_with_current_agent > Agent not found or escalation is disabled")
             return []
         
         # Obter a lista de IDs de agentes para escalação
@@ -206,7 +206,7 @@ class AgentService:
         if isinstance(escalation_agent_ids, str):
             # Se for JSON string
             escalation_agent_ids = json.loads(escalation_agent_ids)
-            logging.debug("get_agents_by_tenant_and_relationship_with_current_agent > escalation_agent_ids: %s", escalation_agent_ids)
+            logger.info("get_agents_by_tenant_and_relationship_with_current_agent > escalation_agent_ids: %s", escalation_agent_ids)
         
         # Buscar todos os agentes relacionados em uma única consulta
         query = select(AgentModel).where(
@@ -217,7 +217,7 @@ class AgentService:
         
         result = self.db.execute(query)
         db_agents = result.scalars().all()
-        logging.debug("get_agents_by_tenant_and_relationship_with_current_agent > db_agents count: %s", len(db_agents))
+        logger.info("get_agents_by_tenant_and_relationship_with_current_agent > db_agents count: %s", len(db_agents))
         
         # Converter para schema
         return [self._db_to_schema(db_agent) for db_agent in db_agents]
