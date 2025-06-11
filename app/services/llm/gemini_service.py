@@ -20,7 +20,7 @@ class GeminiService(LLMService):
         
         # Configure Gemini
         genai.configure(api_key=api_key)
-        print(f"Gemini configurado com sucesso. API Key: {api_key[-10:]}")
+        print(f"Gemini {model} configurado com sucesso. API Key: {api_key[-10:]}")
         
         # Configurações de segurança permissivas para uso comercial
         self.safety_settings = [
@@ -74,7 +74,7 @@ class GeminiService(LLMService):
             
             # Configurações de geração
             generation_config = {
-                "temperature": kwargs.get("temperature", 0.7),
+                "temperature": kwargs.get("temperature", 0.6),
                 "max_output_tokens": kwargs.get("max_tokens", 1000),
                 "top_p": kwargs.get("top_p", 0.8),
                 "top_k": kwargs.get("top_k", 40)
