@@ -1053,13 +1053,13 @@ class MemoryService:
             # Handle tuple response
             if isinstance(preferences_response, tuple):
                 preferences_json = preferences_response[0] if preferences_response else "[]"
-                logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (tupla):", preferences_json)
+                logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (tupla): %s", preferences_json)
             else:
                 preferences_json = preferences_response
-                logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (string):", preferences_json)
+                logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (string): %s", preferences_json)
             
             preferences_json = str(preferences_json).strip() if preferences_json else "[]"
-            logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (string):", preferences_json)
+            logging.info("MemoryService._extract_memories_from_conversation: [DEBUG] Preferências extraídas (string): %s", preferences_json)
             
             # Remove "json\n" substituindo por uma string vazia
             # Remove os marcadores ```json\n no início e \n``` no final
@@ -1124,18 +1124,18 @@ class MemoryService:
             ]
             
             issues_response = await self.llm.generate_response(issues_prompt)
-            print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos:", issues_response)
+            logger.info("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos: %s", issues_response)
             
             # Handle tuple response
             if isinstance(issues_response, tuple):
                 issues_json = issues_response[0] if issues_response else "[]"
-                print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (tupla):", issues_json)
+                logger.info("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (tupla): %s", issues_json)
             else:
                 issues_json = issues_response
-                print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (string):", issues_json)
+                logger.info("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (string): %s", issues_json)
             
             issues_json = str(issues_json).strip() if issues_json else "[]"
-            print("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (string):", issues_json)
+            logger.info("MemoryService._extract_memories_from_conversation: [DEBUG] Problemas extraídos (string): %s", issues_json)
             # Remove "json\n" substituindo por uma string vazia
             # Remove os marcadores ```json\n no início e \n``` no final
             cleaned_json = (
@@ -1153,7 +1153,7 @@ class MemoryService:
 
                 # Parse e validação do JSON
                 issues = json.loads(cleaned_json)
-                print("MemoryService._extract_memories_from_conversation: [DEBUG] Issues parsed:", issues)
+                logger.info("MemoryService._extract_memories_from_conversation: [DEBUG] Issues parsed: %s", issues)
                 
                 if not isinstance(issues, list):
                     logger.warning("Formato inválido de issues (deveria ser uma lista)")
@@ -1207,13 +1207,13 @@ class MemoryService:
             # Handle tuple response
             if isinstance(facts_response, tuple):
                 facts_json = facts_response[0] if facts_response else "[]"
-                print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (tupla):", facts_json)
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (tupla): %s", facts_json)
             else:
                 facts_json = facts_response
-                print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (string):", facts_json)
+                print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (string): %s", facts_json)
             
             facts_json = str(facts_json).strip() if facts_json else "[]"
-            print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (string):", facts_json)
+            print("MemoryService._extract_memories_from_conversation: [DEBUG] Facts extracted (string): %s", facts_json)
             # Remove "json\n" substituindo por uma string vazia
             # Remove os marcadores ```json\n no início e \n``` no final
             try:

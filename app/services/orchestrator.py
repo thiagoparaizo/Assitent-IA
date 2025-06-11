@@ -1075,7 +1075,7 @@ class AgentOrchestrator:
         transfer_config = self.config.agent_transfer
         logger.info("evaluate_agent_transfer > Transfer config: %s", transfer_config)
         
-        # Check if transfers are enabled #TODO inlcuir verificação de transfer no agent atual
+        # Check if transfers are enabled
         if not transfer_config.enabled:
             logger.info("evaluate_agent_transfer > Transfers disabled")
             # Return only current agent with max score
@@ -1090,19 +1090,57 @@ class AgentOrchestrator:
         current_agent = self.agent_service.get_agent(state.current_agent_id)
         logger.info("evaluate_agent_transfer > Current agent id: %s", current_agent.id)
         
+        # NOVA VALIDAÇÃO: Verificar se a mensagem é muito simples para transferência
+        if len(message.strip()) < 10 and not any(keyword in message.lower() for keyword in [
+            'problema', 'ajuda', 'suporte', 'erro', 'não funciona', 'quebrou',
+            'orçamento', 'preço', 'comprar', 'comercial', 'vendas', 'interesse'
+        ]):
+            logger.info("evaluate_agent_transfer > Message too simple for transfer evaluation: '%s'", message)
+            return [AgentScore(
+                agent_id=current_agent.id,
+                score=1.0,
+                reason="Message too simple for transfer evaluation"
+            )]
+        
+        # NOVA VALIDAÇÃO: Se é apenas apresentação/saudação, manter no agente atual
+        greeting_patterns = [
+            r'^[a-záàâãéêíóôõúç\s]+$',  # Apenas nome próprio
+            r'^(oi|olá|boa\s+(tarde|manhã|noite)|bom\s+dia)[\s,]*[a-záàâãéêíóôõúç\s]*$'
+        ]
+        
+        import re
+        for pattern in greeting_patterns:
+            if re.match(pattern, message.lower().strip()):
+                logger.info("evaluate_agent_transfer > Greeting/name pattern detected, keeping current agent")
+                return [AgentScore(
+                    agent_id=current_agent.id,
+                    score=1.0,
+                    reason="Greeting or name introduction detected"
+                )]
+        
         # Check minimum messages before transfer
         if len(state.history) < transfer_config.min_messages_before_transfer:
-            logger.info(f"evaluate_agent_transfer > Not enough messages before transfer (current length history: {len(state.history)}). Returning current agent")
+            logger.info("evaluate_agent_transfer > Not enough messages before transfer (current length history: %d)", len(state.history))
             return [AgentScore(
                 agent_id=current_agent.id,
                 score=1.0,
                 reason="Not enough messages for transfer evaluation"
             )]
         
+        # NOVA VALIDAÇÃO: Mínimo de 3 trocas (6 mensagens) antes de considerar transferência
+        user_messages = [msg for msg in state.history if msg.get("role") == "user"]
+        if len(user_messages) < 3:
+            logger.info("evaluate_agent_transfer > Less than 3 user messages, keeping current agent")
+            return [AgentScore(
+                agent_id=current_agent.id,
+                score=1.0,
+                reason="Need at least 3 user interactions before transfer"
+            )]
+        
         # Check max transfers per conversation
         transfer_count = state.metadata.get("transfer_count", 0)
         if transfer_count >= transfer_config.max_transfers_per_conversation:
-            logger.info("evaluate_agent_transfer > Max transfers per conversation reached. Current transfer count: %s. Returning current agent", transfer_count)
+            logger.info("evaluate_agent_transfer > Max transfers per conversation reached. Current transfer count: %s", transfer_count)
             return [AgentScore(
                 agent_id=current_agent.id,
                 score=1.0,
@@ -1119,7 +1157,7 @@ class AgentOrchestrator:
         if last_transfer_index != -1:
             messages_since_transfer = len(state.history) - last_transfer_index - 1
             if messages_since_transfer < transfer_config.cool_down_messages:
-                logger.info("evaluate_agent_transfer > Cool down period after last transfer. Messages since last transfer: %s. Returning current agent", messages_since_transfer)
+                logger.info("evaluate_agent_transfer > Cool down period after last transfer. Messages since last transfer: %s", messages_since_transfer)
                 return [AgentScore(
                     agent_id=current_agent.id,
                     score=1.0,
@@ -1130,7 +1168,7 @@ class AgentOrchestrator:
         recent_messages = state.history[-5:] if len(state.history) >= 5 else state.history[:]
         
         # Get all agents for this tenant
-        all_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(state.tenant_id, state.current_agent_id) # TODO trocar por get_agents_by_tenant_and_relationship_with_current_agent
+        all_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(state.tenant_id, state.current_agent_id)
         logger.info("evaluate_agent_transfer > All agents in tenant: %s", all_agents)
         
         # Initialize scores
@@ -1204,13 +1242,13 @@ class AgentOrchestrator:
         result = sorted(agent_scores, key=lambda x: x.score, reverse=True)
         
         # Log the evaluation result
-        logger.info(f"evaluate_agent_transfer > RESUTADO Agent transfer evaluation: {[f'{a.agent_id}: {a.score:.2f} ({a.reason})' for a in result[:3]]}")
+        logger.info("evaluate_agent_transfer > RESULTADO Agent transfer evaluation: %s", [f'{a.agent_id}: {a.score:.2f} ({a.reason})' for a in result[:3]])
         
         return result
 
     async def _analyze_conversation_focus(self, recent_messages: List[Dict[str, Any]], current_message: str) -> Dict[str, float]:
         """
-        Analyzes the focus/topics of the conversation.
+        Analyzes the focus/topics of the conversation with improved keyword detection.
         
         Returns:
             Dictionary mapping categories to their relevance scores
@@ -1218,6 +1256,19 @@ class AgentOrchestrator:
         # Combine recent messages with current message
         all_text = current_message + " " + " ".join([msg["content"] for msg in recent_messages 
                                                 if msg["role"] in ["user", "assistant"]])
+        
+        # MELHORAR: Verificar se a mensagem é muito curta ou genérica
+        if len(current_message.strip()) < 5:
+            return {
+                "general": 1.0,
+                **{k: 0.0 for k in [
+                    "appointment", "product_info", "technical_issue", "billing", "complaint",
+                    "healthcare", "retail", "sports", "crafts", "professional", "finance",
+                    "tourism", "education", "real_estate", "automotive", "logistics", "events",
+                    "pets", "wellness", "technology", "legal", "escalation", "transfer",
+                    "commercial", "support"
+                ]}
+            }
         
         # Inicializar um dicionário maior de categorias
         categories = {
@@ -1252,28 +1303,46 @@ class AgentOrchestrator:
             "support": 0.0
         }
         
-        # Palavras-chave expandidas por categoria (inglês e português)
+        # Palavras-chave MELHORADAS por categoria
         keywords = {
-            "appointment": [
+            "commercial": [
+                # Português - Sinais claros de interesse comercial
+                "orçamento", "proposta", "preço", "valor", "custo", "contratar", "comprar",
+                "vendas", "comercial", "kit", "comodato", "mensalidade", "adesão",
+                "arena", "quadra", "campo", "instalação", "câmera", "sistema viplay",
+                "interessado", "quero saber", "gostaria de", "quanto custa", "como funciona o sistema",
                 # Inglês
-                "appointment", "schedule", "book", "booking", "reservation", "meeting", "reschedule", 
-                "cancel", "available", "time slot", "calendar", "diary", "slot", "date", "when",
-                # Português
-                "agendar", "agendamento", "marcar", "horário", "consulta", "reservar", "reserva", 
-                "cancelar", "reagendar", "disponível", "horários", "calendário", "agenda", "data", 
-                "quando", "que horas", "que dia", "disponibilidade", "vaga", "compromisso"
+                "quote", "proposal", "price", "cost", "buy", "purchase", "sales", "commercial",
+                "interested", "want to know", "would like"
+            ],
+            
+            "support": [
+                # Português - Problemas técnicos claros
+                "problema", "erro", "não funciona", "quebrou", "ajuda", "suporte",
+                "câmera offline", "sistema não grava", "senha", "login", "site",
+                "app", "ewelink", "painel", "configuração", "compartilhamento",
+                "botão", "led", "piscando", "desligado", "conectar", "wifi",
+                # Inglês
+                "problem", "error", "not working", "broken", "help", "support",
+                "offline", "password", "configuration", "technical issue"
+            ],
+            
+            "general": [
+                # Saudações e apresentações
+                "oi", "olá", "boa tarde", "boa manhã", "boa noite", "bom dia",
+                "meu nome é", "eu sou", "me chamo", "prazer", "obrigado",
+                "hello", "hi", "good morning", "good afternoon", "my name is"
+            ],
+            
+            # Outras categorias com menos peso para evitar falsas transferências
+            "appointment": [
+                "agendar", "agendamento", "marcar", "horário", "consulta", "reunião",
+                "appointment", "schedule", "meeting"
             ],
             
             "product_info": [
-                # Inglês
-                "product", "information", "details", "specs", "specifications", "how does", "features", 
-                "what is", "tell me about", "description", "catalog", "manual", "guide", "how to use",
-                "benefits", "advantages", "characteristics", "model", "version", "size", "color",
-                # Português
-                "produto", "informação", "informações", "detalhes", "especificações", "funcionalidades", 
-                "características", "como funciona", "o que é", "me fale sobre", "descrição", "catálogo", 
-                "manual", "guia", "como usar", "benefícios", "vantagens", "modelo", "versão", "tamanho", 
-                "cor", "ficha técnica", "dados técnicos"
+                "como funciona", "o que é", "informação", "detalhes", "especificações",
+                "how it works", "what is", "information", "details", "specs"
             ],
             
             "technical_issue": [
@@ -1548,16 +1617,27 @@ class AgentOrchestrator:
             ]
         }
         
-        # Calcular scores
+        # Calcular scores com pesos ajustados
         all_text_lower = f"{current_message} {' '.join([msg.get('content', '') for msg in recent_messages])}".lower()
-    
+
         for category, words in keywords.items():
             for word in words:
                 if word in all_text_lower:
-                    categories[category] += 0.3  # Increment score for each keyword found
+                    # Dar peso maior para categorias principais
+                    if category in ['commercial', 'support']:
+                        categories[category] += 0.5  # Peso maior para categorias críticas
+                    elif category == 'general':
+                        categories[category] += 0.3  # Peso médio para geral
+                    else:
+                        categories[category] += 0.2  # Peso menor para outras
         
-        # Ensure general category gets a minimum score
-        categories["general"] = max(0.3, 1.0 - sum(categories.values()))
+        # AJUSTE IMPORTANTE: Se nenhuma categoria específica foi detectada, dar peso total para "general"
+        total_specific = sum(v for k, v in categories.items() if k != 'general')
+        if total_specific == 0:
+            categories["general"] = 1.0
+        else:
+            # Normalizar apenas se há categorias específicas detectadas
+            categories["general"] = max(0.2, 1.0 - total_specific)
         
         # Normalize scores
         total = sum(categories.values())
