@@ -499,7 +499,7 @@ class AgentOrchestrator:
             logger.info(f"process_message > Updated current agent to {transfer_to_id} and name {current_agent.name}")    
             
             #Salvar mapeamento de agente comercial**
-            if current_agent.type in [AgentType.SPECIALIST] and "comercial" in current_agent.name.lower():
+            if current_agent.type in [AgentType.SPECIALIST] and any(s in current_agent.specialties for s in ["comercial", "commercial", "sales", "sale", "marketing"]):
                 await self.redis.set(
                     f"user_last_commercial_agent:{state.tenant_id}:{state.user_id}",
                     transfer_to_id,
@@ -509,7 +509,7 @@ class AgentOrchestrator:
                 
             transferred_agent = self.agent_service.get_agent(transfer_to_id)
             if (transferred_agent.type == AgentType.SPECIALIST and 
-                (["comercial", "commercial", "sales", "sale", "marketing"] in transferred_agent.name.lower())):
+                any(s in transferred_agent.specialties for s in ["comercial", "commercial", "sales", "sale", "marketing"])):
                 
                 await self.redis.set(
                     f"user_last_commercial_agent:{state.tenant_id}:{state.user_id}",
