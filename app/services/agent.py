@@ -339,8 +339,19 @@ class AgentService:
         agent_id = str(db_agent.id)
         
         # Garantir que especialidades e agentes de escalação existam
-        specialties = json.loads(db_agent.specialties) if db_agent.specialties else []
-        # list_escalation_agent_ids = json.loads(db_agent.list_escalation_agent_ids) if db_agent.list_escalation_agent_ids else []
+        list_specialties = []
+        if db_agent.specialties:
+            if isinstance(db_agent.specialties, str):
+                list = db_agent.specialties.split(",")
+                list_specialties = [item.strip() for item in list]
+            elif isinstance(db_agent.specialties, list):
+                # Compatibilidade: se ainda vier como JSON string
+                try:
+                    list_specialties = json.loads(db_agent.specialties)
+                except json.JSONDecodeError:
+                    # Se não conseguir fazer parse como JSON, assumir que é uma string única
+                    list_specialties = [db_agent.specialties]
+        
         
         list_escalation_agent_ids = []
         if db_agent.list_escalation_agent_ids:
@@ -361,7 +372,7 @@ class AgentService:
             name=db_agent.name,
             tenant_id=db_agent.tenant_id,
             type=AgentType(db_agent.type),
-            specialties=specialties,
+            specialties=list_specialties,
             description=db_agent.description,
             prompt=prompt_dict,
             rag_categories=rag_categories,
