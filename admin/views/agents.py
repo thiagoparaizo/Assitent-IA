@@ -304,6 +304,15 @@ def edit(agent_id):
     print(f"devices: {devices}")
     
     specialties_categories = {
+        "commercial": "Comercial",
+        "marketing": "Marketing",
+        "sales": "Vendas",
+        "customer_service": "Atendimento ao Cliente",
+        "support": "Suporte",
+        "it": "Tecnologia da Informação",
+        "software_development": "Desenvolvimento de Software",
+        "web_development": "Desenvolvimento Web",
+        "mobile_development": "Desenvolvimento Móvel",
         "healthcare": "Saúde",
         "medical_exams": "Exames Médicos",
         "health_insurance": "Planos de Saúde",

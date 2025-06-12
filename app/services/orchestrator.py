@@ -122,40 +122,114 @@ class AgentOrchestrator:
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)
         
-    async def start_conversation(self, tenant_id: str, user_id: str, agent_id: Optional[str] = None) -> str:
-        """Inicia uma nova conversa."""
+    async def _detect_commercial_context_resumption(self, state: ConversationState, message: str) -> bool:
+        """
+        Detecta se o usuário está retomando um contexto comercial anterior.
         
-        if not agent_id:
-            # Buscar agente primário do tenant
-            agents = await self.agent_service.get_agents_by_tenant(tenant_id)
-            general_agents = [a for a in agents if a.type == AgentType.GENERAL]
+        Returns:
+            True se detectar contexto comercial
+        """
+        # Palavras-chave que indicam continuação comercial
+        commercial_keywords = [
+            "orçamento", "proposta", "valor", "custo", "preço", "contratar",
+            "instalação", "sistema", "equipamento", "serviços", "quanto custa", "como funciona", "comercial",
+            "vendas", "comprar", "adquirir", "investimento"
+        ]
+        
+        # Verificar mensagem atual
+        message_has_commercial = any(keyword in message.lower() for keyword in commercial_keywords)
+        
+        # Verificar se há memórias comerciais recentes
+        commercial_memories_found = False
+        if self.memory_service:
+            try:
+                commercial_memories = await self.memory_service.recall_memories(
+                    tenant_id=state.tenant_id,
+                    user_id=state.user_id,
+                    query="orçamento proposta comercial academia sistema custo instalação",
+                    memory_types=[MemoryType.CONVERSATION, MemoryType.FACT, MemoryType.ISSUE],
+                    limit=5
+                )
+                
+                commercial_memories_found = len(commercial_memories) > 0
+                
+            except Exception as e:
+                logger.warning(f"Error checking commercial context: {e}")
+        
+        # Verificar se há agente comercial salvo
+        has_saved_commercial_agent = False
+        try:
+            saved_agent = await self.redis.get(f"user_last_commercial_agent:{state.tenant_id}:{state.user_id}")
+            has_saved_commercial_agent = saved_agent is not None
+        except Exception as e:
+            logger.warning(f"Error checking saved commercial agent: {e}")
+        
+        # Retorna True se qualquer condição for atendida
+        result = message_has_commercial or commercial_memories_found or has_saved_commercial_agent
+        
+        if result:
+            logger.info(f"Commercial context detected - Message: {message_has_commercial}, Memories: {commercial_memories_found}, Saved agent: {has_saved_commercial_agent}")
+        
+        return result
+    
+    # async def start_conversation(self, tenant_id: str, user_id: str, agent_id: Optional[str] = None) -> str:
+    #     """Inicia uma nova conversa."""
+        
+    #     if not agent_id:
+    #         # Buscar agente primário do tenant
+    #         agents = await self.agent_service.get_agents_by_tenant(tenant_id)
+    #         general_agents = [a for a in agents if a.type == AgentType.GENERAL]
             
-            if not general_agents:
-                raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
+    #         if not general_agents:
+    #             raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
             
-            primary_agent = general_agents[0]
-            agent_id = primary_agent.id
+    #         primary_agent = general_agents[0]
+    #         agent_id = primary_agent.id
+            
+    #     # **ADICIONAR AQUI - Verificar se existe agente comercial salvo**
+    #     try:
+    #         last_commercial_agent_id = await self.redis.get(
+    #             f"user_last_commercial_agent:{tenant_id}:{user_id}"
+    #         )
+            
+    #         if last_commercial_agent_id:
+    #             if isinstance(last_commercial_agent_id, bytes):
+    #                 last_commercial_agent_id = last_commercial_agent_id.decode('utf-8')
+                
+    #             # Verificar se o agente ainda existe e está ativo
+    #             commercial_agent = self.agent_service.get_agent(last_commercial_agent_id)
+    #             if commercial_agent and commercial_agent.active:
+    #                 agent_id = last_commercial_agent_id
+    #                 logger.info(f"Restored commercial agent {agent_id} for user {user_id}")
+    #             else:
+    #                 # Limpar mapeamento se agente não existe mais
+    #                 await self.redis.delete(f"user_last_commercial_agent:{tenant_id}:{user_id}")
+                    
+    #     except Exception as e:
+    #         logger.warning(f"Error retrieving commercial agent mapping: {e}")
         
-        # Criar estado da conversa
-        conversation_id = str(uuid.uuid4())
-        state = ConversationState(
-            conversation_id=conversation_id,
-            tenant_id=tenant_id,
-            user_id=user_id,
-            current_agent_id=agent_id,
-            history=[],
-            last_updated=time.time()
-        )
+    #     # Criar estado da conversa
+    #     conversation_id = str(uuid.uuid4())
+    #     state = ConversationState(
+    #         conversation_id=conversation_id,
+    #         tenant_id=tenant_id,
+    #         user_id=user_id,
+    #         current_agent_id=agent_id,
+    #         history=[],
+    #         last_updated=time.time()
+    #     )
         
-        # Salvar estado no Redis
-        await self.save_conversation_state(state)
+    #     # Salvar estado no Redis
+    #     await self.save_conversation_state(state)
         
-        return conversation_id
+    #     return conversation_id
     
     async def process_message(self, conversation_id: str, message: str, agent_id: str, contact_id: str, audio_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Processes a message within a conversation."""
         # Get the system config for this tenant
         state = await self.get_conversation_state(conversation_id)
+        
+        
         
         # Variables to track if we created a new conversation
         new_conversation_created = False
@@ -205,6 +279,41 @@ class AgentOrchestrator:
             state.metadata["previous_conversation_id"] = conversation_id
             state.metadata["reset_reason"] = "expired_or_not_found"
         
+        # Verificar se deve restaurar agente comercial mesmo sem timeout
+        if not new_conversation_created:  # Só se não criou conversa nova por timeout
+            current_agent = self.agent_service.get_agent(state.current_agent_id)
+            
+            # Se está com agente geral MAS há contexto comercial, tentar transferir
+            if current_agent.type == AgentType.GENERAL:
+                has_commercial_context = await self._detect_commercial_context_resumption(state, message)
+                
+                if has_commercial_context:
+                    # Tentar recuperar agente comercial salvo
+                    try:
+                        saved_commercial_agent_id = await self.redis.get(
+                            f"user_last_commercial_agent:{state.tenant_id}:{state.user_id}"
+                        )
+                        
+                        if saved_commercial_agent_id:
+                            if isinstance(saved_commercial_agent_id, bytes):
+                                saved_commercial_agent_id = saved_commercial_agent_id.decode('utf-8')
+                            
+                            # Verificar se agente ainda existe e está ativo
+                            commercial_agent = self.agent_service.get_agent(saved_commercial_agent_id)
+                            if commercial_agent and commercial_agent.active:
+                                # Forçar transferência para agente comercial
+                                state.current_agent_id = saved_commercial_agent_id
+                                
+                                state.history.append({
+                                    "role": "system",
+                                    "content": f"Detectamos que você estava em um processo comercial. Reconectando com nosso especialista comercial.",
+                                    "timestamp": time.time()
+                                })
+                                
+                                logger.info(f"Restored commercial agent {saved_commercial_agent_id} due to commercial context detection")
+                                
+                    except Exception as e:
+                        logger.warning(f"Error restoring commercial agent: {e}")
         
         
         # Apply tenant-specific config overrides
@@ -244,33 +353,53 @@ class AgentOrchestrator:
         current_time = time.time()
         time_diff_minutes = (current_time - last_update_time) / 60
         
-        if time_diff_minutes > tenant_config.conversation_timeout_minutes: #verificar se o agente for pessoal, não expirar conversa
+        current_agent = self.agent_service.get_agent(state.current_agent_id)
+        agent_timeout_minutes = self._get_timeout_for_agent(current_agent)
+
+        if time_diff_minutes > agent_timeout_minutes:
             logger.info(f"process_message > Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
             print(f"process_message > Conversation {conversation_id} timed out after {time_diff_minutes:.1f} minutes. Creating new conversation.")
+            
             # Set reason for archiving
             state.metadata["archive_reason"] = "conversation_timeout"
+            state.metadata["timeout_minutes"] = agent_timeout_minutes
             
             # Archive the current conversation
             await self._archive_conversation(state)
             
+            # ANTES DE CRIAR NOVA CONVERSA - verificar se deve manter agente comercial
+            preferred_agent_id = agent_id  # Default
+            
+            # Se estava com agente comercial, verificar se deve manter
+            if current_agent.type == AgentType.SPECIALIST and current_agent.name.lower() in ["commercial", "sales", "marketing"]:
+                # Verificar se há contexto comercial na mensagem
+                has_commercial_context = await self._detect_commercial_context_resumption(state, message)
+                if has_commercial_context:
+                    preferred_agent_id = current_agent.id
+                    logger.info(f"Maintaining commercial agent {current_agent.id} due to commercial context")
+            
             # Create new conversation
-            new_conversation_id = await self.start_conversation(state.tenant_id, state.user_id, agent_id)
+            new_conversation_id = await self.start_conversation(state.tenant_id, state.user_id, preferred_agent_id)
             
             # Get the new state
             state = await self.get_conversation_state(new_conversation_id)
             new_conversation_created = True
-            reset_reason = "timeout"
+            reset_reason = f"timeout_agent_{current_agent.type.value}"
             
             # Add system message explaining what happened
+            timeout_message = f"Sua conversa anterior expirou após {agent_timeout_minutes} minutos de inatividade"
+            if preferred_agent_id == current_agent.id:
+                timeout_message += ". Como você estava em um processo comercial, mantivemos você com nosso especialista"
+            
             state.history.append({
-                "role": "system",
-                "content": "Sua conversa anterior expirou devido à inatividade. Iniciamos uma nova conversa para você.",
+                "role": "system", 
+                "content": timeout_message + ". Iniciamos uma nova conversa para você.",
                 "timestamp": time.time()
             })
             
             # Update metadata
             state.metadata["previous_conversation_id"] = conversation_id
-            state.metadata["reset_reason"] = "conversation_timeout"
+            state.metadata["reset_reason"] = reset_reason
         
         # Add the user message to history
         state.history.append({
@@ -369,6 +498,25 @@ class AgentOrchestrator:
             current_agent = self.agent_service.get_agent(transfer_to_id)
             logger.info(f"process_message > Updated current agent to {transfer_to_id} and name {current_agent.name}")    
             
+            #Salvar mapeamento de agente comercial**
+            if current_agent.type in [AgentType.SPECIALIST] and "comercial" in current_agent.name.lower():
+                await self.redis.set(
+                    f"user_last_commercial_agent:{state.tenant_id}:{state.user_id}",
+                    transfer_to_id,
+                    ex=60*60*24*15  # 15 dias
+                )
+                logger.info(f"process_message > Saved commercial agent mapping for user {state.user_id}: {transfer_to_id}")
+                
+            transferred_agent = self.agent_service.get_agent(transfer_to_id)
+            if (transferred_agent.type == AgentType.SPECIALIST and 
+                (["comercial", "commercial", "sales", "sale", "marketing"] in transferred_agent.name.lower())):
+                
+                await self.redis.set(
+                    f"user_last_commercial_agent:{state.tenant_id}:{state.user_id}",
+                    transfer_to_id,
+                    ex=60*60*24*7  # 7 dias
+                )
+                logger.info(f"Saved commercial agent mapping for user {state.user_id}: {transfer_to_id}")
         
         else:
             logger.info(f"process_message > Not transferring conversation {conversation_id} from agent {current_agent_id}.")
@@ -406,6 +554,16 @@ class AgentOrchestrator:
                     query=message,
                     limit=tenant_config.memory.max_memories_per_query
                 )
+                
+                commercial_memories = await self.memory_service.recall_memories(
+                    tenant_id=state.tenant_id,
+                    user_id=state.user_id,
+                    query="orçamento proposta comercial valores preços preço promoções promoção",
+                    memory_types=[MemoryType.CONVERSATION, MemoryType.FACT],
+                    limit=10
+                )
+                
+                relevant_memories.extend(commercial_memories)
                 
                 if relevant_memories:
                     # Filter by relevance threshold
@@ -671,7 +829,7 @@ class AgentOrchestrator:
                 # Look for specialists
                 try:
                     # Buscar agentes relacionados para escalação
-                    related_agents = await self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
+                    related_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
                         tenant_id=state.tenant_id,
                         current_agent_id=current_agent.id
                     )
@@ -989,18 +1147,41 @@ class AgentOrchestrator:
     # Add method to start conversation with memory loading
     async def start_conversation(self, tenant_id: str, user_id: str, agent_id: Optional[str] = None) -> str:
         """
-        Starts a new conversation with memory context.
+        Starts a new conversation with memory context and commercial agent recovery.
         """
         if not agent_id:
-            # Original implementation
-            agents = await self.agent_service.get_agents_by_tenant(tenant_id)
-            general_agents = [a for a in agents if a.type == AgentType.GENERAL]
+            # **PRIMEIRO: Verificar se existe agente comercial salvo**
+            try:
+                last_commercial_agent_id = await self.redis.get(
+                    f"user_last_commercial_agent:{tenant_id}:{user_id}"
+                )
+                
+                if last_commercial_agent_id:
+                    if isinstance(last_commercial_agent_id, bytes):
+                        last_commercial_agent_id = last_commercial_agent_id.decode('utf-8')
+                    
+                    # Verificar se o agente ainda existe e está ativo
+                    commercial_agent = self.agent_service.get_agent(last_commercial_agent_id)
+                    if commercial_agent and commercial_agent.active:
+                        agent_id = last_commercial_agent_id
+                        logger.info(f"Restored commercial agent {agent_id} for user {user_id}")
+                    else:
+                        # Limpar mapeamento se agente não existe mais
+                        await self.redis.delete(f"user_last_commercial_agent:{tenant_id}:{user_id}")
+                        
+            except Exception as e:
+                logger.warning(f"Error retrieving commercial agent mapping: {e}")
             
-            if not general_agents:
-                raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
-            
-            primary_agent = general_agents[0]
-            agent_id = primary_agent.id
+            # **SE NÃO ENCONTROU AGENTE COMERCIAL, buscar agente primário**
+            if not agent_id:
+                agents = await self.agent_service.get_agents_by_tenant(tenant_id)
+                general_agents = [a for a in agents if a.type == AgentType.GENERAL]
+                
+                if not general_agents:
+                    raise ValueError(f"Tenant {tenant_id} não possui agente primário configurado")
+                
+                primary_agent = general_agents[0]
+                agent_id = primary_agent.id
         
         # Create conversation state
         conversation_id = str(uuid.uuid4())
@@ -2208,4 +2389,55 @@ class AgentOrchestrator:
                 return data.decode('utf-8')
             return data
         return None
+    
+    # 2. ADICIONAR método para limpar mapeamento quando necessário:
+    async def _clear_commercial_agent_mapping(self, tenant_id: str, user_id: str, reason: str = ""):
+        """Remove o mapeamento de agente comercial."""
+        try:
+            await self.redis.delete(f"user_last_commercial_agent:{tenant_id}:{user_id}")
+            logger.info(f"Cleared commercial agent mapping for user {user_id}. Reason: {reason}")
+        except Exception as e:
+            logger.warning(f"Error clearing commercial agent mapping: {e}")
+
+    # 3. ADICIONAR método para verificar mapeamento:
+    async def _get_saved_commercial_agent(self, tenant_id: str, user_id: str) -> Optional[str]:
+        """Recupera o agente comercial salvo para o usuário."""
+        try:
+            saved_agent_id = await self.redis.get(f"user_last_commercial_agent:{tenant_id}:{user_id}")
+            
+            if saved_agent_id:
+                if isinstance(saved_agent_id, bytes):
+                    saved_agent_id = saved_agent_id.decode('utf-8')
+                
+                # Verificar se agente ainda existe e está ativo
+                agent = self.agent_service.get_agent(saved_agent_id)
+                if agent and agent.active:
+                    return saved_agent_id
+                else:
+                    # Limpar mapeamento inválido
+                    await self._clear_commercial_agent_mapping(tenant_id, user_id, "agent_inactive")
+                    
+        except Exception as e:
+            logger.warning(f"Error retrieving saved commercial agent: {e}")
+        
+        return None
+    
+    def _get_timeout_for_agent(self, agent: Agent) -> int:
+        """
+        Retorna o timeout apropriado baseado no tipo de agente.
+        
+        Args:
+            agent: O agente atual
+            
+        Returns:
+            Timeout em minutos
+        """
+        if agent.type == AgentType.PERSONAL:
+            return self.config.agent_timeout.personal_timeout_minutes
+        elif agent.type == AgentType.SPECIALIST and "comercial" in agent.name.lower():
+            return self.config.agent_timeout.commercial_timeout_minutes
+        elif "suporte" in agent.name.lower() or "support" in agent.name.lower():
+            return self.config.agent_timeout.support_timeout_minutes
+        else:
+            return self.config.agent_timeout.general_timeout_minutes
 

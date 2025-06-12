@@ -104,7 +104,16 @@
                                         <i class="bi bi-check"></i>
                                     </span>
                                     <span>
-                                        {% if specialty == "healthcare" %}Saúde
+                                        {% if specialty == "commercial" %}Comercial
+                                        {% elif specialty == "marketing" %}Marketing
+                                        {% elif specialty == "sales" %}Vendas
+                                        {% elif specialty == "customer_service" %}Atendimento ao Cliente
+                                        {% elif specialty == "support" %}Suporte
+                                        {% elif specialty == "it_support" %}Suporte de TI
+                                        {% elif specialty == "software_development" %}Desenvolvimento de Software
+                                        {% elif specialty == "web_development" %}Desenvolvimento Web
+                                        {% elif specialty == "mobile_development" %}Desenvolvimento Mobile
+                                        {% elif specialty == "healthcare" %}Saúde
                                         {% elif specialty == "medical_exams" %}Exames Médicos
                                         {% elif specialty == "health_insurance" %}Planos de Saúde
                                         {% elif specialty == "retail" %}Varejo

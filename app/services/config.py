@@ -6,6 +6,14 @@ from pydantic import BaseModel
 import json
 import os
 
+
+class AgentTimeoutConfig(BaseModel):
+    """Configuration for agent-specific timeouts."""
+    general_timeout_minutes: int = 1440 * 7  # 7 dias
+    commercial_timeout_minutes: int = 1440 * 30  # 30 dias
+    support_timeout_minutes: int = 1440 * 2      # 24 horas
+    personal_timeout_minutes: int = 1440 * 7      # 7 dias
+    
 class AgentTransferConfig(BaseModel):
     """Configuration for agent transfers."""
     enabled: bool = True
@@ -25,7 +33,7 @@ class MemoryConfig(BaseModel):
     use_local_storage: bool = True
     summary_frequency: int = 10  # Messages
     summary_time_threshold: int = 1800  # Seconds (30 mins)
-    max_memories_per_query: int = 5
+    max_memories_per_query: int = 10
     memory_relevance_threshold: float = 0.6
     memory_decay_rate: float = 0.01  # Per day
     cleanup_age_days: int = 90
@@ -61,6 +69,7 @@ class LoggingConfig(BaseModel):
 class SystemConfig(BaseModel):
     """Main configuration for the agent system."""
     agent_transfer: AgentTransferConfig = AgentTransferConfig()
+    agent_timeout: AgentTimeoutConfig = AgentTimeoutConfig()
     memory: MemoryConfig = MemoryConfig()
     rag: RAGConfig = RAGConfig()
     mcp: MCPConfig = MCPConfig()
@@ -81,6 +90,16 @@ class SystemConfig(BaseModel):
             self.agent_transfer.enabled = os.getenv("AGENT_TRANSFER_ENABLED").lower() == "true"
         if os.getenv("AGENT_TRANSFER_THRESHOLD"):
             self.agent_transfer.default_threshold = float(os.getenv("AGENT_TRANSFER_THRESHOLD"))
+            
+        # Agent Timeouts - ADICIONAR ESTA SEÇÃO
+        if os.getenv("AGENT_GENERAL_TIMEOUT_MINUTES"):
+            self.agent_timeout.general_timeout_minutes = int(os.getenv("AGENT_GENERAL_TIMEOUT_MINUTES"))
+        if os.getenv("AGENT_COMMERCIAL_TIMEOUT_MINUTES"):
+            self.agent_timeout.commercial_timeout_minutes = int(os.getenv("AGENT_COMMERCIAL_TIMEOUT_MINUTES"))
+        if os.getenv("AGENT_SUPPORT_TIMEOUT_MINUTES"):
+            self.agent_timeout.support_timeout_minutes = int(os.getenv("AGENT_SUPPORT_TIMEOUT_MINUTES"))
+        if os.getenv("AGENT_PERSONAL_TIMEOUT_MINUTES"):
+            self.agent_timeout.personal_timeout_minutes = int(os.getenv("AGENT_PERSONAL_TIMEOUT_MINUTES"))
             
         # Memory
         if os.getenv("MEMORY_ENABLED"):
