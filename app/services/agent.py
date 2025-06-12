@@ -342,8 +342,8 @@ class AgentService:
         list_specialties = []
         if db_agent.specialties:
             if isinstance(db_agent.specialties, str):
-                list = db_agent.specialties.split(",")
-                list_specialties = [item.strip() for item in list]
+                lista = db_agent.specialties.split(",")
+                list_specialties = [item.strip() for item in lista]
             elif isinstance(db_agent.specialties, list):
                 # Compatibilidade: se ainda vier como JSON string
                 try:
