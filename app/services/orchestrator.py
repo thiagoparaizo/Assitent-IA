@@ -601,19 +601,6 @@ class AgentOrchestrator:
         # Prepare prompt with history, context, memories and audio
         prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id, audio_data)
         
-        ## Comentado pois o audio foi transcrito no inicio
-        # # Get response from LLM
-        # if audio_data and self.llm.supports_audio:
-        #     # Para modelos que suportam áudio, usar método especial
-        #     response, token_usage = await self.llm.generate_response_with_audio(prompt, audio_data)
-        #     if response is None or 'Erro na geração com áudio' in response or 'Audio input modality is not enabled for models' in response:
-        #         print("Erro na geração com áudio ou audio input modality is not enabled for models: ", response)
-        #         logging.error(f"Erro na geração com áudio ou audio input modality is not enabled for models: {response}")
-        #         response = "error_audio_processing"
-        # else:
-        #     # Get response from LLM - Método padrão para texto
-        #     response, token_usage = await self.llm.generate_response(prompt)
-        
         # Get response from LLM - sempre usar método de texto já que áudio foi transcrito
         response, token_usage = await self.llm.generate_response(prompt)
 
@@ -695,6 +682,15 @@ class AgentOrchestrator:
         
         state.last_updated = time.time()
         
+        if processed_response["next_agent_id"] != current_agent.id:
+            state.current_agent_id = processed_response["next_agent_id"]
+            # Adicionar log da transferência
+            state.history.append({
+                "role": "system",
+                "content": f"Transferred to agent {processed_response['next_agent_id']}",
+                "timestamp": time.time()
+            })
+        
         # Save updated state
         await self.save_conversation_state(state)
         
@@ -706,7 +702,9 @@ class AgentOrchestrator:
             "actions": processed_response.get("actions", []),
             "new_conversation_id": new_conversation_id if new_conversation_created else None,
             "conversation_reset": new_conversation_created,
-            "reset_reason": reset_reason
+            "reset_reason": reset_reason,
+            "requires_continuation": processed_response.get("requires_continuation", False),
+            "continuation_delay": processed_response.get("continuation_delay", 5)
         }
         
         if transfer_to_id:
@@ -747,8 +745,13 @@ class AgentOrchestrator:
         result = {
             "response": resposta_limpa,
             "next_agent_id": current_agent.id,
-            "actions": []
+            "actions": [],
+            "requires_continuation": False,
+            "continuation_delay": 5
         }
+        
+        ##"requires_continuation": False,  # NOVO: flag para indicar continuação necessária
+        ##TODO verificar  "continuation_delay": 5  # NOVO: delay em segundos antes da continuação
         
         # Processar cada comando encontrado
         for comando in comandos:
@@ -783,7 +786,7 @@ class AgentOrchestrator:
                     })
                     
                     # Clean response
-                    result["response"] = result["response"].replace("ESCALAR_PARA_HUMANO", "")
+                    #result["response"] = result["response"].replace("ESCALAR_PARA_HUMANO", "")
                     
                     logger.info(f"Human escalation triggered to {escalation_contact}")
                 else:
@@ -823,50 +826,116 @@ class AgentOrchestrator:
                     })
                 
             elif "CONSULTAR_ESPECIALISTA:" in comando:
-                # Extract specialization information
-                specialization = response.split("CONSULTAR_ESPECIALISTA:")[1].split("\n")[0].strip()
+                # NOVO: Detectar transferência e agendar continuação
+                specialist_type = self._extract_specialist_type(comando)
+                target_agent = await self._find_target_agent(specialist_type, state.tenant_id, current_agent)
                 
-                # Look for specialists
-                try:
-                    # Buscar agentes relacionados para escalação
-                    related_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
-                        tenant_id=state.tenant_id,
-                        current_agent_id=current_agent.id
-                    )
+                if target_agent:
+                    # Marcar que requer continuação automática
+                    result["requires_continuation"] = True
+                    result["next_agent_id"] = target_agent.id
                     
-                    # Procurar um especialista apropriado
-                    if related_agents:
-                        # Escolher o agente com base na especialização mencionada
-                        # Poderia implementar um algoritmo de correspondência melhor
-                        best_match = None
-                        for agent in related_agents:
-                            if (specialization.lower() in agent.name.lower() or
-                                specialization.lower() in agent.description.lower()):
-                                best_match = agent
-                                break
+                   # Adicionar ação de transferência com mensagem de continuação
+                    transfer_action = {
+                        "type": "agent_transfer",
+                        "target_agent_id": target_agent.id,
+                        "target_agent_name": target_agent.name,
+                        "continuation_message": self._generate_agent_intro(target_agent, specialist_type),
+                        "execute_after_response": True  # NOVO: executar após enviar resposta atual
+                    }
+                    result["actions"].append(transfer_action)
+            # elif "CONSULTAR_ESPECIALISTA:" in comando:
+            #     # Extract specialization information
+            #     specialization = response.split("CONSULTAR_ESPECIALISTA:")[1].split("\n")[0].strip()
+                
+            #     # Look for specialists
+            #     try:
+            #         # Buscar agentes relacionados para escalação
+            #         related_agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
+            #             tenant_id=state.tenant_id,
+            #             current_agent_id=current_agent.id
+            #         )
+                    
+            #         # Procurar um especialista apropriado
+            #         if related_agents:
+            #             # Escolher o agente com base na especialização mencionada
+            #             # Poderia implementar um algoritmo de correspondência melhor
+            #             best_match = None
+            #             for agent in related_agents:
+            #                 if (specialization.lower() in agent.name.lower() or
+            #                     specialization.lower() in agent.description.lower()):
+            #                     best_match = agent
+            #                     break
                         
-                        # Se não encontrou por nome, usar o primeiro disponível
-                        if not best_match and related_agents:
-                            best_match = related_agents[0]
+            #             # Se não encontrou por nome, usar o primeiro disponível
+            #             if not best_match and related_agents:
+            #                 best_match = related_agents[0]
                         
-                        if best_match:
-                            result["next_agent_id"] = best_match.id
-                            result["actions"].append({
-                                "type": "specialist_consultation",
-                                "specialist_id": best_match.id,
-                                "specialization": specialization,
-                                "context": response
-                            })
+            #             if best_match:
+            #                 result["next_agent_id"] = best_match.id
+            #                 result["actions"].append({
+            #                     "type": "specialist_consultation",
+            #                     "specialist_id": best_match.id,
+            #                     "specialization": specialization,
+            #                     "context": response
+            #                 })
                             
-                            # Limpar resposta
-                            result["response"] = result["response"].replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
+            #                 # Limpar resposta
+            #                 result["response"] = result["response"].replace(f"CONSULTAR_ESPECIALISTA:{specialization}", "")
                             
-                            logger.info(f"Escalação para especialista solicitada: {specialization}, encaminhado para: {best_match.name}")
-                            return result
-                except Exception as e:
-                    logging.error(f"Error finding specialist: {e}")
+            #                 logger.info(f"Escalação para especialista solicitada: {specialization}, encaminhado para: {best_match.name}")
+            #                 return result
+            #     except Exception as e:
+            #         logging.error(f"Error finding specialist: {e}")
         
         return result
+    
+    # 5. Método auxiliar para extrair tipo de especialista
+    def _extract_specialist_type(self, comando: str) -> str:
+        """Extrai tipo de especialista do comando."""
+        match = re.search(r'CONSULTAR_ESPECIALISTA:(\w+)', comando)
+        return match.group(1).lower() if match else ""
+
+    # 6. Método auxiliar para encontrar agente alvo
+    async def _find_target_agent(self, specialist_type: str, tenant_id: str, current_agent: Agent):
+        """Encontra agente especialista para transferência."""
+        if not current_agent.escalation_enabled or not current_agent.list_escalation_agent_ids:
+            return None
+        
+        # Mapear tipos de especialista
+        specialist_mapping = {
+            "comercial": ["comercial", "commercial", "sales", "vendas"],
+            "commercial": ["comercial", "commercial", "sales", "vendas"],
+            "suporte": ["suporte", "support", "técnico", "technical"],
+            "support": ["suporte", "support", "técnico", "technical"]
+        }
+        
+        target_specialties = specialist_mapping.get(specialist_type, [specialist_type])
+        
+        # Buscar agentes relacionados
+        agents = await self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
+            tenant_id, current_agent.id
+        )
+        
+        for agent in agents:
+            if (agent.type.value == "specialist" and 
+                any(specialty.lower() in target_specialties for specialty in agent.specialties)):
+                return agent
+        
+        return None
+
+    # 7. Método auxiliar para gerar introdução do agente
+    def _generate_agent_intro(self, agent: Agent, specialist_type: str) -> str:
+        """Gera mensagem de introdução para o agente."""
+        intro_templates = {
+            "comercial": f"Olá! Sou {agent.name} e vou ajudá-lo com todas as informações comerciais sobre nosso sistema. Como posso auxiliá-lo?",
+            "commercial": f"Hello! I'm {agent.name} and I'll help you with all commercial information about our system. How can I assist you?",
+            "suporte": f"Olá! Sou {agent.name} da equipe de suporte técnico. Vou ajudá-lo a resolver qualquer questão técnica. Em que posso ajudar?",
+            "support": f"Hello! I'm {agent.name} from the technical support team. I'll help you resolve any technical issues. How can I help?"
+        }
+        
+        return intro_templates.get(specialist_type, 
+                                f"Olá! Sou {agent.name} e agora vou continuar nosso atendimento. Como posso ajudá-lo?")
     
     def _prepare_prompt(
         self, 

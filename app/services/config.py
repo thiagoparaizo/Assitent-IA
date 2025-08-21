@@ -81,6 +81,7 @@ class SystemConfig(BaseModel):
     max_conversation_length: int = 100
     conversation_timeout_minutes: int = 60
     enable_escalation_to_human: bool = True
+    continuation_delay_in_seconds: int = 5
     
     # Override settings from environment variables or file
     def load_from_env(self) -> None:

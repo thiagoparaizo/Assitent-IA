@@ -25,6 +25,7 @@ from app.services.token_counter import TokenCounterService
 from app.services.whatsapp import WhatsAppService
 from app.db.models.webhook import Webhook, WebhookLog
 from app.db.models.agent import Agent
+from app.db.models.conversation import ConversationState
 from app.schemas.webhook import WebhookCreate, WebhookResponse, WebhookLogResponse
 from app.api.utils.webhook_processor import process_whatsapp_message, send_webhook_request
 
@@ -491,21 +492,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                 llm_type=type(llm_service).__name__,
                 success=True
             )
-        
-        # # Se há áudio mas o modelo não suporta, responder diretamente
-        # if has_audio and not _llm_supports_audio(llm_service):
-        #     logger.info(f"Audio message received but LLM doesn't support audio: {type(llm_service).__name__}")
-            
-        #     # Responder diretamente sem processar pelo orquestrador # TODO implmentar paramtrização da resposta
-        #     audio_not_supported_message = "Por favor, escreva. Não estou conseguindo processar áudios nesse momento."
-            
-        #     await whatsapp_service.send_message(
-        #         device_id=device_id,
-        #         to=chat_jid,
-        #         message=audio_not_supported_message
-        #     )
-        #     logger.info(f"Audio not supported response sent to {chat_jid}")
-        #     return
+       
         
         # Preparar conteúdo da mensagem
         event_message = data.get("event", {}).get("Message", {})
@@ -576,16 +563,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
         conversation_key = f"whatsapp_conversation:{tenant_id}:{chat_jid}"
         await redis_client.set(conversation_key, conversation_id)
         await redis_client.expire(conversation_key, 60 * 60 * 24)  # 24 hours
-        
-        ## Comentado pois o audio já foi transcrito
-        # Processar a mensagem usando o orquestrador
-        # result = await orchestrator.process_message(
-        #     conversation_id, 
-        #     message_content, 
-        #     agent_id=agent.id, 
-        #     contact_id=contact_id,
-        #     audio_data=audio_info if has_valid_audio else None  # NOVO PARÂMETRO
-        # )
+       
         
         result = await orchestrator.process_message(
             conversation_id, 
@@ -605,7 +583,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
             await redis_client.expire(conversation_key, 60 * 60 * 24)
         
         # Enviar resposta via WhatsApp
-        if "response" in result:
+        if "response" in result and result["response"].strip():
             await whatsapp_service.send_message(
                 device_id=device_id,
                 to=chat_jid,
@@ -729,6 +707,25 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                         
                         # Enviar notificação para o contato de escalação
                     
+        #Processar continuações automáticas
+        if result.get("requires_continuation", False):
+            logger.info(f"Requisitando continuação para conversa {conversation_id}")    
+            continuation_delay = result.get("continuation_delay", 5)
+            logger.info(f"Delay de continuação para conversa {conversation_id}: {continuation_delay}s")
+            # Agendar continuação após delay
+            asyncio.create_task(
+                send_continuation_message(
+                    conversation_id=conversation_id,
+                    delay=continuation_delay,
+                    whatsapp_service=whatsapp_service,
+                    device_id=device_id,
+                    chat_jid=chat_jid,
+                    orchestrator=orchestrator,
+                    tenant_id=tenant_id
+                )
+            )
+            logger.info(f"Continuação agendada para conversa {conversation_id} em {continuation_delay}s")
+        
                     
         
         # Processar webhooks para este evento
@@ -757,6 +754,395 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
 #     # Apenas Gemini suporta áudio por enquanto # TODO add mais serviços quando for necessário
 #     return isinstance(llm_service, GeminiService)
 
+# 1. Mapeamento de especialidades para categorias de foco
+SPECIALTY_TO_FOCUS_MAPPING = {
+    # Comercial/Vendas
+    "commercial": ["commercial", "product_info", "billing", "professional"],
+    "marketing": ["commercial", "product_info", "retail"],
+    "sales": ["commercial", "product_info", "billing"],
+    "customer_service": ["general", "complaint", "product_info"],
+    
+    # Suporte Técnico
+    "support": ["support", "technical_issue", "technology"],
+    "it": ["technology", "technical_issue", "support"],
+    "software_development": ["technology", "technical_issue"],
+    "web_development": ["technology", "technical_issue"],
+    "mobile_development": ["technology", "technical_issue"],
+    
+    # Saúde
+    "healthcare": ["healthcare"],
+    "medical_exams": ["healthcare", "appointment"],
+    "health_insurance": ["healthcare", "billing"],
+    
+    # Varejo
+    "retail": ["retail", "billing", "product_info"],
+    "order_tracking": ["retail", "logistics"],
+    "returns": ["retail", "complaint"],
+    
+    # Outros domínios
+    "sports": ["sports"],
+    "crafts": ["crafts"],
+    "professional_services": ["professional"],
+    "finance": ["finance", "billing"],
+    "accounting": ["finance", "billing"],
+    "tourism": ["tourism"],
+    "hotel": ["tourism", "appointment"],
+    "education": ["education"],
+    "courses": ["education"],
+    "real_estate": ["real_estate"],
+    "rental": ["real_estate", "billing"],
+    "automotive": ["automotive", "technical_issue"],
+    "maintenance": ["automotive", "technical_issue"],
+    "logistics": ["logistics"],
+    "shipping": ["logistics"],
+    "events": ["events", "appointment"],
+    "entertainment": ["events"],
+    "pets": ["pets"],
+    "veterinary": ["pets", "healthcare"],
+    "wellness": ["wellness", "healthcare"],
+    "beauty": ["wellness"],
+    "technology": ["technology", "technical_issue"],
+    "it_support": ["technology", "technical_issue", "support"],
+    "legal": ["legal", "professional"],
+    "law": ["legal", "professional"]
+}
+
+# 2. Templates de resposta por categoria de foco
+FOCUS_RESPONSE_TEMPLATES = {
+    "commercial": {
+        "question_detected": "Olá! Sou {agent_name}. Vi que você perguntou sobre {context_hint}. Vou te ajudar com todas as informações comerciais!",
+        "clear_intent": "Oi! Sou {agent_name}, especialista comercial. Sobre {intent_context}, posso te dar todos os detalhes!",
+        "standard": "Olá! Sou {agent_name} e vou ajudá-lo com todas as informações comerciais sobre nossos produtos e serviços!"
+    },
+    
+    "support": {
+        "question_detected": "Olá! Sou {agent_name} do suporte. Vi que você está com {context_hint}. Vou te ajudar a resolver!",
+        "clear_intent": "Oi! Sou {agent_name} da equipe técnica. Sobre {intent_context}, vou te orientar passo a passo!",
+        "standard": "Olá! Sou {agent_name} da equipe de suporte técnico. Vou ajudá-lo a resolver qualquer questão!"
+    },
+    
+    "technical_issue": {
+        "question_detected": "Olá! Sou {agent_name}. Vi que você está enfrentando {context_hint}. Vamos resolver isso!",
+        "clear_intent": "Oi! Sou {agent_name}. Sobre {intent_context}, vou te ajudar com a solução!",
+        "standard": "Olá! Sou {agent_name} e vou ajudá-lo a resolver questões técnicas!"
+    },
+    
+    "healthcare": {
+        "question_detected": "Olá! Sou {agent_name}. Sobre {context_hint}, posso te ajudar com informações e orientações!",
+        "clear_intent": "Oi! Sou {agent_name}. Quanto a {intent_context}, vou te dar todo o suporte necessário!",
+        "standard": "Olá! Sou {agent_name} e estou aqui para ajudá-lo com questões de saúde!"
+    },
+    
+    "retail": {
+        "question_detected": "Olá! Sou {agent_name}. Vi sua pergunta sobre {context_hint}. Vou te ajudar com seu pedido!",
+        "clear_intent": "Oi! Sou {agent_name}. Sobre {intent_context}, posso te dar todas as informações!",
+        "standard": "Olá! Sou {agent_name} e vou ajudá-lo com suas compras e pedidos!"
+    },
+    
+    "finance": {
+        "question_detected": "Olá! Sou {agent_name}. Sobre {context_hint}, posso esclarecer todas suas dúvidas financeiras!",
+        "clear_intent": "Oi! Sou {agent_name}. Quanto a {intent_context}, vou te orientar sobre as melhores opções!",
+        "standard": "Olá! Sou {agent_name} e vou ajudá-lo com questões financeiras!"
+    },
+    
+    # Template genérico para outras categorias
+    "default": {
+        "question_detected": "Olá! Sou {agent_name}. Vi sua pergunta sobre {context_hint}. Vou te ajudar!",
+        "clear_intent": "Oi! Sou {agent_name}. Sobre {intent_context}, posso te dar todo o suporte!",
+        "standard": "Olá! Sou {agent_name} e vou continuar nosso atendimento. Como posso ajudá-lo?"
+    }
+}
+
+#função para processar continuações
+async def send_continuation_message(conversation_id: str, delay: int, 
+                                           whatsapp_service: WhatsAppService,
+                                           device_id: str, chat_jid: str,
+                                           orchestrator, tenant_id: str):
+    """
+    Versão flexível que utiliza a análise de foco existente para determinar continuação.
+    """
+    try:
+        await asyncio.sleep(delay)
+        
+        # Buscar estado da conversa
+        state = await orchestrator.get_conversation_state(conversation_id)
+        if not state:
+            logger.error(f"Estado da conversa {conversation_id} não encontrado para continuação")
+            return
+        
+        # Obter agente atual
+        current_agent = orchestrator.agent_service.get_agent(state.current_agent_id)
+        if not current_agent:
+            logger.error(f"Agente {state.current_agent_id} não encontrado para continuação")
+            return
+        
+        # Analisar contexto usando a função existente
+        context_analysis = await _analyze_conversation_context_flexible(
+            state, current_agent, orchestrator
+        )
+        
+        # Gerar mensagem baseada na análise
+        continuation_message = _generate_flexible_continuation_message(
+            context_analysis, current_agent
+        )
+        
+        logger.info(f"Continuação flexível: {continuation_message[:100]}...")
+        
+        # Processar mensagem
+        continuation_result = await orchestrator.process_message(
+            conversation_id=conversation_id,
+            message=context_analysis.get("user_context", ""),
+            user_id=state.user_id,
+            tenant_id=tenant_id,
+            force_agent_continuation=True,
+            continuation_message=continuation_message
+        )
+        
+        # Enviar via WhatsApp
+        if continuation_result.get("response"):
+            await whatsapp_service.send_message(
+                device_id=device_id,
+                to=chat_jid,
+                message=continuation_result["response"]
+            )
+            logger.info(f"Continuação flexível enviada para {chat_jid}")
+        
+    except Exception as e:
+        logger.error(f"Erro na continuação flexível para {conversation_id}: {e}")
+
+
+async def _analyze_conversation_context_flexible(state: ConversationState, 
+                                               current_agent: Agent, 
+                                               orchestrator) -> Dict[str, Any]:
+    """
+    Análise de contexto flexível usando a lógica de _analyze_conversation_focus.
+    """
+    
+    # Obter últimas mensagens do usuário
+    user_messages = [
+        msg for msg in state.history[-10:] 
+        if msg.get("role") == "user"
+    ][-5:]
+    
+    if not user_messages:
+        return {
+            "has_pending_question": False,
+            "has_clear_intent": False,
+            "user_context": "",
+            "focus_analysis": {},
+            "dominant_category": "general",
+            "agent_specialties": current_agent.specialties
+        }
+    
+    last_user_message = user_messages[-1].get("content", "")
+    
+    # Usar a função existente para analisar o foco
+    focus_analysis = await orchestrator._analyze_conversation_focus(
+        user_messages, last_user_message
+    )
+    
+    # Identificar categoria dominante
+    dominant_category = max(focus_analysis.items(), key=lambda x: x[1])[0]
+    
+    # Detectar perguntas
+    question_indicators = [
+        "?", "quanto", "como", "onde", "quando", "por que", "porque", 
+        "qual", "quais", "posso", "consegue", "tem", "existe", "funciona"
+    ]
+    
+    has_question = any(indicator in last_user_message.lower() for indicator in question_indicators)
+    
+    # Verificar compatibilidade entre agente e foco da conversa
+    agent_compatibility = _check_agent_focus_compatibility(current_agent, focus_analysis)
+    
+    # Extrair contexto semântico
+    context_hints = _extract_semantic_context(last_user_message, focus_analysis)
+    
+    return {
+        "has_pending_question": has_question,
+        "has_clear_intent": agent_compatibility["is_compatible"],
+        "user_context": last_user_message,
+        "focus_analysis": focus_analysis,
+        "dominant_category": dominant_category,
+        "agent_specialties": current_agent.specialties,
+        "agent_compatibility": agent_compatibility,
+        "context_hints": context_hints,
+        "conversation_stage": _determine_conversation_stage_flexible(user_messages)
+    }
+
+
+def _check_agent_focus_compatibility(current_agent: Agent, focus_analysis: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Verifica compatibilidade entre especialidades do agente e foco da conversa.
+    """
+    if not current_agent.specialties:
+        return {"is_compatible": False, "compatibility_score": 0.0, "matched_categories": []}
+    
+    # Mapear especialidades para categorias de foco
+    agent_focus_categories = []
+    for specialty in current_agent.specialties:
+        if specialty in SPECIALTY_TO_FOCUS_MAPPING:
+            agent_focus_categories.extend(SPECIALTY_TO_FOCUS_MAPPING[specialty])
+    
+    # Calcular score de compatibilidade
+    compatibility_score = 0.0
+    matched_categories = []
+    
+    for category in agent_focus_categories:
+        if category in focus_analysis and focus_analysis[category] > 0.1:  # Threshold mínimo
+            compatibility_score += focus_analysis[category]
+            matched_categories.append(category)
+    
+    return {
+        "is_compatible": compatibility_score > 0.2,  # Threshold de compatibilidade
+        "compatibility_score": compatibility_score,
+        "matched_categories": matched_categories,
+        "agent_focus_categories": agent_focus_categories
+    }
+
+
+def _extract_semantic_context(message: str, focus_analysis: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Extrai contexto semântico da mensagem baseado na análise de foco.
+    """
+    message_lower = message.lower()
+    
+    # Identificar elementos específicos baseados na categoria dominante
+    context_elements = {
+        "pricing_keywords": ["preço", "valor", "custo", "quanto"],
+        "problem_keywords": ["problema", "erro", "não funciona", "quebrou"],
+        "service_keywords": ["como funciona", "preciso", "quero", "gostaria"],
+        "urgency_keywords": ["urgente", "rápido", "agora", "imediato"]
+    }
+    
+    detected_elements = {}
+    for element_type, keywords in context_elements.items():
+        detected_elements[element_type] = [kw for kw in keywords if kw in message_lower]
+    
+    # Gerar hint contextual baseado nos elementos detectados
+    context_hint = _generate_context_hint(detected_elements, focus_analysis)
+    
+    return {
+        "detected_elements": detected_elements,
+        "context_hint": context_hint,
+        "message_sentiment": _analyze_message_sentiment(message_lower)
+    }
+
+
+def _generate_context_hint(detected_elements: Dict, focus_analysis: Dict[str, float]) -> str:
+    """
+    Gera hint contextual para usar nas respostas.
+    """
+    if detected_elements["pricing_keywords"]:
+        return "preços e condições"
+    elif detected_elements["problem_keywords"]:
+        return "um problema técnico"
+    elif detected_elements["service_keywords"]:
+        return "informações sobre nossos serviços"
+    elif max(focus_analysis.values()) > 0.3:
+        # Usar categoria dominante
+        dominant = max(focus_analysis.items(), key=lambda x: x[1])[0]
+        return f"questões de {dominant}"
+    else:
+        return "sua solicitação"
+
+
+def _analyze_message_sentiment(message: str) -> str:
+    """
+    Análise simples de sentimento da mensagem.
+    """
+    negative_words = ["problema", "erro", "ruim", "péssimo", "não funciona", "irritado"]
+    positive_words = ["bom", "ótimo", "obrigado", "excelente", "perfeito"]
+    urgent_words = ["urgente", "rápido", "agora", "imediato"]
+    
+    if any(word in message for word in urgent_words):
+        return "urgent"
+    elif any(word in message for word in negative_words):
+        return "negative"
+    elif any(word in message for word in positive_words):
+        return "positive"
+    else:
+        return "neutral"
+
+
+def _determine_conversation_stage_flexible(user_messages: List[Dict]) -> str:
+    """
+    Determina estágio da conversa de forma flexível.
+    """
+    message_count = len(user_messages)
+    
+    if message_count <= 1:
+        return "initial"
+    elif message_count <= 3:
+        return "exploration"
+    elif message_count <= 6:
+        return "engagement"
+    else:
+        return "advanced"
+
+
+def _generate_flexible_continuation_message(context_analysis: Dict, current_agent: Agent) -> str:
+    """
+    Gera mensagem de continuação baseada na análise flexível.
+    """
+    agent_name = current_agent.name
+    dominant_category = context_analysis["dominant_category"]
+    context_hints = context_analysis["context_hints"]
+    agent_compatibility = context_analysis["agent_compatibility"]
+    
+    # Selecionar template baseado na compatibilidade e categoria
+    if agent_compatibility["is_compatible"]:
+        # Agente é compatível com o foco da conversa
+        matched_categories = agent_compatibility["matched_categories"]
+        primary_category = matched_categories[0] if matched_categories else dominant_category
+    else:
+        # Usar categoria dominante ou fallback
+        primary_category = dominant_category if dominant_category != "general" else "default"
+    
+    # Obter templates para a categoria
+    templates = FOCUS_RESPONSE_TEMPLATES.get(primary_category, FOCUS_RESPONSE_TEMPLATES["default"])
+    
+    # Escolher tipo de resposta
+    if context_analysis["has_pending_question"]:
+        template = templates["question_detected"]
+        context_hint = context_hints["context_hint"]
+    elif context_analysis["has_clear_intent"]:
+        template = templates["clear_intent"]
+        context_hint = context_hints["context_hint"]
+    else:
+        template = templates["standard"]
+        context_hint = ""
+    
+    # Formatear mensagem
+    try:
+        if context_hint:
+            return template.format(
+                agent_name=agent_name,
+                context_hint=context_hint,
+                intent_context=context_hint
+            )
+        else:
+            return template.format(agent_name=agent_name)
+    except KeyError:
+        # Fallback para template simples
+        return f"Olá! Sou {agent_name} e vou continuar nosso atendimento. Como posso ajudá-lo?"
+
+
+# 3. Função auxiliar para debug e monitoramento
+def log_continuation_analysis(context_analysis: Dict, current_agent: Agent):
+    """
+    Log detalhado para debug da análise de continuação.
+    """
+    logger.info(f"=== ANÁLISE DE CONTINUAÇÃO ===")
+    logger.info(f"Agente: {current_agent.name} | Especialidades: {current_agent.specialties}")
+    logger.info(f"Categoria dominante: {context_analysis['dominant_category']}")
+    logger.info(f"Compatibilidade: {context_analysis['agent_compatibility']['is_compatible']}")
+    logger.info(f"Score: {context_analysis['agent_compatibility']['compatibility_score']:.2f}")
+    logger.info(f"Categorias matched: {context_analysis['agent_compatibility']['matched_categories']}")
+    logger.info(f"Context hint: {context_analysis['context_hints']['context_hint']}")
+    logger.info(f"Estágio: {context_analysis['conversation_stage']}")
+    logger.info(f"===========================")
+    
 def format_whatsapp_number(raw_number):
     # Remover tudo que não for número
     digits = re.sub(r'\D', '', raw_number)
