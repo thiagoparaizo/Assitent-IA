@@ -627,6 +627,7 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                         escalation_contacts = escalation_contact.split("#")
                         
                     # iterar sobre os contatos e enviar uma mensagem para cada um
+                    cliente_avisado_escalacao = False
                     for escalation_contact in escalation_contacts:
                         escalation_contact = escalation_contact.strip()    
                         
@@ -662,13 +663,15 @@ async def process_whatsapp_message(data: Dict[str, Any], whatsapp_service: Whats
                                     to=escalation_contact,
                                     message=escalation_message
                                 )
-                            
-                                # Informar ao cliente que a escalação foi realizada
-                                await whatsapp_service.send_message(
-                                    device_id=device_id,
-                                    to=chat_jid,
-                                    message="Sua solicitação foi encaminhada para um atendente. Em breve alguém entrará em contato."
-                                )
+
+                                if cliente_avisado_escalacao == False:
+                                    # Informar ao cliente que a escalação foi realizada
+                                    await whatsapp_service.send_message(
+                                        device_id=device_id,
+                                        to=chat_jid,
+                                        message="Sua solicitação já foi encaminhada para um atendente. Em breve alguém entrará em contato com você! Muito obrigado 😊"
+                                    )
+                                    cliente_avisado_escalacao = True
                             except Exception as e:
                                 logger.error(f"Erro ao enviar mensagem para o contato de escalação: {e}")
                                 print(f"Erro ao enviar mensagem para o contato de escalação: {e}")
