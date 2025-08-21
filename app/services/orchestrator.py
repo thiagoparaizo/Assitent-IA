@@ -913,7 +913,7 @@ class AgentOrchestrator:
         target_specialties = specialist_mapping.get(specialist_type, [specialist_type])
         
         # Buscar agentes relacionados
-        agents = await self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
+        agents = self.agent_service.get_agents_by_tenant_and_relationship_with_current_agent(
             tenant_id, current_agent.id
         )
         
