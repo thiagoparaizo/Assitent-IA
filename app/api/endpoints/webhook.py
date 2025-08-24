@@ -889,52 +889,52 @@ async def send_continuation_message(conversation_id: str, delay: int,
             context_analysis, current_agent
         )
         
-        # abordagem flexivel
-        logger.info(f"Continuação flexível: {continuation_message[:100]}...")
+        # # abordagem flexivel
+        # logger.info(f"Continuação flexível: {continuation_message[:100]}...")
         
-        # Processar mensagem
-        continuation_result = await orchestrator.process_message(
-            conversation_id=conversation_id,
-            message="",
-            agent_id=current_agent.id,     
-            contact_id=state.user_id,        
-            audio_data=None                
-        )
-        
-        # Enviar via WhatsApp
-        if continuation_result.get("response"):
-            await whatsapp_service.send_message(
-                device_id=device_id,
-                to=chat_jid,
-                message=continuation_result["response"]
-            )
-            logger.info(f"Continuação flexível enviada para {chat_jid}")
-            
-        
-        # # abordagem direta # TODO testar se necessário
-        # logger.info(f"Continuação direta: {continuation_message[:100]}...")
-        
-        # # Adicionar mensagem diretamente ao histórico
-        # state.history.append({
-        #     "role": "assistant",
-        #     "content": continuation_message,
-        #     "timestamp": time.time(),
-        #     "agent_id": current_agent.id,
-        #     "continuation": True  # Flag para identificar mensagens de continuação
-        # })
-        
-        # # Atualizar estado
-        # state.last_updated = time.time()
-        # await orchestrator.save_conversation_state(state)
-        
-        # # Enviar via WhatsApp diretamente
-        # await whatsapp_service.send_message(
-        #     device_id=device_id,
-        #     to=chat_jid,
-        #     message=continuation_message
+        # # Processar mensagem
+        # continuation_result = await orchestrator.process_message(
+        #     conversation_id=conversation_id,
+        #     message="",
+        #     agent_id=current_agent.id,     
+        #     contact_id=state.user_id,        
+        #     audio_data=None                
         # )
         
-        # logger.info(f"Continuação direta enviada para {chat_jid}")
+        # # Enviar via WhatsApp
+        # if continuation_result.get("response"):
+        #     await whatsapp_service.send_message(
+        #         device_id=device_id,
+        #         to=chat_jid,
+        #         message=continuation_result["response"]
+        #     )
+        #     logger.info(f"Continuação flexível enviada para {chat_jid}")
+            
+        
+        # abordagem direta
+        logger.info(f"Continuação direta: {continuation_message[:100]}...")
+        
+        # Adicionar mensagem diretamente ao histórico
+        state.history.append({
+            "role": "assistant",
+            "content": continuation_message,
+            "timestamp": time.time(),
+            "agent_id": current_agent.id,
+            "continuation": True  # Flag para identificar mensagens de continuação
+        })
+        
+        # Atualizar estado
+        state.last_updated = time.time()
+        await orchestrator.save_conversation_state(state)
+        
+        # Enviar via WhatsApp diretamente
+        await whatsapp_service.send_message(
+            device_id=device_id,
+            to=chat_jid,
+            message=continuation_message
+        )
+        
+        logger.info(f"Continuação direta enviada para {chat_jid}")
         
     except Exception as e:
         logger.error(f"Erro na continuação flexível para {conversation_id}: {e}")
