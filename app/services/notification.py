@@ -1,4 +1,5 @@
 # app/services/notification.py
+from datetime import datetime
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -144,4 +145,57 @@ class NotificationService:
                 
         except Exception as e:
             logger.error(f"Error sending webhook notification: {e}")
+            return False
+        
+    async def send_whatsapp_alert(
+        self,
+        alert_type: str,
+        tenant_id: int,
+        tenant_name: str,
+        device_id: int,
+        device_name: str,
+        level: str,
+        message: str,
+        channel: str = "email",
+        target: str = None,
+        custom_subject: str = None,
+        custom_message: str = None
+    ) -> bool:
+        """
+        Envia alertas específicos do WhatsApp
+        """
+        try:
+            subject = custom_subject or f"Alerta WhatsApp - {device_name}"
+            body = custom_message or f"""
+            Alerta do Sistema WhatsApp
+            
+            Tenant: {tenant_name} (ID: {tenant_id})
+            Dispositivo: {device_name} (ID: {device_id})
+            Nível: {level.upper()}
+            
+            Mensagem: {message}
+            
+            Timestamp: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+            """
+            
+            if channel == "email" and target:
+                return await self._send_email(target, subject, body)
+            elif channel == "webhook" and target:
+                webhook_payload = {
+                    "type": "whatsapp_alert",
+                    "alert_type": alert_type,
+                    "tenant_id": tenant_id,
+                    "tenant_name": tenant_name,
+                    "device_id": device_id,
+                    "device_name": device_name,
+                    "level": level,
+                    "message": message,
+                    "timestamp": datetime.now().isoformat()
+                }
+                return await self._send_webhook(target, webhook_payload)
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error sending WhatsApp alert: {e}")
             return False

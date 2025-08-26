@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.endpoints import auth, users, dashboard, llm_admin, whatsapp, tenants, conversations, appointments, webhook, knowledge, agents, internal, token_limits
+from app.api.endpoints import auth, users, dashboard, llm_admin, whatsapp, tenants, conversations, appointments, webhook, knowledge, agents, internal, token_limits, whatsapp_notifications, whatsapp_monitoring
 
 api_router = APIRouter()
 
@@ -17,6 +17,9 @@ api_router.include_router(llm_admin.router, prefix="/llm", tags=["llm"])
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(token_limits.router, prefix="/token-limits", tags=["token-limits"])
 api_router.include_router(users.router, prefix="/user", tags=["user"])
+api_router.include_router(whatsapp_notifications.router, prefix="/whatsapp-notifications", tags=["whatsapp-notifications"])
+api_router.include_router(whatsapp_monitoring.router, prefix="/whatsapp-monitoring", tags=["whatsapp-monitoring"])
+
 
 @api_router.get("/health", tags=["health"])
 def health_check():
