@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 import logging
+from app.api.deps import get_db
 
-from app.db.session import get_db
 from app.services.notification import NotificationService
 
 logger = logging.getLogger('app.api.endpoints.whatsapp_notifications')

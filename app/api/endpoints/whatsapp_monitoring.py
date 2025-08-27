@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import logging
 
-from app.db.session import get_db
+from app.api.deps import get_db
 
 logger = logging.getLogger('app.api.endpoints.whatsapp_monitoring')
 logging.basicConfig(level=logging.DEBUG)
