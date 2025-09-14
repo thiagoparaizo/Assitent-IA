@@ -33,10 +33,21 @@ async def startup_db_client():
     # Criar instância global do TokenCounterService 
     # (opcional, mas pode ser útil para processos assíncronos)
     app.state.token_counter = TokenCounterService(SessionLocal())
+    
+    import logging
+    logger = logging.getLogger("main")
+    logger.info(f"🚀 {settings.PROJECT_NAME} iniciado com sucesso!")
+    logger.info(f"📊 Health check disponível em: /api/v1/health/detailed")
+    logger.info(f"🔍 Health check básico em: /api/v1/health")
+    logger.info(f"💾 Health check database em: /api/v1/health/database")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
     await close_redis_connections()
+    
+    import logging
+    logger = logging.getLogger("main")
+    logger.info("🛑 Aplicação finalizada")
 
 # iniciar as variaveis de ambiente dotenv
 
