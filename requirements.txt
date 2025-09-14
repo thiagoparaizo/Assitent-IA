@@ -26,3 +26,4 @@ google-generativeai==0.8.5
 tiktoken==0.9.0
 aiosmtplib==3.0.2
 nest_asyncio==1.6.0
+psutil
