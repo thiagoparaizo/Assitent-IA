@@ -32,7 +32,7 @@ class WhatsAppDeviceNotification(BaseModel):
     error_code: str = None
     suggested_action: str = None
 
-@router.post("/whatsapp-notifications")
+@router.post("/notificar_saude_dispositivos")
 async def receive_whatsapp_notification(
     notification: WhatsAppDeviceNotification,
     background_tasks: BackgroundTasks,
