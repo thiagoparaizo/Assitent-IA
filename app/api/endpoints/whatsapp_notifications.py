@@ -1,6 +1,5 @@
-# ==============================================
-# NOVO ARQUIVO: app/api/endpoints/whatsapp_notifications.py
-# ==============================================
+# app/api/endpoints/whatsapp_notifications.py
+# Versão atualizada com integração aos novos templates HTML
 
 from datetime import datetime
 from typing import Dict, Any
@@ -60,7 +59,6 @@ async def receive_whatsapp_notification(
 async def process_whatsapp_notification(notification_data: Dict[str, Any], db: Session):
     """
     Processa a notificação do WhatsApp em background
-    
     """
     try:
         notification_service = NotificationService(db)
@@ -76,7 +74,7 @@ async def process_whatsapp_notification(notification_data: Dict[str, Any], db: S
         tenant_info = await get_tenant_info(tenant_id, db)
         tenant_name = tenant_info.get("name", f"Tenant {tenant_id}") if tenant_info else f"Tenant {tenant_id}"
         
-        # USAR send_whatsapp_alert para cada tipo de notificação
+        # Processar cada tipo de notificação
         if notification_type == "client_outdated":
             await handle_client_outdated_notification(
                 notification_data, tenant_name, notification_service
@@ -119,34 +117,37 @@ async def handle_client_outdated_notification(
 ):
     """
     Trata notificações de cliente desatualizado - CRÍTICO
-    USA send_whatsapp_alert para admins técnicos
     """
     device_id = notification_data["device_id"]
     device_name = notification_data["device_name"]
     tenant_id = notification_data["tenant_id"]
-    # Buscar contatos de administração técnica
+    
     admin_emails = await get_admin_emails_for_tenant(tenant_id)
     
-    message=f"""🚨🚨 AÇÃO URGENTE NECESSÁRIA 🚨🚨 - Cliente WhatsApp Desatualizado
-            
-Dispositivo: {device_name} (ID: {device_id})
-Tenant: {tenant_name}
-
-O cliente WhatsApp está usando uma versão desatualizada e foi rejeitado pelo WhatsApp.
-
-AÇÃO IMEDIATA NECESSÁRIA:
-1. Atualizar biblioteca whatsmeow para a versão mais recente
-2. Recompilar e reiniciar o serviço WhatsApp
-3. Reconectar todos os dispositivos afetados
-
-⚠️⚠️ Sem essa atualização, TODOS os dispositivos podem parar de funcionar.⚠️⚠️""",
-            
-        
+    details = {
+        "Dispositivo": f"{device_name} (ID: {device_id})",
+        "Tenant": f"{tenant_name} (ID: {tenant_id})",
+        "Problema": "Cliente WhatsApp desatualizado",
+        "Criticidade": "ALTA - Ação Imediata Necessária",
+        "Impacto": "Todos os dispositivos podem parar de funcionar"
+    }
     
-     # USAR send_whatsapp_alert para cada admin
+    message = """Foi detectado que o cliente WhatsApp está usando uma versão desatualizada e foi rejeitado pelo WhatsApp.
+    
+    <strong>Este é um problema crítico que requer ação imediata para evitar interrupção total do serviço.</strong>"""
+    
+    suggested_action = """AÇÃO IMEDIATA NECESSÁRIA:
+    
+    1. Atualizar biblioteca whatsmeow para a versão mais recente
+    2. Recompilar e reiniciar o serviço WhatsApp
+    3. Reconectar todos os dispositivos afetados
+    4. Verificar se todos os tenants foram impactados
+    
+    ⚠️ Sem essa atualização, TODOS os dispositivos podem parar de funcionar permanentemente."""
+    
     for email in admin_emails:
         success = await notification_service.send_whatsapp_alert(
-            alert_type="whatsapp_critical",
+            alert_type="whatsapp_critical_update",
             tenant_id=tenant_id,
             tenant_name=tenant_name,
             device_id=device_id,
@@ -155,7 +156,9 @@ AÇÃO IMEDIATA NECESSÁRIA:
             message=message,
             channel="email",
             target=email,
-            custom_subject="🚨 URGENTE: Cliente WhatsApp Desatualizado",
+            custom_subject="🚨 URGENTE: Cliente WhatsApp Desatualizado - Ação Imediata Necessária",
+            suggested_action=suggested_action,
+            details=details
         )
         
         if success:
@@ -180,13 +183,36 @@ async def handle_connection_error_notification(
 ):
     """
     Trata erros de conexão de dispositivos
-    USA send_whatsapp_alert para notificar o tenant
     """
     device_id = notification_data["device_id"]
     device_name = notification_data["device_name"]
     tenant_id = notification_data["tenant_id"]
     
     tenant_contacts = await get_tenant_notification_contacts(tenant_id)
+    
+    details = {
+        "Dispositivo": f"{device_name} (ID: {device_id})",
+        "Tenant": f"{tenant_name} (ID: {tenant_id})",
+        "Problema": notification_data.get('message', 'Erro de conexão detectado'),
+        "Status": "Tentando reconectar automaticamente",
+        "Próximos Passos": "Monitoramento automático ativo"
+    }
+    
+    message = """Detectamos um problema de conexão com seu dispositivo WhatsApp.
+    
+    <strong>Não se preocupe:</strong> Estamos tentando reconectar automaticamente e monitorando a situação de perto."""
+    
+    suggested_action = """O que estamos fazendo:
+    • Tentativas automáticas de reconexão a cada 30 segundos
+    • Monitoramento contínuo do status de conectividade
+    • Logs detalhados para análise técnica
+    
+    O que você pode fazer:
+    • Verificar se sua internet está estável
+    • Aguardar alguns minutos para reconexão automática
+    • Se o problema persistir por mais de 10 minutos, pode ser necessário reautenticar
+    
+    Entraremos em contato se precisarmos de ações adicionais de sua parte."""
     
     for contact in tenant_contacts:
         if contact.get("email"):
@@ -196,26 +222,14 @@ async def handle_connection_error_notification(
                 tenant_name=tenant_name,
                 device_id=device_id,
                 device_name=device_name,
-                level="error",
-                message=f"""❌ Problema de Conexão - WhatsApp
-
-Dispositivo: {device_name}
-Problema: {notification_data.get('message', 'Erro de conexão detectado')}
-
-O que estamos fazendo:
-• Tentando reconectar automaticamente
-• Monitorando a situação
-
-O que você pode fazer:
-• Verificar se seu dispositivo está conectado à internet
-• Se o problema persistir, pode ser necessário reautenticar o dispositivo
-
-Entraremos em contato se precisarmos de ações adicionais.""",
+                level="warning",
+                message=message,
                 channel="email",
                 target=contact["email"],
-                custom_subject=f"Problema de Conexão - {device_name}",
+                custom_subject=f"⚠️ Problema de Conexão Detectado - {device_name}",
+                suggested_action=suggested_action,
+                details=details
             )
-
 
 async def handle_reauth_required_notification(
     notification_data: Dict[str, Any], 
@@ -224,16 +238,40 @@ async def handle_reauth_required_notification(
 ):
     """
     Trata notificações de reautenticação necessária
-    USA send_whatsapp_alert para contatos do tenant
     """
     device_id = notification_data["device_id"]
     device_name = notification_data["device_name"]
     tenant_id = notification_data["tenant_id"]
     
-    # Buscar contatos do tenant
     tenant_contacts = await get_tenant_notification_contacts(tenant_id)
     
-    # USAR send_whatsapp_alert para cada contato
+    details = {
+        "Dispositivo": f"{device_name} (ID: {device_id})",
+        "Tenant": f"{tenant_name} (ID: {tenant_id})",
+        "Ação Necessária": "Reautenticação via QR Code",
+        "Tempo Estimado": "2-3 minutos",
+        "Link Direto": f"{URL_PAINEL}/whatsapp/devices/{device_id}"
+    }
+    
+    message = """Seu dispositivo WhatsApp precisa ser reautenticado para continuar funcionando normalmente.
+    
+    <strong>Este é um procedimento de segurança normal</strong> que acontece periodicamente para manter a conexão segura."""
+    
+    suggested_action = f"""Para reativar seu dispositivo:
+    
+    1. <strong>Acesse o painel:</strong> {URL_PAINEL}/whatsapp/devices/{device_id}
+    2. <strong>Clique em "Reconectar"</strong> no dispositivo {device_name}
+    3. <strong>Escaneie o QR Code</strong> com o WhatsApp do seu celular
+    4. <strong>Aguarde a confirmação</strong> de conexão
+    
+    📱 <strong>Como escanear:</strong>
+    • Abra o WhatsApp no seu celular
+    • Vá em Configurações > Aparelhos conectados
+    • Toque em "Conectar um aparelho"
+    • Aponte a câmera para o QR Code
+    
+    Se precisar de ajuda, nossa equipe está disponível para auxiliar."""
+    
     for contact in tenant_contacts:
         if contact.get("email"):
             success = await notification_service.send_whatsapp_alert(
@@ -243,29 +281,12 @@ async def handle_reauth_required_notification(
                 device_id=device_id,
                 device_name=device_name,
                 level="warning",
-                message=f"""⚠️ Reautenticação Necessária - WhatsApp
-
-Olá,
-    
-    Seu dispositivo WhatsApp precisa ser reautenticado:
-    
-    Dispositivo: {device_name}
-    
-    Para reativar o dispositivo:
-    1. Acesse o painel de controle
-    2. Vá para a seção WhatsApp
-    3. Clique em "Reconectar" no dispositivo {device_name}
-    4. Use o WhatsApp no seu celular para escanear o novo QR Code
-    
-    Link direto: {URL_PAINEL}/whatsapp/devices/{device_id}
-    
-    Se precisar de ajuda, entre em contato conosco.
-    
-    Equipe Técnica
-    {URL_PAINEL}""",
+                message=message,
                 channel="email",
                 target=contact["email"],
-                custom_subject=f"Reautenticação Necessária - {device_name}",
+                custom_subject=f"🔐 Reautenticação Necessária - {device_name}",
+                suggested_action=suggested_action,
+                details=details
             )
             
             if success:
@@ -280,43 +301,61 @@ async def handle_webhook_failure_notification(
 ):
     """
     Trata falhas consecutivas de webhook
-    USA send_whatsapp_alert para admins técnicos
     """
     device_id = notification_data["device_id"]
     tenant_id = notification_data["tenant_id"]
+    device_name = notification_data.get("device_name", "Sistema")
     
-    details = notification_data.get("details", {})
-    consecutive_failures = details.get("consecutive_failures", 0)
-    webhook_url = details.get("webhook_url", "")
+    details_data = notification_data.get("details", {})
+    consecutive_failures = details_data.get("consecutive_failures", 0)
+    webhook_url = details_data.get("webhook_url", "")
+    last_error = details_data.get("last_error", "Timeout de conexão")
     
     if consecutive_failures >= 5:
         admin_emails = await get_admin_emails_for_tenant(tenant_id)
         
+        details = {
+            "Tenant": f"{tenant_name} (ID: {tenant_id})",
+            "Webhook URL": webhook_url,
+            "Falhas Consecutivas": str(consecutive_failures),
+            "Último Erro": last_error,
+            "Impacto": "Notificações podem não estar sendo entregues",
+            "Status": "Webhook temporariamente desabilitado"
+        }
+        
+        message = """O webhook configurado está falhando consistentemente e pode estar impactando a entrega de notificações.
+        
+        <strong>Ação necessária:</strong> Verificação e correção da configuração do webhook para restaurar as notificações."""
+        
+        suggested_action = """Verificações necessárias:
+        
+        1. <strong>Conectividade:</strong> URL do webhook está acessível?
+        2. <strong>Servidor:</strong> Aplicação de destino está respondendo?
+        3. <strong>Autenticação:</strong> Credenciais estão corretas?
+        4. <strong>Firewall:</strong> Portas necessárias estão abertas?
+        5. <strong>SSL:</strong> Certificados estão válidos?
+        
+        <strong>Ações recomendadas:</strong>
+        • Testar manualmente a URL do webhook
+        • Verificar logs do servidor de destino
+        • Considerar desabilitar temporariamente se o problema persistir
+        • Configurar webhook alternativo se necessário"""
+        
         for email in admin_emails:
             await notification_service.send_whatsapp_alert(
-                alert_type="whatsapp_webhook",
+                alert_type="webhook_failure",
                 tenant_id=tenant_id,
                 tenant_name=tenant_name,
                 device_id=device_id,
-                device_name=notification_data.get("device_name", "N/A"),
+                device_name=device_name,
                 level="error",
-                message=f"""🔗 Falha Crítica de Webhook - WhatsApp
-
-Tenant: {tenant_name}
-Webhook: {webhook_url}
-Falhas Consecutivas: {consecutive_failures}
-
-O webhook configurado está falhando consistentemente.
-
-Verificações necessárias:
-1. URL do webhook está acessível?
-2. Servidor de destino está respondendo?
-3. Configuração de autenticação está correta?
-
-Considere desabilitar o webhook temporariamente se o problema persistir.""",
+                message=message,
                 channel="email",
                 target=email,
-                custom_subject=f"Falha Crítica de Webhook - {tenant_name}",
+                custom_subject=f"🔗 Falha Crítica de Webhook - {tenant_name}",
+                suggested_action=suggested_action,
+                details=details,
+                error_code=f"WEBHOOK_FAIL_{consecutive_failures}"
             )
 
 async def handle_device_disconnected_notification(
@@ -330,10 +369,12 @@ async def handle_device_disconnected_notification(
     device_id = notification_data["device_id"]
     tenant_id = notification_data["tenant_id"]
     device_name = notification_data["device_name"]
-    # Para desconexões, apenas logar e aguardar reconexão automática
-    # Só notificar se a desconexão persistir por muito tempo
+    
+    # Para desconexões, apenas logar - reconexão automática é tentada
     logger.info(f"Dispositivo {device_name} (ID: {device_id}) do tenant {tenant_name} (ID: {tenant_id}) desconectado")
-    pass
+    
+    # Notificar apenas se a desconexão persistir (isso seria implementado com delay)
+    # Por enquanto, apenas log
 
 async def handle_generic_notification(
     notification_data: Dict[str, Any], 
@@ -342,7 +383,6 @@ async def handle_generic_notification(
 ):
     """
     Trata notificações genéricas
-    USA send_whatsapp_alert de forma genérica
     """
     device_id = notification_data["device_id"]
     device_name = notification_data["device_name"]
@@ -355,6 +395,21 @@ async def handle_generic_notification(
     if level in ["critical", "error"]:
         admin_emails = await get_admin_emails_for_tenant(tenant_id)
         
+        details = {
+            "Dispositivo": f"{device_name} (ID: {device_id})",
+            "Tenant": f"{tenant_name} (ID: {tenant_id})",
+            "Tipo de Alerta": title,
+            "Nível": level.upper(),
+            "Timestamp": notification_data.get("timestamp", datetime.now().isoformat())
+        }
+        
+        formatted_message = f"""<strong>{title}</strong>
+        
+        {message}"""
+        
+        suggested_action = notification_data.get("suggested_action", 
+            "Verifique os logs do sistema e entre em contato com o suporte técnico se necessário.")
+        
         for email in admin_emails:
             await notification_service.send_whatsapp_alert(
                 alert_type="whatsapp_generic",
@@ -363,13 +418,16 @@ async def handle_generic_notification(
                 device_id=device_id,
                 device_name=device_name,
                 level=level,
-                message=f"{title}\n\n{message}",
+                message=formatted_message,
                 channel="email",
                 target=email,
-                custom_subject=f"[{level.upper()}] WhatsApp - {title}",
+                custom_subject=f"🔔 [{level.upper()}] WhatsApp - {title}",
+                suggested_action=suggested_action,
+                details=details
             )
 
-async def send_critical_alert_to_admins(notification_data: Dict[str, Any], 
+async def send_critical_alert_to_admins(
+    notification_data: Dict[str, Any], 
     tenant_name: str, 
     notification_service: NotificationService
 ):
@@ -378,35 +436,36 @@ async def send_critical_alert_to_admins(notification_data: Dict[str, Any],
     """
     system_admin_emails = await get_system_admin_emails()
     
-    critical_message = f"""
-    🚨 ALERTA CRÍTICO - Sistema WhatsApp
-    
-    Um problema crítico foi detectado no sistema WhatsApp:
-    
-    Tenant: {tenant_name} (ID: {notification_data['tenant_id']})
-    Dispositivo: {notification_data['device_name']} (ID: {notification_data['device_id']})
-    Tipo: {notification_data['alert_type']}
-    Erro: {notification_data.get('error_code', 'N/A')}
-    
-    Detalhes: {notification_data['message']}
-    
-    Ação Sugerida: {notification_data.get('suggested_action', 'Verificar logs e status do sistema')}
-    
-    Timestamp: {notification_data['timestamp']}
-    
-    ⚠️ Este alerta requer atenção imediata da equipe técnica.
-    """
-    
     device_id = notification_data["device_id"]
     device_name = notification_data["device_name"]
     tenant_id = notification_data["tenant_id"]
-    message = notification_data["message"]
-    title = notification_data["title"]
+    
+    details = {
+        "Tenant": f"{tenant_name} (ID: {tenant_id})",
+        "Dispositivo": f"{device_name} (ID: {device_id})",
+        "Tipo de Alerta": notification_data.get("type", "unknown"),
+        "Nível": "CRITICAL",
+        "Código de Erro": notification_data.get("error_code", "N/A"),
+        "Timestamp": notification_data.get("timestamp", datetime.now().isoformat())
+    }
+    
+    message = f"""<strong>ALERTA CRÍTICO detectado no sistema WhatsApp</strong>
+    
+    Um problema crítico foi identificado e requer atenção imediata da equipe técnica.
+    
+    <strong>Detalhes:</strong> {notification_data.get('message', 'Erro crítico não especificado')}"""
+    
+    suggested_action = f"""{notification_data.get('suggested_action', 'Verificar logs e status do sistema')}
+    
+    <strong>Ações imediatas recomendadas:</strong>
+    • Verificar logs detalhados do sistema
+    • Avaliar impacto em outros tenants
+    • Preparar comunicação para clientes se necessário
+    • Considerar acionamento de protocolo de emergência"""
     
     for email in system_admin_emails:
-        
         success = await notification_service.send_whatsapp_alert(
-            alert_type="whatsapp_critical",
+            alert_type="system_critical",
             tenant_id=tenant_id,
             tenant_name=tenant_name,
             device_id=device_id,
@@ -415,7 +474,10 @@ async def send_critical_alert_to_admins(notification_data: Dict[str, Any],
             message=message,
             channel="email",
             target=email,
-            custom_subject="🚨 URGENTE: Erro Crítico",
+            custom_subject="🚨 ALERTA CRÍTICO - Sistema WhatsApp - Ação Imediata Necessária",
+            suggested_action=suggested_action,
+            details=details,
+            error_code=notification_data.get("error_code")
         )
         
         if success:
@@ -423,17 +485,21 @@ async def send_critical_alert_to_admins(notification_data: Dict[str, Any],
         else:
             logger.error(f"Erro ao enviar alerta crítico para {email}")
 
-# Funções auxiliares
+# Funções auxiliares (mantidas inalteradas)
 
 async def get_tenant_info(tenant_id: int, db: Session) -> Dict[str, Any]:
     """Busca informações do tenant"""
     try:
-        # Implementar busca no banco de dados
-        # Exemplo simplificado:
-        query = "SELECT name, contact_email FROM tenants WHERE id = %s"
-        result = db.execute(query, (tenant_id,)).fetchone()
+        from app.db.models.tenant import Tenant
+        from sqlalchemy import select
+        
+        query = select(Tenant).where(Tenant.id == tenant_id)
+        result = db.execute(query)
         if result:
-            return {"name": result[0], "contact_email": result[1]}
+            tenant = result.scalar_one_or_none()
+            if tenant:
+                return {"name": tenant.name, "description": tenant.description}
+        
     except Exception as e:
         logger.error(f"Erro ao buscar info do tenant {tenant_id}: {e}")
     
@@ -442,8 +508,7 @@ async def get_tenant_info(tenant_id: int, db: Session) -> Dict[str, Any]:
 async def get_tenant_notification_contacts(tenant_id: int) -> list:
     """Busca contatos de notificação do tenant"""
     try:
-        # TODO Implementar busca de contatos do tenant
-        # Pode incluir: email principal, contatos técnicos, etc.
+        # TODO: Implementar busca de contatos do tenant
         return [
             {"email": "thiago.paraizo@gmail.com", "type": "primary"},
             {"email": "homeparaizo@gmail.com", "type": "technical"}
@@ -455,7 +520,7 @@ async def get_tenant_notification_contacts(tenant_id: int) -> list:
 async def get_admin_emails_for_tenant(tenant_id: int) -> list:
     """Busca emails de administradores técnicos responsáveis pelo tenant"""
     try:
-        # Implementar busca de admins responsáveis
+        # TODO: Implementar busca de admins responsáveis
         return ["thiagoparaizo@gmail.com"]
     except Exception as e:
         logger.error(f"Erro ao buscar admins do tenant {tenant_id}: {e}")
@@ -468,9 +533,7 @@ async def get_system_admin_emails() -> list:
 async def create_internal_ticket(ticket_data: Dict[str, Any]):
     """Cria ticket interno no sistema de suporte (se integrado)"""
     try:
-        # Implementar integração com sistema de tickets
-        # Ex: Jira, ServiceNow, etc.
+        # TODO: Implementar integração com sistema de tickets
         logger.info(f"Ticket criado: {ticket_data['title']}")
     except Exception as e:
         logger.error(f"Erro ao criar ticket interno: {e}")
-

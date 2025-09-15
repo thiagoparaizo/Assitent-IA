@@ -54,6 +54,7 @@ def detailed_health_check(db: Session = Depends(get_db)):
     }
     
     overall_healthy = True
+    failed_checks = []
     
     # 1. Teste de conectividade com o banco de dados
     try:
@@ -75,6 +76,7 @@ def detailed_health_check(db: Session = Depends(get_db)):
                 "message": "Database query returned unexpected result"
             }
             overall_healthy = False
+            failed_checks.append("Database query failed")
             
     except Exception as e:
         health_status["checks"]["database"] = {
@@ -83,6 +85,7 @@ def detailed_health_check(db: Session = Depends(get_db)):
             "message": f"Database connection failed: {str(e)}"
         }
         overall_healthy = False
+        failed_checks.append("Database connection failed - Exception: " + str(e))
     
     # 2. Verificação de memória do sistema
     try:
@@ -108,6 +111,7 @@ def detailed_health_check(db: Session = Depends(get_db)):
             "status": "error",
             "message": f"Memory check failed: {str(e)}"
         }
+        failed_checks.append("Memory check failed - Exception: " + str(e))
     
     # 3. Verificação de disco
     try:
@@ -124,6 +128,7 @@ def detailed_health_check(db: Session = Depends(get_db)):
             disk_status = "critical"
             disk_message = f"Critical disk usage: {disk_usage_percent:.1f}%"
             overall_healthy = False
+            failed_checks.append("Critical disk usage")
             
         health_status["checks"]["disk"] = {
             "status": disk_status,
@@ -137,6 +142,7 @@ def detailed_health_check(db: Session = Depends(get_db)):
             "status": "error",
             "message": f"Disk check failed: {str(e)}"
         }
+        failed_checks.append("Disk check failed - Exception: " + str(e))
     
     # 4. Verificação de diretórios necessários
     try:
@@ -161,12 +167,14 @@ def detailed_health_check(db: Session = Depends(get_db)):
                 "status": "warning",
                 "message": f"Missing directories: {', '.join(missing_dirs)}"
             }
+            failed_checks.append("Missing directories")
             
     except Exception as e:
         health_status["checks"]["storage"] = {
             "status": "error",
             "message": f"Storage check failed: {str(e)}"
         }
+        failed_checks.append("Storage check failed - Exception: " + str(e))
     
     # 5. Verificação de variáveis de ambiente críticas
     try:
@@ -193,12 +201,14 @@ def detailed_health_check(db: Session = Depends(get_db)):
                 "message": f"Missing critical environment variables: {', '.join(missing_vars)}"
             }
             overall_healthy = False
+            failed_checks.append("Missing critical environment variables")
             
     except Exception as e:
         health_status["checks"]["environment"] = {
             "status": "error",
             "message": f"Environment check failed: {str(e)}"
         }
+        failed_checks.append("Environment check failed - Exception: " + str(e))
     
     # 6. Tempo total de resposta
     total_duration = (time.time() - start_time) * 1000
@@ -217,16 +227,24 @@ def detailed_health_check(db: Session = Depends(get_db)):
         
         try:
             
-            message=f"""🚨🚨 AÇÃO URGENTE NECESSÁRIA 🚨🚨 - API Healt Check Error
-            Verificar a saúda da aplicação devido a alertas do health check.
+            NotificationService().send_health_check_alert(
+                service_name="AI Assistant API",
+                status="unhealthy", 
+                failed_checks=failed_checks,
+                details=health_status["checks"],
+                target="thiagoparaizo+API-Health@gmail.com"
+            )
+            
+            # message=f"""🚨🚨 AÇÃO URGENTE NECESSÁRIA 🚨🚨 - API Healt Check Error
+            # Verificar a saúda da aplicação devido a alertas do health check.
             
             
-            Detalhes:
-            {json.dumps(health_status, indent=4)}
+            # Detalhes:
+            # {json.dumps(health_status, indent=4)}
             
-            """
+            # """
             
-            NotificationService()._send_email('thiagoparaizo+API-Health@gmail.com', 'ASSISTENTE IA - AVISO: ERRO NO HEALTH CHECK', message)
+            # NotificationService()._send_email('thiagoparaizo+API-Health@gmail.com', 'ASSISTENTE IA - AVISO: ERRO NO HEALTH CHECK', message)
             
         except Exception as e:
             print(f"ROUTER[detailed_health_check]: Error sending email notification: {e}")
