@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import Session
@@ -12,6 +13,7 @@ from app.api.deps import get_db
 from app.core.config import settings
 
 from app.api.endpoints import auth, users, dashboard, llm_admin, whatsapp, tenants, conversations, appointments, webhook, knowledge, agents, internal, token_limits, whatsapp_notifications, whatsapp_monitoring
+
 
 api_router = APIRouter()
 
@@ -210,6 +212,26 @@ def detailed_health_check(db: Session = Depends(get_db)):
     
     # Se unhealthy, retorna status HTTP 503
     if not overall_healthy:
+        # notificação por email
+        from app.services.notification import NotificationService
+        
+        try:
+            
+            message=f"""🚨🚨 AÇÃO URGENTE NECESSÁRIA 🚨🚨 - API Healt Check Error
+            Verificar a saúda da aplicação devido a alertas do health check.
+            
+            
+            Detalhes:
+            {json.dumps(health_status, indent=4)}
+            
+            """
+            
+            NotificationService()._send_email('thiagoparaizo+API-Health@gmail.com', 'ASSISTENTE IA - AVISO: ERRO NO HEALTH CHECK', message)
+            
+        except Exception as e:
+            print(f"ROUTER[detailed_health_check]: Error sending email notification: {e}")
+            
+            
         raise HTTPException(status_code=503, detail=health_status)
     
     return health_status
