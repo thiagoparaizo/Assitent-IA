@@ -54,12 +54,17 @@ class CoolifyNotificationIntegration:
     ) -> bool:
         """Notifica sobre falha no deploy"""
         
+        import pytz
+        fortaleza_tz = pytz.timezone('America/Fortaleza')
+        agora_fortaleza = datetime.now(fortaleza_tz)
+        data_hora_formatada = agora_fortaleza.strftime('%d/%m/%Y às %H:%M:%S')
+        
         details = {
             "Aplicação": app_name,
             "Versão": version,
             "Status": "❌ Falha",
             "Erro": error_message,
-            "Timestamp": datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            "Timestamp": data_hora_formatada
         }
         
         success_count = 0

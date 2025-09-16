@@ -107,13 +107,17 @@ class NotificationHelper:
         """Envia alerta de falha de webhook"""
         
         template = self.templates.get_webhook_failure_template()
+        import pytz
+        fortaleza_tz = pytz.timezone('America/Fortaleza')
+        agora_fortaleza = datetime.now(fortaleza_tz)
+        data_hora_formatada = agora_fortaleza.strftime('%d/%m/%Y às %H:%M:%S')
         
         details = {
             "Tenant": f"{tenant_name} (ID: {tenant_id})",
             "URL do Webhook": webhook_url,
             "Falhas Consecutivas": str(failure_count),
             "Último Erro": error_details,
-            "Timestamp": datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+            "Timestamp": data_hora_formatada
         }
         
         success_count = 0

@@ -9,11 +9,14 @@ from typing import Any, Dict, Optional, List
 import json
 import logging
 from enum import Enum
+import pytz
 
 from app.core.config import settings
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("app.services.notification")
+
+fortaleza_tz = pytz.timezone('America/Fortaleza')
 
 class NotificationLevel(str, Enum):
     """Níveis de notificação"""
@@ -437,6 +440,9 @@ class NotificationService:
             details_section = self.template_builder.build_details_section(details) if details else ""
             suggested_action_section = self.template_builder.build_suggested_action_section(safe_suggested_action) if safe_suggested_action else ""
             
+            agora_fortaleza = datetime.now(fortaleza_tz)
+            
+            
             # Construir template
             html_content = self.template_builder.BASE_TEMPLATE.format(
                 header_color=config["header_color"],
@@ -453,7 +459,7 @@ class NotificationService:
                 progress_section="",  # Sem barra de progresso
                 suggested_action_section=suggested_action_section,
                 additional_content="",
-                timestamp=datetime.now().strftime('%d/%m/%Y às %H:%M:%S'),
+                timestamp=agora_fortaleza.strftime('%d/%m/%Y às %H:%M:%S'),
                 footer_text="WhatsApp Service - Sistema de Monitoramento Automático",
                 footer_links=""
             )
@@ -463,13 +469,18 @@ class NotificationService:
         except Exception as e:
             logger.error(f"Error building WhatsApp alert email: {e}")
             # Fallback para email simples em caso de erro no template
+            import pytz
+            fortaleza_tz = pytz.timezone('America/Fortaleza')
+            agora_fortaleza = datetime.now(fortaleza_tz)
+            data_hora_formatada = agora_fortaleza.strftime('%d/%m/%Y às %H:%M:%S')
+            
             return f"""
             <html>
             <body>
                 <h2>{title}</h2>
                 <p>{message}</p>
                 <p><strong>Tenant:</strong> {tenant_name}</p>
-                <p><strong>Timestamp:</strong> {datetime.now().strftime('%d/%m/%Y às %H:%M:%S')}</p>
+                <p><strong>Timestamp:</strong> {data_hora_formatada}</p>
                 {f'<p><strong>Ação Sugerida:</strong> {suggested_action}</p>' if suggested_action else ''}
             </body>
             </html>

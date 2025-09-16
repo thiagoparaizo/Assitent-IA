@@ -1,4 +1,5 @@
 import json
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import Session
@@ -14,8 +15,13 @@ from app.core.config import settings
 
 from app.api.endpoints import auth, users, dashboard, llm_admin, whatsapp, tenants, conversations, appointments, webhook, knowledge, agents, internal, token_limits, whatsapp_notifications, whatsapp_monitoring
 
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("app.api.router")
 
 api_router = APIRouter()
+
+import pytz
+fortaleza_tz = pytz.timezone('America/Fortaleza')            
 
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
 api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["whatsapp"])
@@ -55,6 +61,10 @@ def detailed_health_check(db: Session = Depends(get_db)):
     
     overall_healthy = True
     failed_checks = []
+    
+    agora_fortaleza = datetime.now(fortaleza_tz)
+    data_hora_formatada = agora_fortaleza.strftime('%d/%m/%Y às %H:%M:%S')
+    
     
     # 1. Teste de conectividade com o banco de dados
     try:
@@ -222,34 +232,78 @@ def detailed_health_check(db: Session = Depends(get_db)):
     
     # Se unhealthy, retorna status HTTP 503
     if not overall_healthy:
-        # notificação por email
-        from app.services.notification import NotificationService
-        
+        # Notificação por email com template HTML
         try:
+            from app.services.notification import NotificationService
             
-            NotificationService().send_health_check_alert(
-                service_name="AI Assistant API",
-                status="unhealthy", 
-                failed_checks=failed_checks,
-                details=health_status["checks"],
-                target="thiagoparaizo+API-Health@gmail.com"
+            notification_service = NotificationService()
+            
+            # Coletar checks que falharam
+            failed_checks_list = []
+            for check_name, check_data in health_status["checks"].items():
+                if check_data.get("status") in ["unhealthy", "critical", "error"]:
+                    failed_checks_list.append(f"{check_name}: {check_data.get('message', 'Failed')}")
+            
+            # Preparar detalhes estruturados
+            details = {
+                "Serviço": "AI Assistant API",
+                "Ambiente": "Produção", 
+                "Status Geral": "UNHEALTHY",
+                "Tempo de Resposta": f"{health_status.get('response_time_ms', 0):.1f}ms",
+                "Verificações Falhando": f"{len(failed_checks_list)} de {len(health_status['checks'])}",
+                "Timestamp": health_status["timestamp"]
+            }
+            
+            # Adicionar detalhes específicos dos checks que falharam
+            for i, failed_check in enumerate(failed_checks_list[:3], 1):  # Máximo 3 para não ficar muito longo
+                details[f"Falha {i}"] = failed_check
+            
+            # Preparar ações sugeridas
+            suggested_actions = []
+            if any("database" in check.lower() for check in failed_checks_list):
+                suggested_actions.append("Verificar conectividade com PostgreSQL")
+                suggested_actions.append("Reiniciar pool de conexões do banco")
+            if any("memory" in check.lower() for check in failed_checks_list):
+                suggested_actions.append("Investigar vazamentos de memória")
+                suggested_actions.append("Considerar restart da aplicação")
+            if any("disk" in check.lower() for check in failed_checks_list):
+                suggested_actions.append("Limpar arquivos temporários")
+                suggested_actions.append("Verificar logs antigos")
+            
+            # Ações padrão
+            if not suggested_actions:
+                suggested_actions = [
+                    "Verificar logs detalhados da aplicação",
+                    "Monitorar recursos do sistema",
+                    "Considerar restart se problema persistir"
+                ]
+            
+            # Fallback usando send_whatsapp_alert
+            message = f"""O health check da aplicação detectou <strong>{len(failed_checks_list)} problemas críticos</strong> que requerem atenção imediata.
+            
+            <strong>Verificações que falharam:</strong>
+            {'<br>• '.join([''] + failed_checks_list)}"""
+            
+            notification_service.send_whatsapp_alert(
+                alert_type="health_check_failure",
+                tenant_id=0,  # Sistema
+                tenant_name="AI Assistant API",
+                device_id=0,
+                device_name="Sistema",
+                level="critical",
+                message=message,
+                channel="email",
+                target="thiagoparaizo+API-Health@gmail.com",
+                custom_subject="🚨 ASSISTENTE IA - Health Check CRÍTICO - Ação Necessária",
+                suggested_action="<br>• ".join([""] + suggested_actions),
+                details=details
             )
             
-            # message=f"""🚨🚨 AÇÃO URGENTE NECESSÁRIA 🚨🚨 - API Healt Check Error
-            # Verificar a saúda da aplicação devido a alertas do health check.
-            
-            
-            # Detalhes:
-            # {json.dumps(health_status, indent=4)}
-            
-            # """
-            
-            # NotificationService()._send_email('thiagoparaizo+API-Health@gmail.com', 'ASSISTENTE IA - AVISO: ERRO NO HEALTH CHECK', message)
-            
         except Exception as e:
-            print(f"ROUTER[detailed_health_check]: Error sending email notification: {e}")
-            
-            
+            logger.error(f"ROUTER[detailed_health_check]: Error sending email notification: {e}")
+            # Log adicional para debug
+            print(f"Health notification error: {e}")
+        
         raise HTTPException(status_code=503, detail=health_status)
     
     return health_status
@@ -259,6 +313,10 @@ def database_health_check(db: Session = Depends(get_db)):
     """
     Endpoint específico para health check do banco de dados
     """
+    agora_fortaleza = datetime.now(fortaleza_tz)
+    data_hora_formatada = agora_fortaleza.strftime('%d/%m/%Y às %H:%M:%S')
+        
+    
     try:
         start_time = time.time()
         
@@ -285,6 +343,7 @@ def database_health_check(db: Session = Depends(get_db)):
         
         duration = (time.time() - start_time) * 1000
         
+        
         return {
             "status": "healthy",
             "database": {
@@ -293,10 +352,11 @@ def database_health_check(db: Session = Depends(get_db)):
                 "write_test": write_test,
                 "response_time_ms": round(duration, 2)
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": data_hora_formatada
         }
         
     except Exception as e:
+        
         raise HTTPException(
             status_code=503, 
             detail={
@@ -305,7 +365,7 @@ def database_health_check(db: Session = Depends(get_db)):
                     "connected": False,
                     "error": str(e)
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": data_hora_formatada
             }
         )
 
@@ -314,6 +374,10 @@ async def redis_health_check():
     """
     Endpoint específico para health check do Redis
     """
+    agora_fortaleza = datetime.now(fortaleza_tz)
+    data_hora_formatada = agora_fortaleza.strftime('%d/%m/%Y às %H:%M:%S')
+     
+    
     try:
         from app.core.redis import get_redis
         
@@ -339,7 +403,7 @@ async def redis_health_check():
                 "read_write_test": test_value.decode() == "test_value" if test_value else False,
                 "response_time_ms": round(duration, 2)
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": data_hora_formatada
         }
         
     except Exception as e:
@@ -351,6 +415,6 @@ async def redis_health_check():
                     "connected": False,
                     "error": str(e)
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": data_hora_formatada
             }
         )
