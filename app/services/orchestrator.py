@@ -401,12 +401,12 @@ class AgentOrchestrator:
             state.metadata["previous_conversation_id"] = conversation_id
             state.metadata["reset_reason"] = reset_reason
         
-        # Add the user message to history
-        state.history.append({
-            "role": "user",
-            "content": message,
-            "timestamp": current_time
-        })
+        # TODO fix bug # Add the user message to history
+        # state.history.append({
+        #     "role": "user",
+        #     "content": message,
+        #     "timestamp": current_time
+        # })
         
         # Update state metadata with config settings
         state.metadata.update({
@@ -599,7 +599,7 @@ class AgentOrchestrator:
                 # Continue sem interromper o fluxo principal
         
         # Prepare prompt with history, context, memories and audio
-        prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id, audio_data)
+        prompt = self._prepare_prompt(state, current_agent, rag_context, memory_context, contact_id, audio_data, current_message=message)
         
         # Get response from LLM - sempre usar método de texto já que áudio foi transcrito
         response, token_usage = await self.llm.generate_response(prompt)
@@ -649,6 +649,12 @@ class AgentOrchestrator:
         # Process the response for actions
         processed_response = await self._process_agent_response(response, state, current_agent, tenant_config)
         
+         # ✅ AGORA SIM - Adicionar AMBAS as mensagens ao histórico DEPOIS da geração
+        state.history.append({
+            "role": "user",
+            "content": message,
+            "timestamp": current_time
+        })
         # Add to history
         state.history.append({
             "role": "assistant",
@@ -944,7 +950,8 @@ class AgentOrchestrator:
         rag_context: List[Any], 
         memory_context: List[Dict[str, Any]] = None, 
         contact_id: str = None,
-        audio_data: Optional[Dict[str, Any]] = None
+        audio_data: Optional[Dict[str, Any]] = None,
+        current_message: str = None  # ✅ NOVO PARÂMETRO
     ) -> List[Dict[str, str]]:
         """
         Prepares the prompt for the LLM, including history, RAG context, and memories.
@@ -958,7 +965,7 @@ class AgentOrchestrator:
         # Add RAG context if available
         if rag_context:
             system_prompt += "\n\n## Relevant Knowledge Base Information:\n"
-            for i, doc in enumerate(rag_context[:3]):  # Limit to top 3 most relevant docs
+            for i, doc in enumerate(rag_context[:3]):
                 system_prompt += f"\nDocument {i+1}:\n{doc['content']}\n"
         
         # Add memory context if available
@@ -975,11 +982,10 @@ class AgentOrchestrator:
         # linguagem de resposta
         system_prompt += "\n\n## Linguagem de resposta: Portugues Brasileiro\n"
         
-        
         # Prepare conversation history
         messages = [{"role": "system", "content": system_prompt}]
         
-        # Extract the relevant conversation history (last 10 exchanges)
+        # ✅ CORREÇÃO: Extrair histórico ANTES da mensagem atual
         history = []
         for msg in state.history[-20:]:  # Get last 20 messages
             if msg["role"] in ["user", "assistant"]:
@@ -990,6 +996,13 @@ class AgentOrchestrator:
         
         # Add history to messages
         messages.extend(history)
+        
+        # ✅ ADICIONAR a mensagem atual como última mensagem
+        if current_message:
+            messages.append({
+                "role": "user",
+                "content": current_message
+            })
         
         return messages
     
