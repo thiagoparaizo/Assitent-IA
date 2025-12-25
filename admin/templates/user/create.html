@@ -1,156 +1,290 @@
-<!-- admin/templates/user/create.html -->
+<!-- admin/templates/user/create.html - VERSÃO MODERNA -->
 {% extends 'base.html' %}
 
 {% block title %}Criar Usuário - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('user.index') }}">Usuários</a></li>
-                <li class="breadcrumb-item active">Criar Usuário</li>
-            </ol>
-        </nav>
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Criar Novo Usuário</h1>
+            <p class="text-gray-600 mt-2">Adicione um novo usuário ao sistema</p>
+        </div>
+        <a href="{{ url_for('user.index') }}" class="btn btn-outline">
+            <i class="bi bi-arrow-left mr-2"></i>
+            Voltar para Usuários
+        </a>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-md-8">
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Formulário Principal -->
+    <div class="lg:col-span-2">
         <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="card-title mb-0">Criar Novo Usuário</h5>
+            <div class="card-header">
+                <h3 class="text-lg font-semibold text-gray-900">Informações do Usuário</h3>
             </div>
             <div class="card-body">
-                <form method="post" action="{{ url_for('user.create') }}">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">Email<span class="text-danger">*</span></label>
-                        <input type="email" class="form-control" id="email" name="email" required>
-                        <div class="form-text">O email será usado para login no sistema.</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="full_name" class="form-label">Nome Completo</label>
-                        <input type="text" class="form-control" id="full_name" name="full_name">
-                        <div class="form-text">Nome completo do usuário.</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="tenant_id" class="form-label">Tenant</label>
-                        <select class="form-select" id="tenant_id" name="tenant_id">
-                            <option value="">Sem tenant específico</option>
-                            {% for tenant in tenants %}
-                            <option value="{{ tenant.id }}" {% if preselected_tenant_id == tenant.id %}selected{% endif %}>
-                                {{ tenant.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <div class="form-text">Tenant ao qual o usuário pertencerá.</div>
-                        {% if preselected_tenant_id %}
-                        <div class="alert alert-info mt-2">
-                            <i class="bi bi-info-circle"></i> Criando usuário para o tenant selecionado.
+                <form method="post" action="{{ url_for('user.create') }}" id="create-user-form">
+                    <div class="space-y-6">
+                        <!-- Email -->
+                        <div>
+                            <label for="email" class="form-label">Email <span class="text-red-500">*</span></label>
+                            <input type="email" class="form-input" id="email" name="email" required>
+                            <p class="form-help">O email será usado para login no sistema.</p>
                         </div>
-                        {% endif %}
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Senha<span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="password" name="password" required>
-                        <div class="form-text">Senha deve ter pelo menos 6 caracteres.</div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="confirm_password" class="form-label">Confirmar Senha<span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-                    </div>
-                    
-                    <div class="mb-3 form-check">
-                        <input type="checkbox" class="form-check-input" id="is_superuser" name="is_superuser">
-                        <label class="form-check-label" for="is_superuser">Administrador</label>
-                        <div class="form-text">Usuários administradores têm acesso completo ao sistema.</div>
-                    </div>
-                    
-                    <div class="alert alert-info">
-                        <div class="d-flex">
-                            <div class="flex-shrink-0">
-                                <i class="bi bi-info-circle-fill fs-4"></i>
+                        
+                        <!-- Nome Completo -->
+                        <div>
+                            <label for="full_name" class="form-label">Nome Completo</label>
+                            <input type="text" class="form-input" id="full_name" name="full_name">
+                            <p class="form-help">Nome completo do usuário.</p>
+                        </div>
+                        
+                        <!-- Tenant -->
+                        <div>
+                            <label for="tenant_id" class="form-label">Tenant</label>
+                            <select class="form-select" id="tenant_id" name="tenant_id">
+                                <option value="">Sem tenant específico</option>
+                                {% for tenant in tenants %}
+                                <option value="{{ tenant.id }}" {% if preselected_tenant_id == tenant.id %}selected{% endif %}>
+                                    {{ tenant.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <p class="form-help">Tenant ao qual o usuário pertencerá.</p>
+                            
+                            {% if preselected_tenant_id %}
+                            <div class="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div class="flex items-center">
+                                    <i class="bi bi-info-circle text-blue-600 mr-2"></i>
+                                    <span class="text-sm text-blue-700">Criando usuário para o tenant selecionado.</span>
+                                </div>
                             </div>
-                            <div class="ms-3">
-                                <h5>Informações Importantes</h5>
-                                <ul class="mb-0">
-                                    <li>O usuário receberá suas credenciais por email</li>
-                                    <li>O usuário será criado com status ativo</li>
-                                    <li>Administradores podem gerenciar todos os aspectos do sistema</li>
-                                    <li>Usuários normais só têm acesso ao seu tenant</li>
-                                </ul>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Senha -->
+                        <div>
+                            <label for="password" class="form-label">Senha <span class="text-red-500">*</span></label>
+                            <input type="password" class="form-input" id="password" name="password" required>
+                            <p class="form-help">Senha deve ter pelo menos 6 caracteres.</p>
+                        </div>
+                        
+                        <!-- Confirmar Senha -->
+                        <div>
+                            <label for="confirm_password" class="form-label">Confirmar Senha <span class="text-red-500">*</span></label>
+                            <input type="password" class="form-input" id="confirm_password" name="confirm_password" required>
+                            <div id="password-match-error" class="hidden mt-2 text-sm text-red-600">
+                                <i class="bi bi-exclamation-circle mr-1"></i>
+                                As senhas não coincidem
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="d-flex justify-content-between">
-                        <a href="{{ url_for('user.index') }}" class="btn btn-outline-secondary">Cancelar</a>
-                        <button type="submit" class="btn btn-primary">Criar Usuário</button>
+                        
+                        <!-- Administrador -->
+                        <div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="is_superuser" name="is_superuser" class="mr-3">
+                                <div>
+                                    <label for="is_superuser" class="font-medium text-gray-900">Administrador</label>
+                                    <p class="text-sm text-gray-600">Usuários administradores têm acesso completo ao sistema.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Informações Importantes -->
+                        <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <i class="bi bi-info-circle text-blue-600 text-xl"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-medium text-blue-900">Informações Importantes</h4>
+                                    <ul class="mt-2 text-sm text-blue-700 space-y-1">
+                                        <li class="flex items-center">
+                                            <i class="bi bi-envelope mr-2"></i>
+                                            O usuário receberá suas credenciais por email
+                                        </li>
+                                        <li class="flex items-center">
+                                            <i class="bi bi-check-circle mr-2"></i>
+                                            O usuário será criado com status ativo
+                                        </li>
+                                        <li class="flex items-center">
+                                            <i class="bi bi-shield-check mr-2"></i>
+                                            Administradores podem gerenciar todos os aspectos do sistema
+                                        </li>
+                                        <li class="flex items-center">
+                                            <i class="bi bi-person mr-2"></i>
+                                            Usuários normais só têm acesso ao seu tenant
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Botões -->
+                        <div class="flex justify-between pt-6 border-t border-gray-200">
+                            <a href="{{ url_for('user.index') }}" class="btn btn-outline">
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                Criar Usuário
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
         </div>
     </div>
     
-    <div class="col-md-4">
+    <!-- Painel de Dicas -->
+    <div>
         <div class="card">
-            <div class="card-header bg-info text-white">
-                <h5 class="card-title mb-0">Dicas</h5>
+            <div class="card-header">
+                <h3 class="text-lg font-semibold text-gray-900">Dicas e Informações</h3>
             </div>
             <div class="card-body">
-                <h6>Tipos de Usuário:</h6>
-                <ul class="list-unstyled">
-                    <li><i class="bi bi-shield-check text-danger"></i> <strong>Administrador:</strong> Acesso completo</li>
-                    <li><i class="bi bi-person text-secondary"></i> <strong>Usuário:</strong> Acesso limitado ao tenant</li>
-                </ul>
-                
-                <h6 class="mt-3">Segurança:</h6>
-                <ul class="list-unstyled">
-                    <li><i class="bi bi-key"></i> Use senhas fortes</li>
-                    <li><i class="bi bi-envelope"></i> Email deve ser válido</li>
-                    <li><i class="bi bi-shield"></i> Dados são criptografados</li>
-                </ul>
+                <div class="space-y-6">
+                    <!-- Tipos de Usuário -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900 mb-3">Tipos de Usuário</h4>
+                        <div class="space-y-3">
+                            <div class="flex items-center p-3 bg-red-50 border border-red-200 rounded-lg">
+                                <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                                    <i class="bi bi-shield-check text-red-600"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">Administrador</p>
+                                    <p class="text-xs text-gray-600">Acesso completo ao sistema</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                                <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+                                    <i class="bi bi-person text-gray-600"></i>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-900">Usuário Normal</p>
+                                    <p class="text-xs text-gray-600">Acesso limitado ao tenant</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Segurança -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900 mb-3">Segurança</h4>
+                        <div class="space-y-2">
+                            <div class="flex items-center">
+                                <i class="bi bi-key text-gray-400 mr-2"></i>
+                                <span class="text-sm text-gray-700">Use senhas fortes</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="bi bi-envelope text-gray-400 mr-2"></i>
+                                <span class="text-sm text-gray-700">Email deve ser válido</span>
+                            </div>
+                            <div class="flex items-center">
+                                <i class="bi bi-shield text-gray-400 mr-2"></i>
+                                <span class="text-sm text-gray-700">Dados são criptografados</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Requisitos de Senha -->
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900 mb-3">Requisitos de Senha</h4>
+                        <ul class="text-sm text-gray-600 space-y-1">
+                            <li class="flex items-center">
+                                <i class="bi bi-check-circle text-green-500 mr-2"></i>
+                                Mínimo de 6 caracteres
+                            </li>
+                            <li class="flex items-center">
+                                <i class="bi bi-check-circle text-green-500 mr-2"></i>
+                                Letras e números
+                            </li>
+                            <li class="flex items-center">
+                                <i class="bi bi-check-circle text-green-500 mr-2"></i>
+                                Diferente do email
+                            </li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+{% endblock %}
 
 {% block extra_js %}
 <script>
-    // Validação de senha
-    document.getElementById('confirm_password').addEventListener('input', function() {
-        const password = document.getElementById('password').value;
-        const confirmPassword = this.value;
+    // Validação de senha em tempo real
+    const passwordInput = document.getElementById('password');
+    const confirmPasswordInput = document.getElementById('confirm_password');
+    const passwordMatchError = document.getElementById('password-match-error');
+    
+    function validatePasswordMatch() {
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
         
-        if (password !== confirmPassword) {
-            this.setCustomValidity('As senhas não coincidem');
+        if (confirmPassword && password !== confirmPassword) {
+            passwordMatchError.classList.remove('hidden');
+            confirmPasswordInput.classList.add('border-red-500');
+            confirmPasswordInput.classList.remove('border-gray-300');
+            return false;
         } else {
-            this.setCustomValidity('');
+            passwordMatchError.classList.add('hidden');
+            confirmPasswordInput.classList.remove('border-red-500');
+            confirmPasswordInput.classList.add('border-gray-300');
+            return true;
         }
-    });
+    }
+    
+    // Validar ao digitar
+    passwordInput.addEventListener('input', validatePasswordMatch);
+    confirmPasswordInput.addEventListener('input', validatePasswordMatch);
     
     // Validação do formulário
-    document.querySelector('form').addEventListener('submit', function(e) {
-        const password = document.getElementById('password').value;
-        const confirmPassword = document.getElementById('confirm_password').value;
+    document.getElementById('create-user-form').addEventListener('submit', function(e) {
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
         
-        if (password !== confirmPassword) {
-            e.preventDefault();
-            alert('As senhas não coincidem.');
-            return false;
-        }
-        
+        // Validar senha
         if (password.length < 6) {
             e.preventDefault();
             alert('A senha deve ter pelo menos 6 caracteres.');
+            passwordInput.focus();
             return false;
         }
+        
+        // Validar correspondência de senhas
+        if (password !== confirmPassword) {
+            e.preventDefault();
+            alert('As senhas não coincidem.');
+            confirmPasswordInput.focus();
+            return false;
+        }
+        
+        // Validar email
+        const email = document.getElementById('email').value;
+        if (!email.includes('@') || !email.includes('.')) {
+            e.preventDefault();
+            alert('Por favor, insira um email válido.');
+            document.getElementById('email').focus();
+            return false;
+        }
+        
+        return true;
+    });
+    
+    // Feedback visual para campos obrigatórios
+    document.querySelectorAll('[required]').forEach(input => {
+        input.addEventListener('blur', function() {
+            if (!this.value) {
+                this.classList.add('border-red-500');
+            } else {
+                this.classList.remove('border-red-500');
+            }
+        });
     });
 </script>
-{% endblock %}
 {% endblock %}
