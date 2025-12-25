@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo - Design Moderno Assistente IA</title>
+    
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        'primary-dark': '#1d4ed8',
+                        secondary: '#8b5cf6',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-out',
+                        'slide-in': 'slideIn 0.3s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        slideIn: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        /* Custom Components */
+        .card {
+            @apply bg-white rounded-xl shadow-sm border border-gray-200 transition-all duration-300 hover:shadow-md;
+        }
+        
+        .stat-card {
+            @apply card overflow-hidden;
+        }
+        
+        .stat-card-primary {
+            @apply border-l-4 border-blue-500;
+        }
+        
+        .stat-card-success {
+            @apply border-l-4 border-green-500;
+        }
+        
+        .stat-card-warning {
+            @apply border-l-4 border-yellow-500;
+        }
+        
+        .stat-card-danger {
+            @apply border-l-4 border-red-500;
+        }
+        
+        .btn {
+            @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2;
+        }
+        
+        .btn-primary {
+            @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+        }
+        
+        .btn-outline {
+            @apply border border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-400;
+        }
+        
+        .badge {
+            @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+        }
+        
+        .badge-success {
+            @apply bg-green-100 text-green-800;
+        }
+        
+        .badge-secondary {
+            @apply bg-gray-100 text-gray-800;
+        }
+        
+        .sidebar-nav-item {
+            @apply flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors;
+        }
+        
+        .sidebar-nav-item:hover {
+            @apply bg-gray-100 text-gray-900;
+        }
+        
+        .sidebar-nav-item.active {
+            @apply bg-blue-50 text-blue-700;
+        }
+        
+        .alert {
+            @apply p-4 rounded-lg border;
+        }
+        
+        .alert-success {
+            @apply bg-green-50 border-green-200 text-green-800;
+        }
+        
+        .table-modern {
+            @apply min-w-full divide-y divide-gray-200;
+        }
+        
+        .table-modern thead {
+            @apply bg-gray-50;
+        }
+        
+        .table-modern th {
+            @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+        }
+        
+        .table-modern tbody {
+            @apply bg-white divide-y divide-gray-200;
+        }
+        
+        .table-modern td {
+            @apply px-6 py-4 whitespace-nowrap text-sm text-gray-900;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-900 font-sans antialiased min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-12 text-center">
+            <div class="inline-block p-4 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl mb-6">
+                <i class="bi bi-robot text-5xl text-white"></i>
+            </div>
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">Design Moderno - Assistente IA</h1>
+            <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+                Demonstração do novo design modernizado com Tailwind CSS, componentes reutilizáveis e interface responsiva.
+            </p>
+        </header>
+
+        <!-- Cards de Estatísticas -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Cards de Estatísticas</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="stat-card stat-card-primary">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Agentes Ativos</p>
+                                <p class="text-3xl font-bold text-gray-900 mt-2">12</p>
+                                <div class="flex items-center mt-2">
+                                    <i class="bi bi-arrow-up-circle-fill text-green-500 mr-1"></i>
+                                    <span class="text-sm text-gray-500">+2 esta semana</span>
+                                </div>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <i class="bi bi-robot text-2xl text-blue-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-card-success">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Conversas Hoje</p>
+                                <p class="text-3xl font-bold text-gray-900 mt-2">247</p>
+                                <div class="flex items-center mt-2">
+                                    <i class="bi bi-activity text-green-500 mr-1"></i>
+                                    <span class="text-sm text-gray-500">Em tempo real</span>
+                                </div>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                <i class="bi bi-chat-dots text-2xl text-green-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-card-warning">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Documentos na Base</p>
+                                <p class="text-3xl font-bold text-gray-900 mt-2">1,248</p>
+                                <div class="flex items-center mt-2">
+                                    <i class="bi bi-database text-yellow-500 mr-1"></i>
+                                    <span class="text-sm text-gray-500">Conhecimento total</span>
+                                </div>
+                            </div>
+                            <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                                <i class="bi bi-file-earmark-text text-2xl text-yellow-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stat-card stat-card-danger">
+                    <div class="p-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm font-medium text-gray-600">Dispositivos WhatsApp</p>
+                                <p class="text-3xl font-bold text-gray-900 mt-2">8</p>
+                                <div class="flex items-center mt-2">
+                                    <i class="bi bi-wifi text-red-500 mr-1"></i>
+                                    <span class="text-sm text-gray-500">Conectados</span>
+                                </div>
+                            </div>
+                            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                                <i class="bi bi-whatsapp text-2xl text-red-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabela Moderna -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Tabela de Conversas</h2>
+            <div class="card overflow-hidden">
+                <div class="p-6 border-b border-gray-100">
+                    <h3 class="text-lg font-semibold text-gray-900">Conversas Recentes</h3>
+                </div>
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="table-modern">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Usuário</th>
+                                    <th>Agente</th>
+                                    <th>Início</th>
+                                    <th>Mensagens</th>
+                                    <th>Status</th>
+                                    <th>Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="font-mono text-sm">abc123de...</td>
+                                    <td>user_001</td>
+                                    <td>
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 rounded-full bg-blue-500 mr-2"></div>
+                                            Suporte Técnico
+                                        </div>
+                                    </td>
+                                    <td>25/12/2025 10:30</td>
+                                    <td>
+                                        <div class="flex items-center">
+                                            <i class="bi bi-chat-text text-gray-400 mr-2"></i>
+                                            15
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-success">Ativa</span>
+                                    </td>
+                                    <td>
+                                        <div class="flex space-x-2">
+                                            <button class="btn btn-outline btn-sm">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline btn-sm">
+                                                <i class="bi bi-three-dots"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-gray-50 transition-colors">
+                                    <td class="font-mono text-sm">def456gh...</td>
+                                    <td>user_042</td>
+                                    <td>
+                                        <div class="flex items-center">
+                                            <div class="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
+                                            Vendas
+                                        </div>
+                                    </td>
+                                    <td>25/12/2025 09:15</td>
+                                    <td>
+                                        <div class="flex items-center">
+                                            <i class="bi bi-chat-text text-gray-400 mr-2"></i>
+                                            8
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge badge-secondary">Encerrada</span>
+                                    </td>
+                                    <td>
+                                        <div class="flex space-x-2">
+                                            <button class="btn btn-outline btn-sm">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            <button class="btn btn-outline btn-sm">
+                                                <i class="bi bi-three-dots"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Componentes de Formulário -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Componentes de Formulário</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="card">
+                    <div class="p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Formulário de Login</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                <div class="relative rounded-md shadow-sm">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="bi bi-envelope text-gray-400"></i>
+                                    </div>
+                                    <input type="email" class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="seu@email.com">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Senha</label>
+                                <div class="relative rounded-md shadow-sm">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="bi bi-lock text-gray-400"></i>
+                                    </div>
+                                    <input type="password" class="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" placeholder="Sua senha">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary w-full">
+                                <i class="bi bi-box-arrow-in-right mr-2"></i>
+                                Entrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="p-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">Alertas e Notificações</h3>
+                        <div class="space-y-4">
+                            <div class="alert alert-success">
+                                <div class="flex items-center">
+                                    <i class="bi bi-check-circle-fill text-green-500 mr-3"></i>
+                                    <span>Operação realizada com sucesso!</span>
+                                </div>
+                            </div>
+                            <div class="alert bg-yellow-50 border-yellow-200 text-yellow-800 p-4 rounded-lg border">
+                                <div class="flex items-center">
+                                    <i class="bi bi-exclamation-triangle-fill text-yellow-500 mr-3"></i>
+                                    <span>Atenção: Alguns dados podem estar desatualizados.</span>
+                                </div>
+                            </div>
+                            <div class="alert bg-red-50 border-red-200 text-red-800 p-4 rounded-lg border">
+                                <div class="flex items-center">
+                                    <i class="bi bi-x-circle-fill text-red-500 mr-3"></i>
+                                    <span>Erro: Não foi possível conectar ao servidor.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sidebar Preview -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Sidebar Moderna</h2>
+            <div class="flex flex-col lg:flex-row gap-8">
+                <div class="bg-gradient-to-b from-gray-900 to-gray-800 text-white rounded-xl p-6 w-full lg:w-64">
+                    <div class="mb-8">
+                        <div class="flex items-center space-x-3">
+                            <i class="bi bi-robot text-2xl"></i>
+                            <span class="text-xl font-bold">Assistente IA</span>
+                        </div>
+                    </div>
+                    <nav class="space-y-2">
+                        <a href="#" class="sidebar-nav-item active">
+                            <i class="bi bi-speedometer2 text-lg"></i>
+                            <span>Dashboard</span>
+                        </a>
+                        <a href="#" class="sidebar-nav-item">
+                            <i class="bi bi-robot text-lg"></i>
+                            <span>Agentes</span>
+                        </a>
+                        <a href="#" class="sidebar-nav-item">
+                            <i class="bi bi-chat-dots text-lg"></i>
+                            <span>Conversas</span>
+                        </a>
+                        <a href="#" class="sidebar-nav-item">
+                            <i class="bi bi-whatsapp text-lg"></i>
+                            <span>WhatsApp</span>
+                        </a>
+                        <a href="#" class="sidebar-nav-item">
+                            <i class="bi bi-people text-lg"></i>
+                            <span>Usuários</span>
+                        </a>
+                    </nav>
+                </div>
+                
+                <div class="flex-1">
+                    <div class="card">
+                        <div class="p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Conteúdo Principal</h3>
+                            <p class="text-gray-600 mb-4">
+                                Esta é uma demonstração do layout completo com sidebar moderna à esquerda e conteúdo principal à direita.
+                            </p>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="bg-blue-50 p-4 rounded-lg">
+                                    <i class="bi bi-graph-up text-blue-600 text-2xl mb-2"></i>
+                                    <p class="font-medium text-blue-900">Dashboard Interativo</p>
+                                </div>
+                                <div class="bg-green-50 p-4 rounded-lg">
+                                    <i class="bi bi-chat-left-text text-green-600 text-2xl mb-2"></i>
+                                    <p class="font-medium text-green-900">Conversas em Tempo Real</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Resumo das Mudanças -->
+        <section class="mb-12">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Resumo das Mudanças Implementadas</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="card">
+                    <div class="p-6">
+                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                            <i class="bi bi-palette text-blue-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Design Moderno</h3>
+                        <p class="text-gray-600">
+                            Implementação de Tailwind CSS com componentes reutilizáveis, gradientes, sombras e animações suaves.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="p-6">
+                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                            <i class="bi bi-phone text-green-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Responsividade</h3>
+                        <p class="text-gray-600">
+                            Layout totalmente responsivo que se adapta a dispositivos móveis, tablets e desktops.
+                        </p>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="p-6">
+                        <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                            <i class="bi bi-lightning-charge text-purple-600 text-xl"></i>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Performance</h3>
+                        <p class="text-gray-600">
+                            Código otimizado com classes utilitárias do Tailwind, reduzindo CSS customizado e melhorando carregamento.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="text-center pt-8 border-t border-gray-200">
+            <p class="text-gray-600">
+                <strong>Assistente Inteligente</strong> - Sistema de Gerenciamento de Agentes IA
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                Design Moderno v2.0 • Tailwind CSS • Componentes Reutilizáveis
+            </p>
+            <div class="mt-4 flex justify-center space-x-4">
+                <button class="btn btn-primary">
+                    <i class="bi bi-play-circle mr-2"></i>
+                    Ver Demonstração
+                </button>
+                <button class="btn btn-outline">
+                    <i class="bi bi-code-slash mr-2"></i>
+                    Ver Código
+                </button>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Simulação de interatividade
+        document.addEventListener('DOMContentLoaded', function() {
+            // Adicionar efeito de hover nos cards
+            const cards = document.querySelectorAll('.card');
+            cards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-4px)';
+                });
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+
+            // Simular clique nos botões
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(button => {
+                button.addEventListener('click', function() {
+                    this.classList.add('opacity-75');
+                    setTimeout(() => {
+                        this.classList.remove('opacity-75');
+                    }, 200);
+                });
+            });
+        });
+    </script>
+</body>
+</html>

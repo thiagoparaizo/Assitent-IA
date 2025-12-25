@@ -1,488 +1,276 @@
-<!-- admin/templates/base.html - VERSÃO MELHORADA -->
+<!-- admin/templates/base.html - VERSÃO MODERNA COM TAILWIND -->
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-br" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Assistente Inteligente - Admin{% endblock %}</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"></script>
     
-    <style>
-        :root {
-            --sidebar-width: 280px;
-            --header-height: 60px;
-        }
-        
-        body {
-            font-size: 0.9rem;
-        }
-        
-        .wrapper {
-            display: flex;
-            width: 100%;
-            min-height: 100vh;
-        }
-        
-        /* Sidebar Styles */
-        .sidebar {
-            min-width: var(--sidebar-width);
-            max-width: var(--sidebar-width);
-            background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
-            color: white;
-            transition: all 0.3s;
-            position: fixed;
-            height: 100vh;
-            overflow-y: auto;
-            z-index: 1000;
-        }
-        
-        .sidebar.collapsed {
-            min-width: 80px;
-            max-width: 80px;
-        }
-        
-        .sidebar-header {
-            padding: 1rem;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            background: rgba(0,0,0,0.1);
-        }
-        
-        .sidebar-brand {
-            color: white;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .sidebar-brand:hover {
-            color: #93c5fd;
-        }
-        
-        .sidebar-nav {
-            padding: 1rem 0;
-        }
-        
-        .nav-section {
-            margin-bottom: 1.5rem;
-        }
-        
-        .nav-section-title {
-            color: #93c5fd;
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 0 1rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .sidebar.collapsed .nav-section-title {
-            display: none;
-        }
-        
-        .nav-item {
-            margin-bottom: 0.25rem;
-        }
-        
-        .nav-link {
-            color: rgba(255,255,255,0.8);
-            padding: 0.75rem 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            text-decoration: none;
-            transition: all 0.2s;
-            border-radius: 0;
-            font-size: 0.9rem;
-        }
-        
-        .nav-link:hover {
-            background: rgba(255,255,255,0.1);
-            color: white;
-            padding-left: 1.5rem;
-        }
-        
-        .nav-link.active {
-            background: rgba(255,255,255,0.15);
-            color: white;
-            border-right: 3px solid #60a5fa;
-        }
-        
-        .nav-link i {
-            width: 20px;
-            text-align: center;
-            font-size: 1.1rem;
-        }
-        
-        .sidebar.collapsed .nav-link span {
-            display: none;
-        }
-        
-        .sidebar.collapsed .nav-link {
-            justify-content: center;
-            padding: 0.75rem;
-        }
-        
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            margin-left: var(--sidebar-width);
-            transition: all 0.3s;
-            min-height: 100vh;
-            background: #f8fafc;
-        }
-        
-        .main-content.expanded {
-            margin-left: 80px;
-        }
-        
-        /* Top Header */
-        .top-header {
-            background: white;
-            height: var(--header-height);
-            padding: 0 1.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-            display: flex;
-            align-items: center;
-            justify-content: between;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-        
-        .toggle-sidebar {
-            background: none;
-            border: none;
-            color: #6b7280;
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 0.5rem;
-            border-radius: 0.375rem;
-            transition: all 0.2s;
-        }
-        
-        .toggle-sidebar:hover {
-            background: #f3f4f6;
-            color: #374151;
-        }
-        
-        .header-actions {
-            margin-left: auto;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        
-        .user-dropdown .dropdown-toggle {
-            background: none;
-            border: none;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: #374151;
-            font-size: 0.9rem;
-        }
-        
-        .user-dropdown .dropdown-toggle:focus {
-            box-shadow: none;
-        }
-        
-        /* Content Area */
-        .content-area {
-            padding: 1.5rem;
-            min-height: calc(100vh - var(--header-height));
-        }
-        
-        /* Badge adjustments */
-        .nav-link .badge {
-            margin-left: auto;
-            font-size: 0.7rem;
-        }
-        
-        .sidebar.collapsed .nav-link .badge {
-            display: none;
-        }
-        
-        /* Mobile Responsiveness */
-        @media (max-width: 768px) {
-            .sidebar {
-                margin-left: -280px;
-            }
-            
-            .sidebar.show {
-                margin-left: 0;
-            }
-            
-            .main-content {
-                margin-left: 0;
-            }
-            
-            .sidebar-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                z-index: 999;
-                display: none;
-            }
-            
-            .sidebar-overlay.show {
-                display: block;
+    <!-- Fonts & Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Custom Tailwind Configuration -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        'primary-dark': '#1d4ed8',
+                        secondary: '#8b5cf6',
+                        success: '#10b981',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-out',
+                        'slide-in': 'slideIn 0.3s ease-out',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        slideIn: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(0)' },
+                        }
+                    }
+                }
             }
         }
-        
-        /* Breadcrumb improvements */
-        .breadcrumb {
-            background: none;
-            padding: 0;
-            margin-bottom: 1rem;
-        }
-        
-        .breadcrumb-item + .breadcrumb-item::before {
-            color: #9ca3af;
-        }
-        
-        /* Alert improvements */
-        .alert {
-            border: none;
-            border-radius: 0.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .nav-tabs .nav-link {
-            color: #495057 !important;
-            border: 1px solid transparent;
-        }
-
-        .nav-tabs .nav-link:hover {
-            color: #0d6efd !important;
-            border-color: #e9ecef #e9ecef #dee2e6;
-        }
-
-        .nav-tabs .nav-link.active {
-            color: #495057 !important;
-            background-color: #fff;
-            border-color: #dee2e6 #dee2e6 #fff;
-        }
-
-    </style>
+    </script>
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/tailwind.css') }}" rel="stylesheet">
+    
+    <!-- jQuery (for compatibility) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
     {% block extra_css %}{% endblock %}
 </head>
-<body>
-    <div class="wrapper">
-        <!-- Sidebar -->
-        <nav class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <a href="{{ url_for('dashboard.index') }}" class="sidebar-brand">
-                    <i class="bi bi-robot"></i>
-                    <span>Assistente IA</span>
+<body class="bg-gray-50 text-gray-900 font-sans antialiased min-h-screen">
+    <div class="flex min-h-screen">
+        <!-- Sidebar Moderna -->
+        <aside id="sidebar" class="bg-gradient-to-b from-gray-900 to-gray-800 text-white w-64 flex-shrink-0 transition-all duration-300 fixed h-full z-40 lg:relative lg:translate-x-0 transform -translate-x-full lg:transform-none">
+            <div class="p-6 border-b border-gray-700">
+                <a href="{{ url_for('dashboard.index') }}" class="flex items-center space-x-3 text-white hover:text-blue-300 transition-colors">
+                    <i class="bi bi-robot text-2xl"></i>
+                    <span class="text-xl font-bold">Assistente IA</span>
                 </a>
             </div>
             
             {% if current_user.is_authenticated %}
-            <div class="sidebar-nav">
-                <!-- Dashboard -->
-                <div class="nav-section">
-                    <div class="nav-section-title">Principal</div>
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('dashboard') %}active{% endif %}" 
-                           href="{{ url_for('dashboard.index') }}">
-                            <i class="bi bi-speedometer2"></i>
-                            <span>Dashboard</span>
-                        </a>
-                    </div>
+            <nav class="p-4 space-y-2 overflow-y-auto h-[calc(100vh-5rem)] scrollbar-thin">
+                <!-- Principal -->
+                <div class="mb-6">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Principal</h3>
+                    <a href="{{ url_for('dashboard.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('dashboard') %}active{% endif %}">
+                        <i class="bi bi-speedometer2 text-lg"></i>
+                        <span>Dashboard</span>
+                    </a>
                 </div>
                 
-                <!-- Gestão de Conteúdo -->
-                <div class="nav-section">
-                    <div class="nav-section-title">Conteúdo</div>
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('agents') %}active{% endif %}" 
-                           href="{{ url_for('agents.index') }}">
-                            <i class="bi bi-robot"></i>
-                            <span>Agentes</span>
-                        </a>
-                    </div>
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('knowledge') %}active{% endif %}" 
-                           href="{{ url_for('knowledge.index') }}">
-                            <i class="bi bi-book"></i>
-                            <span>Base de Conhecimento</span>
-                        </a>
-                    </div>
+                <!-- Conteúdo -->
+                <div class="mb-6">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Conteúdo</h3>
+                    <a href="{{ url_for('agents.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('agents') %}active{% endif %}">
+                        <i class="bi bi-robot text-lg"></i>
+                        <span>Agentes</span>
+                    </a>
+                    <a href="{{ url_for('knowledge.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('knowledge') %}active{% endif %}">
+                        <i class="bi bi-book text-lg"></i>
+                        <span>Base de Conhecimento</span>
+                    </a>
                 </div>
                 
                 <!-- Comunicação -->
-                <div class="nav-section">
-                    <div class="nav-section-title">Comunicação</div>
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('whatsapp') %}active{% endif %}" 
-                           href="{{ url_for('whatsapp.devices') }}">
-                            <i class="bi bi-whatsapp"></i>
-                            <span>WhatsApp</span>
-                        </a>
-                    </div>
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('conversations') %}active{% endif %}" 
-                           href="{{ url_for('conversations.index') }}">
-                            <i class="bi bi-chat-dots"></i>
-                            <span>Conversas</span>
-                        </a>
-                    </div>
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('webhooks') %}active{% endif %}" 
-                           href="{{ url_for('webhooks.index') }}">
-                            <i class="bi bi-bell"></i>
-                            <span>Webhooks</span>
-                        </a>
-                    </div>
+                <div class="mb-6">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Comunicação</h3>
+                    <a href="{{ url_for('whatsapp.devices') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('whatsapp') %}active{% endif %}">
+                        <i class="bi bi-whatsapp text-lg"></i>
+                        <span>WhatsApp</span>
+                    </a>
+                    <a href="{{ url_for('conversations.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('conversations') %}active{% endif %}">
+                        <i class="bi bi-chat-dots text-lg"></i>
+                        <span>Conversas</span>
+                    </a>
+                    <a href="{{ url_for('webhooks.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('webhooks') %}active{% endif %}">
+                        <i class="bi bi-bell text-lg"></i>
+                        <span>Webhooks</span>
+                    </a>
                 </div>
                 
                 <!-- Administração -->
-                <div class="nav-section">
-                    <div class="nav-section-title">Administração</div>
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('user') %}active{% endif %}" 
-                           href="{{ url_for('user.index') }}">
-                            <i class="bi bi-people"></i>
-                            <span>Usuários</span>
-                        </a>
-                    </div>
+                <div class="mb-6">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Administração</h3>
+                    <a href="{{ url_for('user.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('user') %}active{% endif %}">
+                        <i class="bi bi-people text-lg"></i>
+                        <span>Usuários</span>
+                    </a>
                     {% if current_user.is_superuser %}
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('tenants') %}active{% endif %}" 
-                           href="{{ url_for('tenants.index') }}">
-                            <i class="bi bi-building"></i>
-                            <span>Tenants</span>
-                        </a>
-                    </div>
+                    <a href="{{ url_for('tenants.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('tenants') %}active{% endif %}">
+                        <i class="bi bi-building text-lg"></i>
+                        <span>Tenants</span>
+                    </a>
                     {% endif %}
                 </div>
                 
                 <!-- Sistema -->
-                <div class="nav-section">
-                    <div class="nav-section-title">Sistema</div>
+                <div class="mb-6">
+                    <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-3">Sistema</h3>
                     {% if current_user.is_superuser %}
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('llm') %}active{% endif %}" 
-                           href="{{ url_for('llm.index') }}">
-                            <i class="bi bi-cpu"></i>
-                            <span>Modelos LLM</span>
-                        </a>
+                    <a href="{{ url_for('llm.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('llm') %}active{% endif %}">
+                        <i class="bi bi-cpu text-lg"></i>
+                        <span>Modelos LLM</span>
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('tokens.index') }}" 
+                       class="sidebar-nav-item {% if request.endpoint and request.endpoint.startswith('tokens') %}active{% endif %}">
+                        <i class="bi bi-bar-chart text-lg"></i>
+                        <span>Uso de Tokens</span>
+                    </a>
+                </div>
+            </nav>
+            {% endif %}
+        </aside>
+        
+        <!-- Overlay para Mobile -->
+        <div id="sidebarOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden hidden"></div>
+        
+        <!-- Conteúdo Principal -->
+        <div class="flex-1 flex flex-col lg:ml-64 transition-all duration-300">
+            <!-- Header -->
+            <header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <button id="sidebarToggle" class="lg:hidden text-gray-600 hover:text-gray-900">
+                        <i class="bi bi-list text-2xl"></i>
+                    </button>
+                    
+                    {% if current_user.is_authenticated %}
+                    <div class="flex items-center space-x-4 ml-auto">
+                        <div class="relative">
+                            <button id="userMenuButton" class="flex items-center space-x-2 text-gray-700 hover:text-gray-900">
+                                <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <i class="bi bi-person text-blue-600"></i>
+                                </div>
+                                <span class="hidden md:inline font-medium">{{ current_user.email }}</span>
+                                <i class="bi bi-chevron-down"></i>
+                            </button>
+                            <div id="userMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 hidden z-30">
+                                <a href="{{ url_for('auth.profile') }}" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-t-lg">
+                                    <i class="bi bi-person mr-2"></i>Meu Perfil
+                                </a>
+                                <div class="border-t border-gray-200"></div>
+                                <a href="{{ url_for('auth.logout') }}" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-b-lg">
+                                    <i class="bi bi-box-arrow-right mr-2"></i>Sair
+                                </a>
+                            </div>
+                        </div>
                     </div>
                     {% endif %}
-                    <div class="nav-item">
-                        <a class="nav-link {% if request.endpoint and request.endpoint.startswith('tokens') %}active{% endif %}" 
-                           href="{{ url_for('tokens.index') }}">
-                            <i class="bi bi-bar-chart"></i>
-                            <span>Uso de Tokens</span>
-                        </a>
-                    </div>
                 </div>
-            </div>
-            {% endif %}
-        </nav>
-        
-        <!-- Sidebar Overlay for Mobile -->
-        <div class="sidebar-overlay" id="sidebarOverlay"></div>
-        
-        <!-- Main Content -->
-        <main class="main-content" id="mainContent">
-            <!-- Top Header -->
-            <header class="top-header">
-                <button class="toggle-sidebar" id="sidebarToggle">
-                    <i class="bi bi-list"></i>
-                </button>
-                
-                {% if current_user.is_authenticated %}
-                <div class="header-actions">
-                    <div class="dropdown user-dropdown">
-                        <button class="dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i>
-                            <span>{{ current_user.email }}</span>
-                            <i class="bi bi-chevron-down"></i>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}">
-                                <i class="bi bi-person me-2"></i>Meu Perfil
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">
-                                <i class="bi bi-box-arrow-right me-2"></i>Sair
-                            </a></li>
-                        </ul>
-                    </div>
-                </div>
-                {% endif %}
             </header>
             
-            <!-- Content Area -->
-            <div class="content-area">
+            <!-- Área de Conteúdo -->
+            <main class="flex-1 p-6 animate-fade-in">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
                         {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <div class="alert alert-{{ category }} mb-6 animate-fade-in">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        {% if category == 'success' %}
+                                            <i class="bi bi-check-circle-fill text-green-500 mr-3"></i>
+                                        {% elif category == 'warning' %}
+                                            <i class="bi bi-exclamation-triangle-fill text-yellow-500 mr-3"></i>
+                                        {% elif category == 'danger' %}
+                                            <i class="bi bi-x-circle-fill text-red-500 mr-3"></i>
+                                        {% else %}
+                                            <i class="bi bi-info-circle-fill text-blue-500 mr-3"></i>
+                                        {% endif %}
+                                        <span>{{ message }}</span>
+                                    </div>
+                                    <button type="button" class="text-gray-400 hover:text-gray-600" onclick="this.parentElement.parentElement.remove()">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
                             </div>
                         {% endfor %}
                     {% endif %}
                 {% endwith %}
 
                 {% block content %}{% endblock %}
-            </div>
-        </main>
+            </main>
+        </div>
     </div>
 
     <!-- Scripts -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
             const sidebarToggle = document.getElementById('sidebarToggle');
             const sidebarOverlay = document.getElementById('sidebarOverlay');
+            const userMenuButton = document.getElementById('userMenuButton');
+            const userMenu = document.getElementById('userMenu');
             
-            // Toggle sidebar
+            // Toggle sidebar mobile
             sidebarToggle.addEventListener('click', function() {
-                if (window.innerWidth <= 768) {
-                    // Mobile: show/hide sidebar
-                    sidebar.classList.toggle('show');
-                    sidebarOverlay.classList.toggle('show');
-                } else {
-                    // Desktop: collapse/expand sidebar
-                    sidebar.classList.toggle('collapsed');
-                    mainContent.classList.toggle('expanded');
-                }
+                sidebar.classList.toggle('-translate-x-full');
+                sidebarOverlay.classList.toggle('hidden');
             });
             
             // Close sidebar when clicking overlay (mobile)
             sidebarOverlay.addEventListener('click', function() {
-                sidebar.classList.remove('show');
-                sidebarOverlay.classList.remove('show');
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.add('hidden');
             });
             
-            // Handle window resize
-            window.addEventListener('resize', function() {
-                if (window.innerWidth > 768) {
-                    sidebar.classList.remove('show');
-                    sidebarOverlay.classList.remove('show');
-                }
+            // Toggle user menu
+            if (userMenuButton && userMenu) {
+                userMenuButton.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    userMenu.classList.toggle('hidden');
+                });
+                
+                // Close user menu when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!userMenu.contains(e.target) && !userMenuButton.contains(e.target)) {
+                        userMenu.classList.add('hidden');
+                    }
+                });
+            }
+            
+            // Close sidebar on mobile when clicking a link
+            const sidebarLinks = document.querySelectorAll('.sidebar-nav-item');
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth < 1024) {
+                        sidebar.classList.add('-translate-x-full');
+                        sidebarOverlay.classList.add('hidden');
+                    }
+                });
             });
             
-            // Auto-collapse sidebar on small screens
-            if (window.innerWidth <= 1200 && window.innerWidth > 768) {
-                sidebar.classList.add('collapsed');
-                mainContent.classList.add('expanded');
+            // Auto-hide sidebar on small screens
+            if (window.innerWidth < 1024) {
+                sidebar.classList.add('-translate-x-full');
+                sidebarOverlay.classList.add('hidden');
             }
         });
     </script>

@@ -1,108 +1,116 @@
-<!-- admin/templates/dashboard.html -->
+<!-- admin/templates/dashboard.html - VERSÃO MODERNA -->
 {% extends 'base.html' %}
 
 {% block title %}Dashboard - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1 class="h3">Dashboard</h1>
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+    <p class="text-gray-600 mt-2">Visão geral do sistema e métricas em tempo real</p>
+</div>
+
+<!-- Cards de Estatísticas -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Agentes Ativos -->
+    <div class="stat-card stat-card-primary">
+        <div class="p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Agentes Ativos</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-2">{{ stats.active_agents }}</p>
+                    <div class="flex items-center mt-2">
+                        <i class="bi bi-arrow-up-circle-fill text-green-500 mr-1"></i>
+                        <span class="text-sm text-gray-500">+2 esta semana</span>
+                    </div>
+                </div>
+                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <i class="bi bi-robot text-2xl text-blue-600"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Conversas Hoje -->
+    <div class="stat-card stat-card-success">
+        <div class="p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Conversas Hoje</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-2">{{ stats.conversations_today }}</p>
+                    <div class="flex items-center mt-2">
+                        <i class="bi bi-activity text-green-500 mr-1"></i>
+                        <span class="text-sm text-gray-500">Em tempo real</span>
+                    </div>
+                </div>
+                <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <i class="bi bi-chat-dots text-2xl text-green-600"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Documentos na Base -->
+    <div class="stat-card stat-card-warning">
+        <div class="p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Documentos na Base</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-2">{{ stats.knowledge_count }}</p>
+                    <div class="flex items-center mt-2">
+                        <i class="bi bi-database text-yellow-500 mr-1"></i>
+                        <span class="text-sm text-gray-500">Conhecimento total</span>
+                    </div>
+                </div>
+                <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                    <i class="bi bi-file-earmark-text text-2xl text-yellow-600"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dispositivos WhatsApp -->
+    <div class="stat-card stat-card-danger">
+        <div class="p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Dispositivos WhatsApp</p>
+                    <p class="text-3xl font-bold text-gray-900 mt-2">{{ stats.whatsapp_devices }}</p>
+                    <div class="flex items-center mt-2">
+                        <i class="bi bi-wifi text-red-500 mr-1"></i>
+                        <span class="text-sm text-gray-500">Conectados</span>
+                    </div>
+                </div>
+                <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <i class="bi bi-whatsapp text-2xl text-red-600"></i>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div class="row mb-4">
-    <!-- Cards de Estatísticas -->
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-primary h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                            Agentes Ativos</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.active_agents }}</div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="bi bi-robot fs-2 text-gray-300"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-success h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            Conversas Hoje</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.conversations_today }}</div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="bi bi-chat-dots fs-2 text-gray-300"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-info h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                            Documentos na Base</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.knowledge_count }}</div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="bi bi-file-earmark-text fs-2 text-gray-300"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-warning h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                            Dispositivos WhatsApp</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ stats.whatsapp_devices }}</div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="bi bi-whatsapp fs-2 text-gray-300"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row">
+<!-- Gráficos e Tabelas -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
     <!-- Gráfico de Atividade -->
-    <div class="col-xl-8 col-lg-7">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Visão Geral de Conversas</h6>
-                <div class="dropdown no-arrow">
-                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink"
-                        data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
-                    </a>
-                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
-                        aria-labelledby="dropdownMenuLink">
-                        <div class="dropdown-header">Período:</div>
-                        <a class="dropdown-item active" href="#">Últimos 7 dias</a>
-                        <a class="dropdown-item" href="#">Últimos 30 dias</a>
-                        <a class="dropdown-item" href="#">Este mês</a>
+    <div class="lg:col-span-2">
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Visão Geral de Conversas</h3>
+                    <div class="relative">
+                        <button id="chartPeriodButton" class="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
+                            <span>Últimos 7 dias</span>
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                        <div id="chartPeriodMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 hidden z-30">
+                            <a href="#" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-t-lg period-option active" data-period="7">Últimos 7 dias</a>
+                            <a href="#" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 period-option" data-period="30">Últimos 30 dias</a>
+                            <a href="#" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-b-lg period-option" data-period="90">Últimos 90 dias</a>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="card-body">
-                <div class="chart-area">
+                <div class="h-80">
                     <canvas id="conversationsChart"></canvas>
                 </div>
             </div>
@@ -110,33 +118,37 @@
     </div>
 
     <!-- Gráfico de Distribuição -->
-    <div class="col-xl-4 col-lg-5">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Distribuição por Agente</h6>
-                <div class="dropdown no-arrow">
-                    <a class="dropdown-toggle" href="#" role="button" id="dropdownMenuLink2"
-                        data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
-                    </a>
-                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in"
-                        aria-labelledby="dropdownMenuLink2">
-                        <div class="dropdown-header">Visualização:</div>
-                        <a class="dropdown-item active" href="#">Por agente</a>
-                        <a class="dropdown-item" href="#">Por categoria</a>
-                        <a class="dropdown-item" href="#">Por status</a>
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Distribuição por Agente</h3>
+                    <div class="relative">
+                        <button id="distributionViewButton" class="flex items-center space-x-2 text-gray-600 hover:text-gray-900">
+                            <span>Por agente</span>
+                            <i class="bi bi-chevron-down"></i>
+                        </button>
+                        <div id="distributionViewMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 hidden z-30">
+                            <a href="#" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-t-lg view-option active" data-view="agent">Por agente</a>
+                            <a href="#" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 view-option" data-view="category">Por categoria</a>
+                            <a href="#" class="block px-4 py-3 text-gray-700 hover:bg-gray-50 rounded-b-lg view-option" data-view="status">Por status</a>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="card-body">
-                <div class="chart-pie pt-4 pb-2">
+                <div class="h-64">
                     <canvas id="agentsDistributionChart"></canvas>
                 </div>
-                <div class="mt-4 text-center small">
+                <div class="mt-4 space-y-2">
                     {% for agent in top_agents %}
-                    <span class="mr-2">
-                        <i class="bi bi-circle-fill" style="color: {{ agent.color }}"></i> {{ agent.name }}
-                    </span>
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center">
+                            <div class="w-3 h-3 rounded-full mr-2" style="background-color: {{ agent.color }}"></div>
+                            <span class="text-sm text-gray-700">{{ agent.name }}</span>
+                        </div>
+                        <span class="text-sm font-medium text-gray-900">{{ agent.count }}</span>
+                    </div>
                     {% endfor %}
                 </div>
             </div>
@@ -144,70 +156,84 @@
     </div>
 </div>
 
-<div class="row">
-    <!-- Tabela de Últimas Conversas -->
-    <div class="col-12">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Conversas Recentes</h6>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover" id="recentConversationsTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Usuário</th>
-                                <th>Agente</th>
-                                <th>Início</th>
-                                <th>Mensagens</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% if recent_conversations %}
-                                {% for conversation in recent_conversations %}
-                                <tr>
-                                    <td>{{ conversation.id[:8] }}...</td>
-                                    <td>{{ conversation.user_id }}</td>
-                                    <td>{{ conversation.agent_name }}</td>
-                                    <td>{{ conversation.started_at|datetime }}</td>
-                                    <td>{{ conversation.message_count }}</td>
-                                    <td>
-                                        {% if conversation.is_active %}
-                                            <span class="badge bg-success">Ativa</span>
-                                        {% else %}
-                                            <span class="badge bg-secondary">Encerrada</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if conversation.is_active %}
-                                            <a href="{{ url_for('conversations.view', conversation_id=conversation.id) }}" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                        {% else %}
-                                            <a href="{{ url_for('conversations.view_archived', conversation_id=conversation.id) }}" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            {% else %}
-                                <tr>
-                                    <td colspan="7" class="text-center py-4">
-                                        <div class="text-muted">
-                                            <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
-                                            Nenhuma conversa recente.
-                                        </div>
-                                    </td>
-                                </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+<!-- Tabela de Conversas Recentes -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="text-lg font-semibold text-gray-900">Conversas Recentes</h3>
+    </div>
+    <div class="card-body">
+        <div class="overflow-x-auto">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Usuário</th>
+                        <th>Agente</th>
+                        <th>Início</th>
+                        <th>Mensagens</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if recent_conversations %}
+                        {% for conversation in recent_conversations %}
+                        <tr class="hover:bg-gray-50 transition-colors">
+                            <td class="font-mono text-sm">{{ conversation.id[:8] }}...</td>
+                            <td>{{ conversation.user_id }}</td>
+                            <td>
+                                <div class="flex items-center">
+                                    <div class="w-2 h-2 rounded-full bg-blue-500 mr-2"></div>
+                                    {{ conversation.agent_name }}
+                                </div>
+                            </td>
+                            <td>{{ conversation.started_at|datetime }}</td>
+                            <td>
+                                <div class="flex items-center">
+                                    <i class="bi bi-chat-text text-gray-400 mr-2"></i>
+                                    {{ conversation.message_count }}
+                                </div>
+                            </td>
+                            <td>
+                                {% if conversation.is_active %}
+                                    <span class="badge badge-success">Ativa</span>
+                                {% else %}
+                                    <span class="badge badge-secondary">Encerrada</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex space-x-2">
+                                    {% if conversation.is_active %}
+                                        <a href="{{ url_for('conversations.view', conversation_id=conversation.id) }}" 
+                                           class="btn btn-outline btn-sm">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    {% else %}
+                                        <a href="{{ url_for('conversations.view_archived', conversation_id=conversation.id) }}" 
+                                           class="btn btn-outline btn-sm">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    {% endif %}
+                                    <button class="btn btn-outline btn-sm">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-8">
+                                <div class="text-gray-500">
+                                    <i class="bi bi-chat-dots text-4xl mb-3 block"></i>
+                                    <p class="text-lg">Nenhuma conversa recente</p>
+                                    <p class="text-sm mt-1">As conversas aparecerão aqui quando iniciadas</p>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -216,137 +242,214 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    // Gráfico de Atividade de Conversas
-    const ctxLine = document.getElementById('conversationsChart').getContext('2d');
-    const conversationsChart = new Chart(ctxLine, {
-        type: 'line',
-        data: {
-            labels: {{ chart_data.dates|tojson }},
-            datasets: [
-                {
-                    label: 'Conversas',
-                    lineTension: 0.3,
-                    backgroundColor: "rgba(78, 115, 223, 0.05)",
-                    borderColor: "rgba(78, 115, 223, 1)",
-                    pointRadius: 3,
-                    pointBackgroundColor: "rgba(78, 115, 223, 1)",
-                    pointBorderColor: "rgba(78, 115, 223, 1)",
-                    pointHoverRadius: 3,
-                    pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
-                    pointHoverBorderColor: "rgba(78, 115, 223, 1)",
-                    pointHitRadius: 10,
-                    pointBorderWidth: 2,
-                    data: {{ chart_data.conversations|tojson }},
-                },
-                {
-                    label: 'Mensagens',
-                    lineTension: 0.3,
-                    backgroundColor: "rgba(28, 200, 138, 0.05)",
-                    borderColor: "rgba(28, 200, 138, 1)",
-                    pointRadius: 3,
-                    pointBackgroundColor: "rgba(28, 200, 138, 1)",
-                    pointBorderColor: "rgba(28, 200, 138, 1)",
-                    pointHoverRadius: 3,
-                    pointHoverBackgroundColor: "rgba(28, 200, 138, 1)",
-                    pointHoverBorderColor: "rgba(28, 200, 138, 1)",
-                    pointHitRadius: 10,
-                    pointBorderWidth: 2,
-                    data: {{ chart_data.messages|tojson }},
+    document.addEventListener('DOMContentLoaded', function() {
+        // Menu de período do gráfico
+        const chartPeriodButton = document.getElementById('chartPeriodButton');
+        const chartPeriodMenu = document.getElementById('chartPeriodMenu');
+        const periodOptions = document.querySelectorAll('.period-option');
+        
+        if (chartPeriodButton && chartPeriodMenu) {
+            chartPeriodButton.addEventListener('click', function(e) {
+                e.stopPropagation();
+                chartPeriodMenu.classList.toggle('hidden');
+            });
+            
+            periodOptions.forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const period = this.getAttribute('data-period');
+                    
+                    // Atualizar texto do botão
+                    chartPeriodButton.querySelector('span').textContent = this.textContent;
+                    
+                    // Atualizar classes ativas
+                    periodOptions.forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Aqui você pode atualizar o gráfico com o novo período
+                    console.log('Período selecionado:', period);
+                    
+                    chartPeriodMenu.classList.add('hidden');
+                });
+            });
+            
+            // Fechar menu ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!chartPeriodMenu.contains(e.target) && !chartPeriodButton.contains(e.target)) {
+                    chartPeriodMenu.classList.add('hidden');
                 }
-            ],
-        },
-        options: {
-            maintainAspectRatio: false,
-            layout: {
-                padding: {
-                    left: 10,
-                    right: 25,
-                    top: 25,
-                    bottom: 0
-                }
-            },
-            scales: {
-                x: {
-                    time: {
-                        unit: 'day'
-                    },
-                    grid: {
-                        display: false,
-                        drawBorder: false
-                    },
-                    ticks: {
-                        maxTicksLimit: 7
-                    }
-                },
-                y: {
-                    ticks: {
-                        maxTicksLimit: 5,
-                        padding: 10,
-                    },
-                    grid: {
-                        color: "rgb(234, 236, 244)",
-                        zeroLineColor: "rgb(234, 236, 244)",
-                        drawBorder: false,
-                        borderDash: [2],
-                        zeroLineBorderDash: [2]
-                    }
-                },
-            },
-            plugins: {
-                legend: {
-                    display: true
-                },
-                tooltip: {
-                    backgroundColor: "rgb(255,255,255)",
-                    bodyColor: "#858796",
-                    titleMarginBottom: 10,
-                    titleColor: '#6e707e',
-                    titleFontSize: 14,
-                    borderColor: '#dddfeb',
-                    borderWidth: 1,
-                    xPadding: 15,
-                    yPadding: 15,
-                    displayColors: false,
-                    intersect: false,
-                    mode: 'index',
-                    caretPadding: 10,
-                }
-            }
+            });
         }
-    });
-
-    // Gráfico de Distribuição por Agente
-    const ctxPie = document.getElementById('agentsDistributionChart').getContext('2d');
-    const agentsDistributionChart = new Chart(ctxPie, {
-        type: 'doughnut',
-        data: {
-            labels: {{ chart_data.agent_names|tojson }},
-            datasets: [{
-                data: {{ chart_data.agent_counts|tojson }},
-                backgroundColor: {{ chart_data.agent_colors|tojson }},
-                hoverBackgroundColor: {{ chart_data.agent_hover_colors|tojson }},
-                hoverBorderColor: "rgba(234, 236, 244, 1)",
-            }],
-        },
-        options: {
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    backgroundColor: "rgb(255,255,255)",
-                    bodyColor: "#858796",
-                    borderWidth: 1,
-                    borderColor: '#dddfeb',
-                    xPadding: 15,
-                    yPadding: 15,
-                    displayColors: false,
-                    caretPadding: 10,
+        
+        // Menu de visualização da distribuição
+        const distributionViewButton = document.getElementById('distributionViewButton');
+        const distributionViewMenu = document.getElementById('distributionViewMenu');
+        const viewOptions = document.querySelectorAll('.view-option');
+        
+        if (distributionViewButton && distributionViewMenu) {
+            distributionViewButton.addEventListener('click', function(e) {
+                e.stopPropagation();
+                distributionViewMenu.classList.toggle('hidden');
+            });
+            
+            viewOptions.forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const view = this.getAttribute('data-view');
+                    
+                    // Atualizar texto do botão
+                    distributionViewButton.querySelector('span').textContent = this.textContent;
+                    
+                    // Atualizar classes ativas
+                    viewOptions.forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Aqui você pode atualizar o gráfico com a nova visualização
+                    console.log('Visualização selecionada:', view);
+                    
+                    distributionViewMenu.classList.add('hidden');
+                });
+            });
+            
+            // Fechar menu ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!distributionViewMenu.contains(e.target) && !distributionViewButton.contains(e.target)) {
+                    distributionViewMenu.classList.add('hidden');
                 }
+            });
+        }
+        
+        // Gráfico de Atividade de Conversas
+        const ctxLine = document.getElementById('conversationsChart').getContext('2d');
+        const conversationsChart = new Chart(ctxLine, {
+            type: 'line',
+            data: {
+                labels: {{ chart_data.dates|tojson }},
+                datasets: [
+                    {
+                        label: 'Conversas',
+                        lineTension: 0.3,
+                        backgroundColor: "rgba(59, 130, 246, 0.05)",
+                        borderColor: "rgb(59, 130, 246)",
+                        pointRadius: 4,
+                        pointBackgroundColor: "rgb(59, 130, 246)",
+                        pointBorderColor: "rgb(59, 130, 246)",
+                        pointHoverRadius: 5,
+                        pointHoverBackgroundColor: "rgb(59, 130, 246)",
+                        pointHoverBorderColor: "rgb(59, 130, 246)",
+                        pointHitRadius: 10,
+                        pointBorderWidth: 2,
+                        data: {{ chart_data.conversations|tojson }},
+                    },
+                    {
+                        label: 'Mensagens',
+                        lineTension: 0.3,
+                        backgroundColor: "rgba(16, 185, 129, 0.05)",
+                        borderColor: "rgb(16, 185, 129)",
+                        pointRadius: 4,
+                        pointBackgroundColor: "rgb(16, 185, 129)",
+                        pointBorderColor: "rgb(16, 185, 129)",
+                        pointHoverRadius: 5,
+                        pointHoverBackgroundColor: "rgb(16, 185, 129)",
+                        pointHoverBorderColor: "rgb(16, 185, 129)",
+                        pointHitRadius: 10,
+                        pointBorderWidth: 2,
+                        data: {{ chart_data.messages|tojson }},
+                    }
+                ],
             },
-            cutout: '70%',
-        },
+            options: {
+                maintainAspectRatio: false,
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            font: {
+                                family: "'Inter', sans-serif"
+                            }
+                        }
+                    },
+                    tooltip: {
+                        backgroundColor: "rgb(255,255,255)",
+                        bodyColor: "#6b7280",
+                        titleColor: '#111827',
+                        titleFont: {
+                            size: 14,
+                            weight: '600'
+                        },
+                        borderColor: '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false,
+                        intersect: false,
+                        mode: 'index',
+                        caretPadding: 10,
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false,
+                            drawBorder: false
+                        },
+                        ticks: {
+                            font: {
+                                family: "'Inter', sans-serif"
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: "rgb(243, 244, 246)",
+                            drawBorder: false,
+                        },
+                        ticks: {
+                            font: {
+                                family: "'Inter', sans-serif"
+                            }
+                        }
+                    },
+                },
+            }
+        });
+
+        // Gráfico de Distribuição por Agente
+        const ctxPie = document.getElementById('agentsDistributionChart').getContext('2d');
+        const agentsDistributionChart = new Chart(ctxPie, {
+            type: 'doughnut',
+            data: {
+                labels: {{ chart_data.agent_names|tojson }},
+                datasets: [{
+                    data: {{ chart_data.agent_counts|tojson }},
+                    backgroundColor: {{ chart_data.agent_colors|tojson }},
+                    hoverBackgroundColor: {{ chart_data.agent_hover_colors|tojson }},
+                    borderWidth: 2,
+                    borderColor: 'white',
+                }],
+            },
+            options: {
+                maintainAspectRatio: false,
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: "rgb(255,255,255)",
+                        bodyColor: "#6b7280",
+                        titleColor: '#111827',
+                        borderColor: '#e5e7eb',
+                        borderWidth: 1,
+                        padding: 12,
+                        displayColors: false,
+                        caretPadding: 10,
+                    }
+                },
+                cutout: '65%',
+            },
+        });
     });
 </script>
 {% endblock %}
