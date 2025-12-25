@@ -1,611 +1,313 @@
-<!-- admin/templates/agents/edit.html -->
+<!-- admin/templates/agents/edit.html - VERSÃO MODERNA -->
 {% extends 'base.html' %}
 
 {% block title %}Editar Agente - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('agents.index') }}">Agentes</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('agents.view', agent_id=agent.id) }}">{{ agent.name }}</a></li>
-                <li class="breadcrumb-item active">Editar</li>
-            </ol>
-        </nav>
-    </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h5 class="card-title mb-0">Editar Agente: {{ agent.name }}</h5>
-            </div>
-            <div class="card-body">
-                <form method="post" action="{{ url_for('agents.edit', agent_id=agent.id) }}">
-                    <!-- Tabs de navegação -->
-                    <ul class="nav nav-tabs" id="agentTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="basic-tab" data-bs-toggle="tab" data-bs-target="#basic-info" type="button" role="tab">Informações Básicas</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="prompt-tab" data-bs-toggle="tab" data-bs-target="#prompt-info" type="button" role="tab">Prompt</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="specialties-tab" data-bs-toggle="tab" data-bs-target="#specialties-info" type="button" role="tab">Especialidades</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="rag-tab" data-bs-toggle="tab" data-bs-target="#rag-info" type="button" role="tab">Conhecimento (RAG)</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="mcp-tab" data-bs-toggle="tab" data-bs-target="#mcp-info" type="button" role="tab">Integrações (MCP)</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="escalation-tab" data-bs-toggle="tab" data-bs-target="#escalation-info" type="button" role="tab">Escalação</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="agent-escalation-tab" data-bs-toggle="tab" data-bs-target="#agent-escalation-info" type="button" role="tab">Escalação entre Agentes</button>
-                        </li>
-                    </ul>
-                    
-                    <!-- Conteúdo das tabs -->
-                    <div class="tab-content p-3 border border-top-0 rounded-bottom" id="agentTabsContent">
-                        <!-- Informações Básicas -->
-                        <div class="tab-pane fade show active" id="basic-info" role="tabpanel">
-                            <div class="mb-3">
-                                <label for="name" class="form-label">Nome do Agente<span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="name" name="name" value="{{ agent.name }}" required>
-                                <div class="form-text">Nome descritivo para o agente.</div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="type" class="form-label">Tipo de Agente<span class="text-danger">*</span></label>
-                                <select class="form-select" id="type" name="type" required disabled>
-                                    <option value="general" {% if agent.type == 'general' %}selected{% endif %}>Agente Geral</option>
-                                    <option value="specialist" {% if agent.type == 'specialist' %}selected{% endif %}>Especialista</option>
-                                    <option value="integration" {% if agent.type == 'integration' %}selected{% endif %}>Integração</option>
-                                    <option value="human" {% if agent.type == 'human' %}selected{% endif %}>Humano</option>
-                                    <option value="personal" {% if agent.type == 'personal' %}selected{% endif %}>Pessoal</option>
-
-                                    
-                                </select>
-                                <input type="hidden" name="type" value="{{ agent.type }}">
-                                <div class="form-text">
-                                    <em>O tipo de agente não pode ser alterado após a criação.</em>
-                                </div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="description" class="form-label">Descrição</label>
-                                <textarea class="form-control" id="description" name="description" rows="3">{{ agent.description }}</textarea>
-                                <div class="form-text">Descrição das responsabilidades e capacidades do agente.</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Configuração de Prompt -->
-                        <div class="tab-pane fade" id="prompt-info" role="tabpanel">
-                            <div class="mb-3">
-                                <label for="prompt_role" class="form-label">Papel do Agente<span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="prompt_role" name="prompt_role" value="{{ agent.prompt.role }}" required>
-                                <div class="form-text">Ex: "Assistente Odontológico", "Especialista em Ortodontia"</div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="prompt_description" class="form-label">Descrição do Papel<span class="text-danger">*</span></label>
-                                <textarea class="form-control" id="prompt_description" name="prompt_description" rows="3" required>{{ agent.prompt.description }}</textarea>
-                                <div class="form-text">Descreva as características e conhecimentos que o agente possui.</div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="prompt_instructions" class="form-label">Instruções<span class="text-danger">*</span></label>
-                                <textarea class="form-control" id="prompt_instructions" name="prompt_instructions" rows="5" required>{{ agent.prompt.instructions }}</textarea>
-                                <div class="form-text">Instruções detalhadas sobre como o agente deve se comportar e responder.</div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="prompt_constraints" class="form-label">Restrições</label>
-                                <textarea class="form-control" id="prompt_constraints" name="prompt_constraints" rows="3">{% if agent.prompt.constraints %}{{ agent.prompt.constraints|join('\n') }}{% endif %}</textarea>
-                                <div class="form-text">Liste cada restrição em uma linha separada (ex: "Não fornecer diagnósticos médicos").</div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="prompt_examples" class="form-label">Exemplos</label>
-                                <div id="examples-container">
-                                    <!-- Os exemplos serão adicionados aqui dinamicamente -->
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-example-btn">
-                                    <i class="bi bi-plus"></i> Adicionar Exemplo
-                                </button>
-                                <input type="hidden" id="prompt_examples" name="prompt_examples" value="{{ agent.prompt.examples|tojson }}">
-                                <div class="form-text">Exemplos de interações para guiar o comportamento do agente.</div>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <button type="button" class="btn btn-outline-info" id="test-prompt-btn">
-                                    <i class="bi bi-lightning"></i> Testar Prompt
-                                </button>
-                            </div>
-                            
-                            <!-- Modal de teste de prompt -->
-                            <div class="modal fade" id="testPromptModal" tabindex="-1">
-                                <div class="modal-dialog modal-lg">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title">Testar Prompt</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="mb-3">
-                                                <label for="test-message" class="form-label">Mensagem de Teste</label>
-                                                <textarea class="form-control" id="test-message" rows="3" placeholder="Digite uma mensagem para testar o agente..."></textarea>
-                                            </div>
-                                            <div id="test-result" class="border p-3 rounded bg-light" style="display: none;">
-                                                <h6>Resposta do Agente:</h6>
-                                                <div id="test-response"></div>
-                                            </div>
-                                            <div id="test-loading" class="text-center p-3" style="display: none;">
-                                                <div class="spinner-border text-primary" role="status">
-                                                    <span class="visually-hidden">Carregando...</span>
-                                                </div>
-                                                <p class="mt-2">Processando resposta...</p>
-                                            </div>
-                                            <div id="test-error" class="alert alert-danger" style="display: none;"></div>
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                                            <button type="button" class="btn btn-primary" id="run-test-btn">Testar</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Configuração de Especialidade do Agente -->
-                        <div class="tab-pane fade" id="specialties-info" role="tabpanel">
-                            <div class="mb-3">
-                                <label class="form-label">Especialidades do Agente</label>
-                                <div class="row">
-                                    {% for category, display_name in specialties_categories.items() %}
-                                    <div class="col-md-4 mb-2">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="specialties" 
-                                                   value="{{ category }}" id="specialty-{{ category }}"
-                                                   {% if agent.specialties and category in agent.specialties %}checked{% endif %}>
-                                            <label class="form-check-label" for="specialty-{{ category }}">
-                                                {{ display_name }}
-                                            </label>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
-                                </div>
-                                <div class="form-text">Selecione as especialidades que este agente possui. Isso ajudará o sistema a direcionar conversas para o agente mais adequado.</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Configuração de RAG -->
-                        <div class="tab-pane fade" id="rag-info" role="tabpanel">
-                            <!-- Template para seleção de categorias nos agentes - Interface melhorada -->
-                            <div class="mb-3">
-                                <label class="form-label">Categorias de Conhecimento</label>
-                                <div class="form-text mb-2">
-                                    Selecione as categorias de conhecimento que este agente pode acessar.
-                                </div>
-                                
-                                <!-- Campo de busca para filtrar categorias -->
-                                <div class="input-group mb-3">
-                                    <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                    <input type="text" class="form-control" id="category-search" placeholder="Buscar categorias...">
-                                </div>
-                                
-                                <!-- Exibição agrupada por setores -->
-                                <div class="category-selector">
-                                    <!-- Tabs para grupos de categorias -->
-                                    <ul class="nav nav-tabs mb-3" id="categoryTabs" role="tablist">
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general-categories" type="button" role="tab">
-                                                <i class="bi bi-globe"></i> Geral
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="health-tab" data-bs-toggle="tab" data-bs-target="#health-categories" type="button" role="tab">
-                                                <i class="bi bi-heart-pulse"></i> Saúde
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="finance-tab" data-bs-toggle="tab" data-bs-target="#finance-categories" type="button" role="tab">
-                                                <i class="bi bi-cash-coin"></i> Finanças
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="retail-tab" data-bs-toggle="tab" data-bs-target="#retail-categories" type="button" role="tab">
-                                                <i class="bi bi-shop"></i> Comércio
-                                            </button>
-                                        </li>
-                                        <li class="nav-item" role="presentation">
-                                            <button class="nav-link" id="more-tab" data-bs-toggle="tab" data-bs-target="#more-categories" type="button" role="tab">
-                                                <i class="bi bi-three-dots"></i> Mais
-                                            </button>
-                                        </li>
-                                    </ul>
-                                    
-                                    <!-- Conteúdo das tabs -->
-                                    <div class="tab-content" id="categoryTabsContent">
-                                        <!-- Categorias Gerais -->
-                                        <div class="tab-pane fade show active" id="general-categories" role="tabpanel">
-                                            <div class="row">
-                                                {% for category in categories %}
-                                                    {% if category.id in ['general', 'faq', 'policies', 'technical', 'onboarding', 'marketing', 'internal'] %}
-                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
-                                                            <label class="form-check-label" for="category-{{ category.id }}">
-                                                                <span class="fw-bold">{{ category.name }}</span>
-                                                                <small class="text-muted d-block">{{ category.description }}</small>
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Categorias de Saúde -->
-                                        <div class="tab-pane fade" id="health-categories" role="tabpanel">
-                                            <div class="row">
-                                                {% for category in categories %}
-                                                    {% if category.id in ['healthcare', 'medical_procedures', 'dental', 'pharmacy', 'nutrition'] %}
-                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
-                                                            <label class="form-check-label" for="category-{{ category.id }}">
-                                                                <span class="fw-bold">{{ category.name }}</span>
-                                                                <small class="text-muted d-block">{{ category.description }}</small>
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Categorias de Finanças -->
-                                        <div class="tab-pane fade" id="finance-categories" role="tabpanel">
-                                            <div class="row">
-                                                {% for category in categories %}
-                                                    {% if category.id in ['finance', 'banking', 'investments', 'taxes', 'insurance'] %}
-                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
-                                                            <label class="form-check-label" for="category-{{ category.id }}">
-                                                                <span class="fw-bold">{{ category.name }}</span>
-                                                                <small class="text-muted d-block">{{ category.description }}</small>
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Categorias de Comércio -->
-                                        <div class="tab-pane fade" id="retail-categories" role="tabpanel">
-                                            <div class="row">
-                                                {% for category in categories %}
-                                                    {% if category.id in ['retail', 'products', 'pricing', 'shipping', 'returns'] %}
-                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
-                                                            <label class="form-check-label" for="category-{{ category.id }}">
-                                                                <span class="fw-bold">{{ category.name }}</span>
-                                                                <small class="text-muted d-block">{{ category.description }}</small>
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Demais Categorias -->
-                                        <div class="tab-pane fade" id="more-categories" role="tabpanel">
-                                            <div class="row">
-                                                {% for category in categories %}
-                                                    {% if category.id not in ['general', 'faq', 'policies', 'technical', 'onboarding', 'marketing', 'internal', 
-                                                                        'healthcare', 'medical_procedures', 'dental', 'pharmacy', 'nutrition',
-                                                                        'finance', 'banking', 'investments', 'taxes', 'insurance',
-                                                                        'retail', 'products', 'pricing', 'shipping', 'returns'] %}
-                                                    <div class="col-lg-4 col-md-6 mb-2 category-item">
-                                                        <div class="form-check">
-                                                            <input class="form-check-input" type="checkbox" name="rag_categories" value="{{ category.id }}" 
-                                                                id="category-{{ category.id }}" {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
-                                                            <label class="form-check-label" for="category-{{ category.id }}">
-                                                                <span class="fw-bold">{{ category.name }}</span>
-                                                                <small class="text-muted d-block">{{ category.description }}</small>
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                    {% endif %}
-                                                {% endfor %}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Configuração de MCP -->
-                        <div class="tab-pane fade" id="mcp-info" role="tabpanel">
-                            <div class="mb-3">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="mcp_enabled" name="mcp_enabled" 
-                                           {% if agent.mcp_enabled %}checked{% endif %}>
-                                    <label class="form-check-label" for="mcp_enabled">Habilitar MCP (Model Context Protocol)</label>
-                                </div>
-                                <div class="form-text">Permite que o agente acesse funções e dados externos.</div>
-                            </div>
-                            
-                            <div id="mcp-functions-section" style="display: {% if agent.mcp_enabled %}block{% else %}none{% endif %};">
-                                <div class="mb-3">
-                                    <label class="form-label">Funções Disponíveis</label>
-                                    <div id="mcp-functions-container">
-                                        <!-- As funções serão adicionadas aqui dinamicamente -->
-                                    </div>
-                                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-function-btn">
-                                        <i class="bi bi-plus"></i> Adicionar Função
-                                    </button>
-                                    <input type="hidden" id="mcp_functions" name="mcp_functions" value="{{ agent.mcp_functions|tojson }}">
-                                </div>
-                            </div>
-                            
-                            <!-- Modal de adição/edição de função -->
-                            <div class="modal fade" id="functionModal" tabindex="-1">
-                                <div class="modal-dialog">
-                                    <div class="modal-content">
-                                        <div class="modal-header">
-                                            <h5 class="modal-title" id="function-modal-title">Adicionar Função</h5>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <div class="modal-body">
-                                            <div class="mb-3">
-                                                <label for="function-name" class="form-label">Nome da Função</label>
-                                                <input type="text" class="form-control" id="function-name">
-                                            </div>
-                                            <div class="mb-3">
-                                                <label for="function-description" class="form-label">Descrição</label>
-                                                <textarea class="form-control" id="function-description" rows="2"></textarea>
-                                            </div>
-                                            <div class="mb-3">
-                                                <label class="form-label">Parâmetros</label>
-                                                <div id="function-params-container">
-                                                    <!-- Os parâmetros serão adicionados aqui -->
-                                                </div>
-                                                <button type="button" class="btn btn-sm btn-outline-primary mt-2" id="add-param-btn">
-                                                    <i class="bi bi-plus"></i> Adicionar Parâmetro
-                                                </button>
-                                            </div>
-                                            <input type="hidden" id="function-index" value="">
-                                        </div>
-                                        <div class="modal-footer">
-                                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                                            <button type="button" class="btn btn-primary" id="save-function-btn">Salvar</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Configuração de Escalação -->
-                        <div class="tab-pane fade" id="escalation-info" role="tabpanel">
-                            <div class="mb-3">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="human_escalation_enabled" name="human_escalation_enabled"
-                                           {% if agent.human_escalation_enabled %}checked{% endif %}>
-                                    <label class="form-check-label" for="human_escalation_enabled">Habilitar Escalação para Humano</label>
-                                </div>
-                                <div class="form-text">Permite que o agente encaminhe conversas para um atendente humano.</div>
-                            </div>
-                            
-                            <div id="escalation-section" style="display: {% if agent.human_escalation_enabled %}block{% else %}none{% endif %};">
-                                <div class="mb-3">
-                                    <label for="human_escalation_contact" class="form-label">Contato para Escalação</label>
-                                    <input type="text" class="form-control" id="human_escalation_contact" name="human_escalation_contact" 
-                                           placeholder="Ex: 5511999999999" value="{{ agent.human_escalation_contact or '' }}">
-                                    <div class="form-text">Número do WhatsApp para onde serão encaminhadas as escalações.</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="tab-pane fade" id="agent-escalation-info" role="tabpanel">
-                            <div class="mb-3">
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="escalation_enabled" name="escalation_enabled" 
-                                           {% if agent.escalation_enabled %}checked{% endif %}>
-                                    <label class="form-check-label" for="escalation_enabled">Habilitar Escalação entre Agentes</label>
-                                </div>
-                                <div class="form-text">Permite que este agente escale conversas para outros agentes especializados.</div>
-                            </div>
-                            
-                            <div id="escalation-agents-section" style="display: {% if agent.escalation_enabled %}block{% else %}none{% endif %};">
-                                <div class="mb-3">
-                                    <label class="form-label">Agentes disponíveis para escalação</label>
-                                    <div class="list-group">
-                                        {% for available_agent in available_agents %}
-                                            {% if available_agent.id != agent.id %}  <!-- Não mostrar o agente atual na lista -->
-                                            <label class="list-group-item">
-                                                <input class="form-check-input me-1" type="checkbox" name="list_escalation_agent_ids" value="{{ available_agent.id }}" 
-                                                       {% if agent.list_escalation_agent_ids and available_agent.id in agent.list_escalation_agent_ids %}checked{% endif %}>
-                                                {{ available_agent.name }}
-                                                <small class="text-muted d-block">{{ available_agent.description }}</small>
-                                                <span class="badge bg-{% if available_agent.type == 'general' %}primary{% elif available_agent.type == 'specialist' %}success{% elif available_agent.type == 'integration' %}info{% else %}warning{% endif %}">
-                                                    {{ available_agent.type }}
-                                                </span>
-                                            </label>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </div>
-                                    <div class="form-text">Selecione os agentes para os quais este agente pode escalar conversas.</div>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-                    
-                    <div class="d-flex justify-content-between mt-4">
-                        <a href="{{ url_for('agents.view', agent_id=agent.id) }}" class="btn btn-outline-secondary">Cancelar</a>
-                        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
-                    </div>
-                </form>
-            </div>
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Editar Agente: {{ agent.name }}</h1>
+            <p class="text-gray-600 mt-2">Atualize as configurações do agente</p>
+        </div>
+        <div class="flex space-x-3">
+            <a href="{{ url_for('agents.view', agent_id=agent.id) }}" class="btn btn-outline">
+                <i class="bi bi-eye mr-2"></i>
+                Visualizar
+            </a>
+            <a href="{{ url_for('agents.index') }}" class="btn btn-outline">
+                <i class="bi bi-arrow-left mr-2"></i>
+                Voltar
+            </a>
         </div>
     </div>
 </div>
-<!-- Seção de Controle de Dispositivos na página de edição do agente -->
-<div class="card mb-4">
+
+<div class="card">
     <div class="card-header">
-        <h5 class="card-title mb-0">Controle de Dispositivos e Contatos</h5>
+        <h3 class="text-lg font-semibold text-gray-900">Configuração do Agente</h3>
     </div>
+    
     <div class="card-body">
-        <div class="mb-3">
-            <label class="form-label">Dispositivos WhatsApp</label>
-            
-            <!-- Tab para cada dispositivo -->
-            <ul class="nav nav-tabs" id="deviceTabs" role="tablist">
-                {% for device in devices %}
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link {% if loop.first %}active{% endif %}" 
-                            id="device-tab-{{ device.id }}" 
-                            data-bs-toggle="tab" 
-                            data-bs-target="#device-{{ device.id }}" 
-                            type="button" role="tab">
-                        {{ device.name }}
-                    </button>
-                </li>
-                {% endfor %}
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" 
-                            id="add-device-tab" 
-                            data-bs-toggle="tab" 
-                            data-bs-target="#add-device" 
-                            type="button" role="tab">
-                        <i class="bi bi-plus"></i> Adicionar
-                    </button>
-                </li>
-            </ul>
+        <form method="post" action="{{ url_for('agents.edit', agent_id=agent.id) }}">
+            <!-- Tabs de navegação -->
+            <div class="mb-6">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex space-x-8">
+                        <button type="button" class="tab-button active" data-tab="basic-info">
+                            <i class="bi bi-info-circle mr-2"></i>
+                            Informações Básicas
+                        </button>
+                        <button type="button" class="tab-button" data-tab="prompt-info">
+                            <i class="bi bi-chat-text mr-2"></i>
+                            Prompt
+                        </button>
+                        <button type="button" class="tab-button" data-tab="rag-info">
+                            <i class="bi bi-book mr-2"></i>
+                            Conhecimento (RAG)
+                        </button>
+                        <button type="button" class="tab-button" data-tab="mcp-info">
+                            <i class="bi bi-plug mr-2"></i>
+                            Integrações (MCP)
+                        </button>
+                        <button type="button" class="tab-button" data-tab="escalation-info">
+                            <i class="bi bi-person-raise-hand mr-2"></i>
+                            Escalação
+                        </button>
+                    </nav>
+                </div>
+            </div>
             
             <!-- Conteúdo das tabs -->
-            <div class="tab-content border border-top-0 p-3 rounded-bottom" id="deviceTabsContent">
-                {% for device in devices %}
-                <div class="tab-pane fade {% if loop.first %}show active{% endif %}" 
-                     id="device-{{ device.id }}" role="tabpanel">
-                    
-                    <!-- Status do dispositivo para este agente -->
-                    <div class="form-check form-switch mb-3">
-                        <input class="form-check-input device-status" 
-                               type="checkbox" 
-                               id="device-active-{{ device.id }}" 
-                               data-device-id="{{ device.id }}"
-                               {% if device.is_active_for_agent %}checked{% endif %}>
-                        <label class="form-check-label" for="device-active-{{ device.id }}">
-                            Ativar agente para este dispositivo
-                        </label>
-                    </div>
-                    
-                    <!-- Configuração de contatos -->
-                    <div class="contact-control-section" id="contact-control-{{ device.id }}" 
-                         {% if not device.is_active_for_agent %}style="display: none;"{% endif %}>
-                        
-                        <div class="mb-3">
-                            <label class="form-label">Comportamento Padrão</label>
-                            <div class="form-check">
-                                <input class="form-check-input contact-behavior" 
-                                       type="radio" 
-                                       name="contact-behavior-{{ device.id }}" 
-                                       id="blacklist-{{ device.id }}" 
-                                       value="blacklist"
-                                       data-device-id="{{ device.id }}"
-                                       {% if device.default_behavior == 'blacklist' %}checked{% endif %}>
-                                <label class="form-check-label" for="blacklist-{{ device.id }}">
-                                    Responder a todos, exceto contatos na lista (Blacklist)
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input contact-behavior" 
-                                       type="radio" 
-                                       name="contact-behavior-{{ device.id }}" 
-                                       id="whitelist-{{ device.id }}" 
-                                       value="whitelist"
-                                       data-device-id="{{ device.id }}"
-                                       {% if device.default_behavior == 'whitelist' %}checked{% endif %}>
-                                <label class="form-check-label" for="whitelist-{{ device.id }}">
-                                    Responder apenas a contatos na lista (Whitelist)
-                                </label>
-                            </div>
+            <div class="tab-content">
+                <!-- Informações Básicas -->
+                <div class="tab-pane active" id="basic-info">
+                    <div class="space-y-6">
+                        <div>
+                            <label for="name" class="form-label">Nome do Agente <span class="text-red-500">*</span></label>
+                            <input type="text" class="form-input" id="name" name="name" value="{{ agent.name }}" required>
+                            <p class="form-help">Nome descritivo para o agente.</p>
                         </div>
                         
-                        <div class="mb-3">
-                            <label class="form-label">Lista de Contatos</label>
-                            <div class="input-group mb-2">
-                                <input type="text" class="form-control phone-input"
-                                    id="contact-input-{{ device.id }}"
-                                    placeholder="55DDDNÚMERO"
-                                    maxlength="13"
-                                    pattern="^55\d{10,11}$"
-                                    title="Digite o número no formato: 55DDDNÚMERO"
-                                    oninput="updateWhatsAppID(this)">
-                                <span class="input-group-text">@s.whatsapp.net</span>
-                                <button class="btn btn-outline-primary add-contact-btn"
-                                        type="button"
-                                        data-device-id="{{ device.id }}">
-                                    Adicionar
-                                </button>
-                            </div>
-                            <div class="form-text">
-                                {% if device.default_behavior == 'blacklist' %}
-                                    Contatos nesta lista NÃO receberão respostas do agente.
+                        <div>
+                            <label for="type" class="form-label">Tipo de Agente <span class="text-red-500">*</span></label>
+                            <select class="form-select" id="type" name="type" required disabled>
+                                <option value="general" {% if agent.type == 'general' %}selected{% endif %}>Agente Geral</option>
+                                <option value="specialist" {% if agent.type == 'specialist' %}selected{% endif %}>Especialista</option>
+                                <option value="integration" {% if agent.type == 'integration' %}selected{% endif %}>Integração</option>
+                                <option value="human" {% if agent.type == 'human' %}selected{% endif %}>Humano</option>
+                                <option value="personal" {% if agent.type == 'personal' %}selected{% endif %}>Pessoal</option>
+                            </select>
+                            <input type="hidden" name="type" value="{{ agent.type }}">
+                            <p class="form-help text-yellow-600">O tipo de agente não pode ser alterado após a criação.</p>
+                        </div>
+                        
+                        <div>
+                            <label for="description" class="form-label">Descrição</label>
+                            <textarea class="form-textarea" id="description" name="description" rows="3">{{ agent.description or '' }}</textarea>
+                            <p class="form-help">Descrição das responsabilidades e capacidades do agente.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Configuração de Prompt -->
+                <div class="tab-pane hidden" id="prompt-info">
+                    <div class="space-y-6">
+                        <div>
+                            <label for="prompt_role" class="form-label">Papel do Agente <span class="text-red-500">*</span></label>
+                            <input type="text" class="form-input" id="prompt_role" name="prompt_role" value="{{ agent.prompt.role }}" required>
+                            <p class="form-help">Ex: "Assistente Odontológico", "Especialista em Ortodontia"</p>
+                        </div>
+                        
+                        <div>
+                            <label for="prompt_description" class="form-label">Descrição do Papel <span class="text-red-500">*</span></label>
+                            <textarea class="form-textarea" id="prompt_description" name="prompt_description" rows="3" required>{{ agent.prompt.description }}</textarea>
+                            <p class="form-help">Descreva as características e conhecimentos que o agente possui.</p>
+                        </div>
+                        
+                        <div>
+                            <label for="prompt_instructions" class="form-label">Instruções <span class="text-red-500">*</span></label>
+                            <textarea class="form-textarea" id="prompt_instructions" name="prompt_instructions" rows="5" required>{{ agent.prompt.instructions }}</textarea>
+                            <p class="form-help">Instruções detalhadas sobre como o agente deve se comportar e responder.</p>
+                        </div>
+                        
+                        <div>
+                            <label for="prompt_constraints" class="form-label">Restrições</label>
+                            <textarea class="form-textarea" id="prompt_constraints" name="prompt_constraints" rows="3">{% if agent.prompt.constraints %}{{ agent.prompt.constraints|join('\n') }}{% endif %}</textarea>
+                            <p class="form-help">Liste cada restrição em uma linha separada (ex: "Não fornecer diagnósticos médicos").</p>
+                        </div>
+                        
+                        <div>
+                            <label class="form-label">Exemplos</label>
+                            <div id="examples-container" class="mb-4">
+                                {% if agent.prompt.examples and agent.prompt.examples|length > 0 %}
+                                    {% for example in agent.prompt.examples %}
+                                    <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-3">
+                                        <div class="space-y-2">
+                                            {% for key, value in example.items() %}
+                                            <p><span class="font-medium text-gray-700">{{ key }}:</span> {{ value }}</p>
+                                            {% endfor %}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
                                 {% else %}
-                                    APENAS contatos nesta lista receberão respostas do agente.
+                                    <p class="text-gray-500 text-sm">Nenhum exemplo adicionado.</p>
                                 {% endif %}
                             </div>
-
-                            <div class="contact-list mt-3" id="contact-list-{{ device.id }}">
-                                {% for contact in device.contacts %}
-                                <div class="contact-item d-flex justify-content-between align-items-center border-bottom py-2">
-                                    <div>{{ contact }}</div>
-                                    <button class="btn btn-sm btn-outline-danger remove-contact-btn"
-                                            data-device-id="{{ device.id }}"
-                                            data-contact-id="{{ contact }}">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                            <button type="button" class="btn btn-outline btn-sm" id="add-example-btn">
+                                <i class="bi bi-plus mr-1"></i>
+                                Adicionar Exemplo
+                            </button>
+                            <input type="hidden" id="prompt_examples" name="prompt_examples" value="{{ agent.prompt.examples|tojson }}">
+                            <p class="form-help">Exemplos de interações para guiar o comportamento do agente.</p>
+                        </div>
+                        
+                        <div>
+                            <button type="button" class="btn btn-outline" id="test-prompt-btn">
+                                <i class="bi bi-lightning mr-2"></i>
+                                Testar Prompt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Configuração de RAG -->
+                <div class="tab-pane hidden" id="rag-info">
+                    <div class="space-y-6">
+                        <div>
+                            <label class="form-label">Categorias de Conhecimento</label>
+                            <p class="form-help mb-4">Selecione as categorias de conhecimento que este agente pode acessar.</p>
+                            
+                            <!-- Campo de busca -->
+                            <div class="relative mb-4">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <i class="bi bi-search text-gray-400"></i>
+                                </div>
+                                <input type="text" class="form-input pl-10" id="category-search" placeholder="Buscar categorias...">
+                            </div>
+                            
+                            <!-- Categorias -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {% for category in categories %}
+                                <div class="category-item">
+                                    <label class="flex items-start p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                        <input type="checkbox" class="mt-1 mr-3" name="rag_categories" value="{{ category.id }}" 
+                                               id="category-{{ category.id }}"
+                                               {% if agent.rag_categories and category.id in agent.rag_categories %}checked{% endif %}>
+                                        <div class="flex-1">
+                                            <span class="font-medium text-gray-900">{{ category.name }}</span>
+                                            <p class="text-sm text-gray-600 mt-1">{{ category.description }}</p>
+                                        </div>
+                                    </label>
                                 </div>
                                 {% endfor %}
                             </div>
                         </div>
                     </div>
                 </div>
-                {% endfor %}
                 
-                <!-- Tab para adicionar novo dispositivo -->
-                <div class="tab-pane fade" id="add-device" role="tabpanel">
-                    <div class="mb-3">
-                        <label for="new-device-select" class="form-label">Selecione um Dispositivo</label>
-                        <select class="form-select" id="new-device-select">
-                            <option value="">Selecione...</option>
-                            {% for device in available_devices %}
-                            <option value="{{ device.id }}">{{ device.name }} ({{ device.phone_number }})</option>
-                            {% endfor %}
-                        </select>
+                <!-- Configuração de MCP -->
+                <div class="tab-pane hidden" id="mcp-info">
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="mcp_enabled" name="mcp_enabled" class="mr-3"
+                                       {% if agent.mcp_enabled %}checked{% endif %}>
+                                <label for="mcp_enabled" class="font-medium text-gray-900">Habilitar MCP (Model Context Protocol)</label>
+                            </div>
+                            <p class="form-help ml-8">Permite que o agente acesse funções e dados externos.</p>
+                        </div>
+                        
+                        <div id="mcp-functions-section" class="{% if not agent.mcp_enabled %}hidden{% endif %}">
+                            <div>
+                                <label class="form-label">Funções Disponíveis</label>
+                                <div id="mcp-functions-container" class="mb-4">
+                                    {% if agent.mcp_functions and agent.mcp_functions|length > 0 %}
+                                        {% for func in agent.mcp_functions %}
+                                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-3">
+                                            <div class="flex justify-between items-start">
+                                                <div>
+                                                    <h4 class="font-medium text-gray-900">{{ func.name }}</h4>
+                                                    <p class="text-sm text-gray-600">{{ func.description }}</p>
+                                                    {% if func.parameters %}
+                                                    <p class="text-sm text-gray-500 mt-1">
+                                                        <strong>Parâmetros:</strong> {{ func.parameters|join(', ') }}
+                                                    </p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <p class="text-gray-500 text-sm">Nenhuma função adicionada.</p>
+                                    {% endif %}
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm" id="add-function-btn">
+                                    <i class="bi bi-plus mr-1"></i>
+                                    Adicionar Função
+                                </button>
+                                <input type="hidden" id="mcp_functions" name="mcp_functions" value="{{ agent.mcp_functions|tojson }}">
+                            </div>
+                        </div>
                     </div>
-                    <button type="button" class="btn btn-primary" id="add-device-btn">
-                        Adicionar Dispositivo
-                    </button>
+                </div>
+                
+                <!-- Configuração de Escalação -->
+                <div class="tab-pane hidden" id="escalation-info">
+                    <div class="space-y-6">
+                        <div>
+                            <div class="flex items-center">
+                                <input type="checkbox" id="human_escalation_enabled" name="human_escalation_enabled" class="mr-3"
+                                       {% if agent.human_escalation_enabled %}checked{% endif %}>
+                                <label for="human_escalation_enabled" class="font-medium text-gray-900">Habilitar Escalação para Humano</label>
+                            </div>
+                            <p class="form-help ml-8">Permite que o agente encaminhe conversas para um atendente humano.</p>
+                        </div>
+                        
+                        <div id="escalation-section" class="{% if not agent.human_escalation_enabled %}hidden{% endif %}">
+                            <div>
+                                <label for="human_escalation_contact" class="form-label">Contato para Escalação</label>
+                                <input type="text" class="form-input" id="human_escalation_contact" name="human_escalation_contact" 
+                                       placeholder="Ex: 5511999999999" value="{{ agent.human_escalation_contact or '' }}">
+                                <p class="form-help">Número do WhatsApp para onde serão encaminhadas as escalações.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
+            
+            <div class="flex justify-between mt-8 pt-6 border-t border-gray-200">
+                <a href="{{ url_for('agents.view', agent_id=agent.id) }}" class="btn btn-outline">
+                    Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    Salvar Alterações
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal de Teste de Prompt -->
+<div id="testPromptModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-semibold text-gray-900">Testar Prompt</h3>
+                <button type="button" onclick="hideTestPromptModal()" class="text-gray-400 hover:text-gray-600">
+                    <i class="bi bi-x-lg text-xl"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="p-6">
+            <div class="mb-6">
+                <label for="test-message" class="form-label">Mensagem de Teste</label>
+                <textarea class="form-textarea" id="test-message" rows="3" placeholder="Digite uma mensagem para testar o agente..."></textarea>
+            </div>
+            
+            <div id="test-result" class="hidden mb-6">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Resposta do Agente:</h4>
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <p class="text-gray-700" id="test-response"></p>
+                </div>
+            </div>
+            
+            <div id="test-loading" class="hidden text-center py-6">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p class="text-gray-600 mt-2">Processando resposta...</p>
+            </div>
+            
+            <div id="test-error" class="hidden bg-red-50 text-red-700 p-4 rounded-lg border border-red-200 mb-6"></div>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button type="button" onclick="hideTestPromptModal()" class="btn btn-outline">
+                Fechar
+            </button>
+            <button type="button" class="btn btn-primary" id="run-test-btn">
+                Testar
+            </button>
         </div>
     </div>
 </div>
@@ -613,441 +315,149 @@
 
 {% block extra_js %}
 <script>
-    // Inicializar eventos para controle de dispositivos e contatos
-    document.addEventListener('DOMContentLoaded', function() {
-        // Ativar/desativar dispositivo para o agente
-        
-        document.getElementById('escalation_enabled').addEventListener('change', function() {
-            const escalationSection = document.getElementById('escalation-agents-section');
-            escalationSection.style.display = this.checked ? 'block' : 'none';
-        });
-
-        const agentId = "{{agent.id}}";
-        
-        document.querySelectorAll('.device-status').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                const deviceId = this.dataset.deviceId;
-                const contactSection = document.getElementById(`contact-control-${deviceId}`);
-                
-                if (this.checked) {
-                    contactSection.style.display = 'block';
-                    // Enviar para API: ativar agente para este dispositivo
-                    assignAgentToDevice(deviceId, true);
-                } else {
-                    contactSection.style.display = 'none';
-                    // Enviar para API: desativar agente para este dispositivo
-                    assignAgentToDevice(deviceId, false);
-                }
+    // Sistema de tabs
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', function() {
+            const tabId = this.getAttribute('data-tab');
+            
+            // Atualizar botões ativos
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                btn.classList.remove('text-blue-600', 'border-blue-500');
             });
-        });
-        
-        // Mudar comportamento de contatos (whitelist/blacklist)
-        document.querySelectorAll('.contact-behavior').forEach(radio => {
-            radio.addEventListener('change', function() {
-                const deviceId = this.dataset.deviceId;
-                const behavior = this.value;
-                const formText = this.closest('.contact-control-section').querySelector('.form-text');
-                
-                if (behavior === 'blacklist') {
-                    formText.textContent = 'Contatos nesta lista NÃO receberão respostas do agente.';
-                } else {
-                    formText.textContent = 'APENAS contatos nesta lista receberão respostas do agente.';
-                }
-                
-                // Enviar para API: atualizar comportamento
-                updateContactBehavior(deviceId, behavior);
+            
+            this.classList.add('active');
+            this.classList.add('text-blue-600', 'border-blue-500');
+            this.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+            
+            // Mostrar conteúdo da tab
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.add('hidden');
+                pane.classList.remove('active');
             });
+            
+            const targetPane = document.getElementById(tabId);
+            targetPane.classList.remove('hidden');
+            targetPane.classList.add('active');
         });
-        
-        // Adicionar contato à lista
-        document.querySelectorAll('.add-contact-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const deviceId = this.dataset.deviceId;
-                const inputField = document.getElementById(`contact-input-${deviceId}`);
-                const contactId = inputField.value.trim();
-                
-                if (contactId) {
-                    // Enviar para API: adicionar contato
-                    addContactToList(deviceId, contactId).then(success => {
-                        if (success) {
-                            // Adicionar à lista visual
-                            const contactList = document.getElementById(`contact-list-${deviceId}`);
-                            const behavior = document.querySelector(`input[name="contact-behavior-${deviceId}"]:checked`).value;
-                            
-                            const contactItem = document.createElement('div');
-                            contactItem.className = 'contact-item d-flex justify-content-between align-items-center border-bottom py-2';
-                            contactItem.innerHTML = `
-                                <div>${contactId}</div>
-                                <button class="btn btn-sm btn-outline-danger remove-contact-btn" 
-                                        data-device-id="${deviceId}" 
-                                        data-contact-id="${contactId}">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                            `;
-                            
-                            contactList.appendChild(contactItem);
-                            inputField.value = '';
-                            
-                            // Adicionar evento para o botão de remover
-                            contactItem.querySelector('.remove-contact-btn').addEventListener('click', handleRemoveContact);
-                        }
-                    });
-                }
-            });
-        });
-        
-        // Função para tratar remoção de contatos
-        function handleRemoveContact() {
-            const deviceId = this.dataset.deviceId;
-            const contactId = this.dataset.contactId;
-            
-            // Enviar para API: remover contato
-            removeContactFromList(deviceId, contactId).then(success => {
-                if (success) {
-                    // Remover da lista visual
-                    this.closest('.contact-item').remove();
-                }
-            });
-        }
-        
-        // Adicionar eventos para botões de remover contato existentes
-        document.querySelectorAll('.remove-contact-btn').forEach(button => {
-            button.addEventListener('click', handleRemoveContact);
-        });
-        
-        // Adicionar novo dispositivo
-        document.getElementById('add-device-btn').addEventListener('click', function() {
-            const deviceSelect = document.getElementById('new-device-select');
-            const deviceId = deviceSelect.value;
-            
-            if (deviceId) {
-                // Enviar para API: associar agente a este dispositivo
-                assignAgentToDevice(deviceId, true).then(success => {
-                    if (success) {
-                        // Recarregar página para mostrar novo dispositivo
-                        window.location.reload();
-                    }
-                });
-            }
-        });
-        
-        // Funções para comunicação com a API
-        async function assignAgentToDevice(deviceId, active) {
-            try {
-                console.log('assignAgentToDevice > agentId: ' + agentId + ', deviceId: ' + deviceId);
-                
-                const response = await fetch(`/agents/${agentId}/device/${deviceId}/assign`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'  
-                    },
-                    body: JSON.stringify({ active })
-                });
-                return response.ok;
-            } catch (error) {
-                console.error('Erro ao associar agente ao dispositivo:', error);
-                return false;
-            }
-        }
-        
-        async function updateContactBehavior(deviceId, behavior) {
-            try {
-                // Obter lista atual de contatos
-                const contactList = document.getElementById(`contact-list-${deviceId}`);
-                const contacts = Array.from(contactList.querySelectorAll('.contact-item')).map(
-                    item => item.querySelector('div').textContent
-                );
-        
-                console.log('updateContactBehavior > agentId: ' + agentId + ', deviceId: ' + deviceId + ', contacts: ' + contacts);
-                
-                const response = await fetch(`/agents/${agentId}/device/${deviceId}/contacts`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        default_behavior: behavior,
-                        contacts: contacts
-                    })
-                });
-                return response.ok;
-            } catch (error) {
-                console.error('Erro ao atualizar comportamento de contatos:', error);
-                return false;
-            }
-        }
-        
-        async function addContactToList(deviceId, contactId) {
-            const behavior = document.querySelector(`input[name="contact-behavior-${deviceId}"]:checked`).value;
-            
-            console.log('addContactToList > agentId: ' + agentId + ', deviceId: ' + deviceId + ', contactId: ' + contactId + ', behavior: ' + behavior);
-            
-            try {
-                const response = await fetch(`/agents/${agentId}/device/${deviceId}/contacts/${contactId}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        list_type: behavior
-                    })
-                });
-                return response.ok;
-            } catch (error) {
-                console.error('Erro ao adicionar contato:', error);
-                return false;
-            }
-        }
-        
-        async function removeContactFromList(deviceId, contactId) {
-            try {
-                console.log('removeContactFromList > agentId: ' + agentId + ', deviceId: ' + deviceId + ', contactId: ' + contactId);
-                
-                const response = await fetch(`/agents/${agentId}/device/${deviceId}/contacts/${contactId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-                return response.ok;
-            } catch (error) {
-                console.error('Erro ao remover contato:', error);
-                return false;
-            }
-        }
-    });
-
-    // Gerenciamento de exemplos
-    let examples = JSON.parse('{{ agent.prompt.examples|tojson|safe }}' || '[]');
-    
-    function updateExamplesField() {
-        document.getElementById('prompt_examples').value = JSON.stringify(examples);
-    }
-    
-    function renderExamples() {
-        const container = document.getElementById('examples-container');
-        container.innerHTML = '';
-        
-        if (examples.length === 0) {
-            container.innerHTML = '<p class="text-muted">Nenhum exemplo adicionado.</p>';
-            return;
-        }
-        
-        examples.forEach((example, index) => {
-            const exampleDiv = document.createElement('div');
-            exampleDiv.className = 'card mb-2';
-            
-            const cardBody = document.createElement('div');
-            cardBody.className = 'card-body';
-            
-            // Criar conteúdo do exemplo
-            let exampleContent = '';
-            for (const [key, value] of Object.entries(example)) {
-                exampleContent += `<p><strong>${key}:</strong> ${value}</p>`;
-            }
-            
-            cardBody.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div class="example-content">${exampleContent}</div>
-                    <div>
-                        <button type="button" class="btn btn-sm btn-outline-primary edit-example" data-index="${index}">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger delete-example" data-index="${index}">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            exampleDiv.appendChild(cardBody);
-            container.appendChild(exampleDiv);
-        });
-        
-        // Adicionar event listeners
-        document.querySelectorAll('.edit-example').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const index = parseInt(this.getAttribute('data-index'));
-                showExampleModal(index);
-            });
-        });
-        
-        document.querySelectorAll('.delete-example').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const index = parseInt(this.getAttribute('data-index'));
-                examples.splice(index, 1);
-                renderExamples();
-                updateExamplesField();
-            });
-        });
-    }
-    
-    function showExampleModal(editIndex = null) {
-        // Implementação do modal para editar exemplos
-        // (similar à página de criação)
-    }
-    
-    document.getElementById('add-example-btn').addEventListener('click', function() {
-        showExampleModal();
     });
     
-    // Gerenciamento de funções MCP
-    let mcpFunctions = JSON.parse('{{ agent.mcp_functions|tojson|safe }}' || '[]');
-    
-    function updateMCPFunctionsField() {
-        document.getElementById('mcp_functions').value = JSON.stringify(mcpFunctions);
-    }
-    
-    function renderMCPFunctions() {
-        const container = document.getElementById('mcp-functions-container');
-        container.innerHTML = '';
+    // Busca de categorias
+    document.getElementById('category-search').addEventListener('keyup', function(e) {
+        const searchText = this.value.toLowerCase();
+        const categoryItems = document.querySelectorAll('.category-item');
         
-        if (mcpFunctions.length === 0) {
-            container.innerHTML = '<p class="text-muted">Nenhuma função adicionada.</p>';
-            return;
-        }
-        
-        mcpFunctions.forEach((func, index) => {
-            const funcDiv = document.createElement('div');
-            funcDiv.className = 'card mb-2';
+        categoryItems.forEach(item => {
+            const categoryName = item.querySelector('.font-medium').textContent.toLowerCase();
+            const categoryDesc = item.querySelector('.text-sm').textContent.toLowerCase();
             
-            const cardBody = document.createElement('div');
-            cardBody.className = 'card-body py-2';
-            
-            // Preparar parâmetros para exibição
-            let paramsText = '';
-            if (func.parameters && Object.keys(func.parameters).length > 0) {
-                paramsText = '<strong>Parâmetros:</strong> ';
-                paramsText += Object.keys(func.parameters).join(', ');
+            if (categoryName.includes(searchText) || categoryDesc.includes(searchText)) {
+                item.classList.remove('hidden');
+            } else {
+                item.classList.add('hidden');
             }
-            
-            cardBody.innerHTML = `
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <h6 class="mb-1">${func.name}</h6>
-                        <p class="mb-1 small text-muted">${func.description}</p>
-                        <p class="mb-0 small">${paramsText}</p>
-                    </div>
-                    <div>
-                        <button type="button" class="btn btn-sm btn-outline-primary edit-function" data-index="${index}">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger delete-function" data-index="${index}">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-            
-            funcDiv.appendChild(cardBody);
-            container.appendChild(funcDiv);
         });
-        
-        // Adicionar event listeners
-        document.querySelectorAll('.edit-function').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const index = parseInt(this.getAttribute('data-index'));
-                showFunctionModal(index);
-            });
-        });
-        
-        document.querySelectorAll('.delete-function').forEach(btn => {
-            btn.addEventListener('click', function() {
-                const index = parseInt(this.getAttribute('data-index'));
-                mcpFunctions.splice(index, 1);
-                renderMCPFunctions();
-                updateMCPFunctionsField();
-            });
-        });
-    }
+    });
     
-    function showFunctionModal(editIndex = null) {
-        // Implementação do modal para editar funções
-        // (similar à página de criação)
-    }
-    
+    // Controle de MCP
     document.getElementById('mcp_enabled').addEventListener('change', function() {
         const mcpSection = document.getElementById('mcp-functions-section');
-        mcpSection.style.display = this.checked ? 'block' : 'none';
+        if (this.checked) {
+            mcpSection.classList.remove('hidden');
+        } else {
+            mcpSection.classList.add('hidden');
+        }
     });
     
-    document.getElementById('add-function-btn').addEventListener('click', function() {
-        showFunctionModal();
-    });
-    
-    // Manipulação de escalação
+    // Controle de escalação
     document.getElementById('human_escalation_enabled').addEventListener('change', function() {
         const escalationSection = document.getElementById('escalation-section');
-        escalationSection.style.display = this.checked ? 'block' : 'none';
+        if (this.checked) {
+            escalationSection.classList.remove('hidden');
+        } else {
+            escalationSection.classList.add('hidden');
+        }
     });
     
-    // Teste de prompt
-    document.getElementById('test-prompt-btn').addEventListener('click', function() {
-        const modal = new bootstrap.Modal(document.getElementById('testPromptModal'));
-        modal.show();
-    });
+    // Modal de teste de prompt
+    function showTestPromptModal() {
+        document.getElementById('testPromptModal').classList.remove('hidden');
+        document.getElementById('testPromptModal').classList.add('flex');
+    }
     
-    document.getElementById('run-test-btn').addEventListener('click', function() {
+    function hideTestPromptModal() {
+        document.getElementById('testPromptModal').classList.add('hidden');
+        document.getElementById('testPromptModal').classList.remove('flex');
+    }
+    
+    document.getElementById('test-prompt-btn').addEventListener('click', showTestPromptModal);
+    
+    document.getElementById('run-test-btn').addEventListener('click', async function() {
         const testMessage = document.getElementById('test-message').value;
-        const resultDiv = document.getElementById('test-result');
-        const loadingDiv = document.getElementById('test-loading');
-        const errorDiv = document.getElementById('test-error');
-        const responseDiv = document.getElementById('test-response');
-        
-        // Validar mensagem
         if (!testMessage.trim()) {
-            errorDiv.style.display = 'block';
-            errorDiv.textContent = 'Por favor, digite uma mensagem de teste.';
-            resultDiv.style.display = 'none';
+            alert('Por favor, digite uma mensagem de teste.');
             return;
         }
         
-        // Coletar dados do prompt
-        const promptData = {
-            role: document.getElementById('prompt_role').value,
-            description: document.getElementById('prompt_description').value,
-            instructions: document.getElementById('prompt_instructions').value,
-            constraints: document.getElementById('prompt_constraints').value.split('\n').filter(line => line.trim()),
-            examples: examples,
-            message: testMessage
+        // Coletar dados do formulário
+        const formData = {
+            prompt_role: document.getElementById('prompt_role').value,
+            prompt_description: document.getElementById('prompt_description').value,
+            prompt_instructions: document.getElementById('prompt_instructions').value,
+            prompt_constraints: document.getElementById('prompt_constraints').value,
+            prompt_examples: JSON.parse(document.getElementById('prompt_examples').value || '[]'),
+            test_message: testMessage
         };
         
-        // Esconder resultado anterior e erro
-        resultDiv.style.display = 'none';
-        errorDiv.style.display = 'none';
-        
         // Mostrar loading
-        loadingDiv.style.display = 'block';
+        document.getElementById('test-loading').classList.remove('hidden');
+        document.getElementById('test-result').classList.add('hidden');
+        document.getElementById('test-error').classList.add('hidden');
         
-        // Enviar para API
-        fetch('{{ url_for("agents.test_prompt") }}', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(promptData)
-        })
-        .then(response => response.json())
-        .then(data => {
-            loadingDiv.style.display = 'none';
+        try {
+            const response = await fetch('/api/agents/test-prompt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData)
+            });
             
-            if (data.error) {
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = data.error;
+            const result = await response.json();
+            
+            if (response.ok) {
+                document.getElementById('test-response').textContent = result.response || 'Sem resposta';
+                document.getElementById('test-result').classList.remove('hidden');
             } else {
-                resultDiv.style.display = 'block';
-                responseDiv.textContent = data.response;
+                document.getElementById('test-error').textContent = result.error || 'Erro ao testar prompt';
+                document.getElementById('test-error').classList.remove('hidden');
             }
-        })
-        .catch(error => {
-            loadingDiv.style.display = 'none';
-            errorDiv.style.display = 'block';
-            errorDiv.textContent = 'Erro ao testar prompt: ' + error.message;
-        });
+        } catch (error) {
+            document.getElementById('test-error').textContent = 'Erro de conexão: ' + error.message;
+            document.getElementById('test-error').classList.remove('hidden');
+        } finally {
+            document.getElementById('test-loading').classList.add('hidden');
+        }
+    });
+    
+    // Fechar modal ao clicar fora
+    document.getElementById('testPromptModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideTestPromptModal();
+        }
     });
     
     // Inicialização
-    renderExamples();
-    renderMCPFunctions();
+    document.addEventListener('DOMContentLoaded', function() {
+        // Estilizar botões de tab
+        document.querySelectorAll('.tab-button').forEach(btn => {
+            if (btn.classList.contains('active')) {
+                btn.classList.add('text-blue-600', 'border-blue-500');
+            } else {
+                btn.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+            }
+        });
+    });
 </script>
 {% endblock %}

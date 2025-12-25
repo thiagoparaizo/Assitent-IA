@@ -1,118 +1,128 @@
-<!-- admin/templates/tokens/index.html -->
+<!-- admin/templates/tokens/index.html - VERSÃO MODERNA -->
 {% extends 'base.html' %}
 
 {% block title %}Dashboard de Tokens - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1 class="h3">Dashboard de Uso de Tokens</h1>
-        <p class="text-muted">Monitoramento de uso e limites de tokens LLM  </p> 
-        <a href="{{ url_for('tokens.limits') }}" class="btn btn-sm btn-primary">Configurar Limites</a>
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Dashboard de Uso de Tokens</h1>
+            <p class="text-gray-600 mt-2">Monitoramento de uso e limites de tokens LLM</p>
+        </div>
+        <a href="{{ url_for('tokens.limits') }}" class="btn btn-primary">
+            <i class="bi bi-gear mr-2"></i>
+            Configurar Limites
+        </a>
     </div>
 </div>
 
-<div class="row mb-4">
-    <!-- Cards de Estatísticas -->
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-primary h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                            Total de Tokens (Este Mês)</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">
-                            {% set total_tokens = 0 %}
-                            {% for agent in token_data.agent_usage %}
-                                {% set total_tokens = total_tokens + agent.total_tokens %}
-                            {% endfor %}
-                            {{ "{:,}".format(total_tokens) }}
-                        </div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="bi bi-cpu fs-2 text-gray-300"></i>
+<!-- Cards de Estatísticas -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Total de Tokens -->
+    <div class="card">
+        <div class="card-body">
+            <div class="flex items-center">
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-500">Total de Tokens (Este Mês)</p>
+                    <p class="text-2xl font-bold text-gray-900">
+                        {% set total_tokens = 0 %}
+                        {% for agent in token_data.agent_usage %}
+                            {% set total_tokens = total_tokens + agent.total_tokens %}
+                        {% endfor %}
+                        {{ "{:,}".format(total_tokens) }}
+                    </p>
+                </div>
+                <div class="ml-4">
+                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i class="bi bi-cpu text-blue-600 text-xl"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-success h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                            Custo Estimado (Este Mês)</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">
-                            {% set total_cost = 0 %}
-                            {% for agent in token_data.agent_usage %}
-                                {% set total_cost = total_cost + agent.total_cost %}
-                            {% endfor %}
-                            ${{ "%.2f"|format(total_cost) }}
-                        </div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="bi bi-cash fs-2 text-gray-300"></i>
+    <!-- Custo Estimado -->
+    <div class="card">
+        <div class="card-body">
+            <div class="flex items-center">
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-500">Custo Estimado (Este Mês)</p>
+                    <p class="text-2xl font-bold text-gray-900">
+                        {% set total_cost = 0 %}
+                        {% for agent in token_data.agent_usage %}
+                            {% set total_cost = total_cost + agent.total_cost %}
+                        {% endfor %}
+                        ${{ "%.2f"|format(total_cost) }}
+                    </p>
+                </div>
+                <div class="ml-4">
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                        <i class="bi bi-cash text-green-600 text-xl"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-info h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                            Uso do Limite Mensal</div>
-                        <div class="row no-gutters align-items-center">
-                            {% set limit_value = 0 %}
-                            {% set percentage = 0 %}
-                            {% for limit in token_data.limits %}
-                                {% if not limit.agent_id and limit.monthly_limit %}
-                                    {% set limit_value = limit.monthly_limit %}
-                                    {% if limit_value > 0 and total_tokens > 0 %}
-                                        {% set percentage = (total_tokens / limit_value * 100)|round %}
-                                    {% endif %}
+    <!-- Uso do Limite Mensal -->
+    <div class="card">
+        <div class="card-body">
+            <div class="flex items-center">
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-500">Uso do Limite Mensal</p>
+                    <div class="mt-2">
+                        {% set limit_value = 0 %}
+                        {% set percentage = 0 %}
+                        {% for limit in token_data.limits %}
+                            {% if not limit.agent_id and limit.monthly_limit %}
+                                {% set limit_value = limit.monthly_limit %}
+                                {% if limit_value > 0 and total_tokens > 0 %}
+                                    {% set percentage = (total_tokens / limit_value * 100)|round %}
                                 {% endif %}
-                            {% endfor %}
-                            <div class="col-auto">
-                                <div class="h5 mb-0 mr-3 font-weight-bold text-gray-800">{{ percentage }}%</div>
-                            </div>
-                            <div class="col">
-                                <div class="progress progress-sm mr-2">
-                                    <div class="progress-bar 
-                                        {% if percentage < 50 %}bg-info
-                                        {% elif percentage < 80 %}bg-warning
-                                        {% else %}bg-danger{% endif %}" 
-                                        role="progressbar" style="width: {{ percentage }}%"></div>
-                                </div>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-lg font-bold text-gray-900">{{ percentage }}%</span>
+                            <span class="text-sm text-gray-500">{{ "{:,}".format(total_tokens) }}/{{ "{:,}".format(limit_value) }}</span>
+                        </div>
+                        
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="h-2 rounded-full 
+                                {% if percentage < 50 %}bg-blue-500
+                                {% elif percentage < 80 %}bg-yellow-500
+                                {% else %}bg-red-500{% endif %}" 
+                                style="width: {{ percentage }}%">
                             </div>
                         </div>
                     </div>
-                    <div class="col-auto">
-                        <i class="bi bi-speedometer2 fs-2 text-gray-300"></i>
+                </div>
+                <div class="ml-4">
+                    <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                        <i class="bi bi-speedometer2 text-purple-600 text-xl"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-warning h-100 py-2">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                            Alertas Pendentes</div>
-                        <div class="h5 mb-0 font-weight-bold text-gray-800">
-                            {{ token_data.alerts|length }}
-                        </div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="bi bi-exclamation-triangle fs-2 text-gray-300"></i>
+    <!-- Alertas Pendentes -->
+    <div class="card">
+        <div class="card-body">
+            <div class="flex items-center">
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-gray-500">Alertas Pendentes</p>
+                    <p class="text-2xl font-bold text-gray-900">
+                        {{ token_data.alerts|length }}
+                    </p>
+                    <a href="{{ url_for('tokens.alerts') }}" class="text-sm text-blue-600 hover:text-blue-800">
+                        Ver detalhes
+                    </a>
+                </div>
+                <div class="ml-4">
+                    <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                        <i class="bi bi-exclamation-triangle text-yellow-600 text-xl"></i>
                     </div>
                 </div>
             </div>
@@ -120,23 +130,21 @@
     </div>
 </div>
 
-<div class="row">
+<!-- Gráficos -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
     <!-- Gráfico de Uso Diário -->
-    <div class="col-xl-8 col-lg-7">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Uso de Tokens - Tendência Diária</h6>
-                <div class="dropdown no-arrow">
-                    <a class="dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
+    <div class="lg:col-span-2">
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Uso de Tokens - Tendência Diária</h3>
+                    <a href="{{ url_for('tokens.usage', period='daily') }}" class="text-sm text-blue-600 hover:text-blue-800">
+                        Ver detalhes
                     </a>
-                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
-                        <a class="dropdown-item" href="{{ url_for('tokens.usage', period='daily') }}">Ver detalhes</a>
-                    </div>
                 </div>
             </div>
             <div class="card-body">
-                <div class="chart-area">
+                <div class="h-64">
                     <canvas id="dailyTokensChart"></canvas>
                 </div>
             </div>
@@ -144,28 +152,29 @@
     </div>
 
     <!-- Gráfico de Distribuição por Agente -->
-    <div class="col-xl-4 col-lg-5">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Uso por Agente (Mês Atual)</h6>
-                <div class="dropdown no-arrow">
-                    <a class="dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-three-dots-vertical text-gray-400"></i>
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Uso por Agente (Mês Atual)</h3>
+                    <a href="{{ url_for('tokens.usage') }}" class="text-sm text-blue-600 hover:text-blue-800">
+                        Ver detalhes
                     </a>
-                    <div class="dropdown-menu dropdown-menu-right shadow animated--fade-in">
-                        <a class="dropdown-item" href="{{ url_for('tokens.usage') }}">Ver detalhes</a>
-                    </div>
                 </div>
             </div>
             <div class="card-body">
-                <div class="chart-pie pt-4 pb-2">
+                <div class="h-48">
                     <canvas id="agentTokensChart"></canvas>
                 </div>
-                <div class="mt-4 text-center small">
+                <div class="mt-4 space-y-2">
                     {% for i in range(agent_labels|length) %}
-                    <span class="me-2">
-                        <i class="bi bi-circle-fill" style="color: {{ agent_colors[i] }}"></i> {{ agent_labels[i] }}
-                    </span>
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 rounded-full mr-2" style="background-color: {{ agent_colors[i] }}"></div>
+                        <span class="text-sm text-gray-700">{{ agent_labels[i] }}</span>
+                        <span class="ml-auto text-sm font-medium text-gray-900">
+                            {{ agent_values[i]|round }}%
+                        </span>
+                    </div>
                     {% endfor %}
                 </div>
             </div>
@@ -173,16 +182,17 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-xl-8 col-lg-7">
-        <!-- Tabela de Uso por Modelo -->
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Uso por Modelo LLM (Mês Atual)</h6>
+<!-- Tabelas e Alertas -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Tabela de Uso por Modelo -->
+    <div class="lg:col-span-2">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="text-lg font-semibold text-gray-900">Uso por Modelo LLM (Mês Atual)</h3>
             </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
+            <div class="card-body p-0">
+                <div class="overflow-x-auto">
+                    <table class="table-modern">
                         <thead>
                             <tr>
                                 <th>Modelo</th>
@@ -198,13 +208,20 @@
                             {% endfor %}
                             
                             {% for model in token_data.model_usage %}
-                            <tr>
-                                <td>{{ model.model_name }}</td>
-                                <td>{{ "{:,}".format(model.total_tokens) }}</td>
-                                <td>${{ "%.2f"|format(model.total_cost) }}</td>
+                            <tr class="hover:bg-gray-50 transition-colors">
+                                <td class="font-medium text-gray-900">{{ model.model_name }}</td>
+                                <td class="text-gray-700">{{ "{:,}".format(model.total_tokens) }}</td>
+                                <td class="font-mono text-gray-700">${{ "%.2f"|format(model.total_cost) }}</td>
                                 <td>
                                     {% if total_model_tokens > 0 %}
-                                    {{ ((model.total_tokens / total_model_tokens) * 100)|round }}%
+                                    <div class="flex items-center">
+                                        <span class="mr-2">{{ ((model.total_tokens / total_model_tokens) * 100)|round }}%</span>
+                                        <div class="flex-1 bg-gray-200 rounded-full h-2">
+                                            <div class="h-2 rounded-full bg-blue-500" 
+                                                 style="width: {{ ((model.total_tokens / total_model_tokens) * 100) }}%">
+                                            </div>
+                                        </div>
+                                    </div>
                                     {% else %}
                                     0%
                                     {% endif %}
@@ -214,7 +231,10 @@
                             
                             {% if token_data.model_usage|length == 0 %}
                             <tr>
-                                <td colspan="4" class="text-center">Nenhum uso de modelo registrado este mês</td>
+                                <td colspan="4" class="text-center py-8 text-gray-500">
+                                    <i class="bi bi-robot text-3xl mb-2 block"></i>
+                                    Nenhum uso de modelo registrado este mês
+                                </td>
                             </tr>
                             {% endif %}
                         </tbody>
@@ -224,49 +244,68 @@
         </div>
     </div>
     
-    <div class="col-xl-4 col-lg-5">
-        <!-- Alertas Recentes -->
-        <div class="card shadow mb-4">
-            <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                <h6 class="m-0 font-weight-bold text-primary">Alertas Recentes</h6>
-                <a href="{{ url_for('tokens.alerts') }}" class="btn btn-sm btn-primary">
-                    Ver Todos
-                </a>
+    <!-- Alertas Recentes -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold text-gray-900">Alertas Recentes</h3>
+                    <a href="{{ url_for('tokens.alerts') }}" class="btn btn-outline btn-sm">
+                        Ver Todos
+                    </a>
+                </div>
             </div>
             <div class="card-body">
-                <ul class="list-group">
+                <div class="space-y-4">
                     {% for alert in token_data.alerts %}
-                    <li class="list-group-item">
-                        <div class="d-flex w-100 justify-content-between">
-                            <h6 class="mb-1">
+                    <div class="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div class="flex items-start justify-between mb-2">
+                            <div class="flex items-center">
                                 <span class="badge 
-                                    {% if alert.threshold_value < 0.5 %}bg-info
-                                    {% elif alert.threshold_value < 0.8 %}bg-warning
-                                    {% else %}bg-danger{% endif %}">
+                                    {% if alert.threshold_value < 0.5 %}bg-blue-100 text-blue-800
+                                    {% elif alert.threshold_value < 0.8 %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
                                     {{ (alert.threshold_value * 100)|round }}%
                                 </span>
-                                {% if alert.agent_id %}
-                                    {{ alert.agent_name or 'Agente' }}
-                                {% else %}
-                                    Tenant
-                                {% endif %}
-                            </h6>
-                            <small>{{ (alert.created_at|string)[:10] }}</small>
+                                <span class="ml-2 font-medium text-gray-900">
+                                    {% if alert.agent_id %}
+                                        {{ alert.agent_name or 'Agente' }}
+                                    {% else %}
+                                        Tenant
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <span class="text-sm text-gray-500">{{ (alert.created_at|string)[:10] }}</span>
                         </div>
-                        <p class="mb-1">
+                        
+                        <p class="text-sm text-gray-700 mb-1">
                             {{ "{:,}".format(alert.current_usage) }} / {{ "{:,}".format(alert.max_limit) }} tokens
-                            ({{ ((alert.current_usage / alert.max_limit) * 100)|round }}%)
                         </p>
-                        <small>Limite {{ 'diário' if alert.limit_type == 'daily' else 'mensal' }}</small>
-                    </li>
+                        
+                        <div class="w-full bg-gray-200 rounded-full h-1.5 mb-2">
+                            <div class="h-1.5 rounded-full 
+                                {% if alert.threshold_value < 0.5 %}bg-blue-500
+                                {% elif alert.threshold_value < 0.8 %}bg-yellow-500
+                                {% else %}bg-red-500{% endif %}" 
+                                style="width: {{ ((alert.current_usage / alert.max_limit) * 100) }}%">
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between text-xs text-gray-500">
+                            <span>Limite {{ 'diário' if alert.limit_type == 'daily' else 'mensal' }}</span>
+                            <span>{{ ((alert.current_usage / alert.max_limit) * 100)|round }}%</span>
+                        </div>
+                    </div>
                     {% endfor %}
                     
                     {% if token_data.alerts|length == 0 %}
-                    <li class="list-group-item text-center">
-                        <i class="bi bi-check-circle text-success"></i> Nenhum alerta recente
-                    </li>
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="bi bi-check-circle text-3xl mb-2 block text-green-500"></i>
+                        <p class="font-medium">Nenhum alerta recente</p>
+                        <p class="text-sm">Todos os limites estão sendo respeitados</p>
+                    </div>
                     {% endif %}
-                </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -285,14 +324,14 @@
             datasets: [{
                 label: 'Tokens',
                 lineTension: 0.3,
-                backgroundColor: "rgba(78, 115, 223, 0.05)",
-                borderColor: "rgba(78, 115, 223, 1)",
+                backgroundColor: "rgba(59, 130, 246, 0.05)",
+                borderColor: "rgba(59, 130, 246, 1)",
                 pointRadius: 3,
-                pointBackgroundColor: "rgba(78, 115, 223, 1)",
-                pointBorderColor: "rgba(78, 115, 223, 1)",
-                pointHoverRadius: 3,
-                pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
-                pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+                pointBackgroundColor: "rgba(59, 130, 246, 1)",
+                pointBorderColor: "rgba(59, 130, 246, 1)",
+                pointHoverRadius: 5,
+                pointHoverBackgroundColor: "rgba(59, 130, 246, 1)",
+                pointHoverBorderColor: "rgba(59, 130, 246, 1)",
                 pointHitRadius: 10,
                 pointBorderWidth: 2,
                 data: {{ daily_values|tojson }},
@@ -300,22 +339,37 @@
         },
         options: {
             maintainAspectRatio: false,
+            responsive: true,
             scales: {
                 x: {
                     grid: {
                         display: false,
                         drawBorder: false
+                    },
+                    ticks: {
+                        color: '#6b7280'
                     }
                 },
                 y: {
+                    beginAtZero: true,
                     ticks: {
-                        beginAtZero: true
+                        color: '#6b7280'
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.05)'
                     }
                 }
             },
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    borderColor: 'rgba(255, 255, 255, 0.1)',
+                    borderWidth: 1
                 }
             }
         }
@@ -330,15 +384,26 @@
             datasets: [{
                 data: {{ agent_values|tojson }},
                 backgroundColor: {{ agent_colors|tojson }},
-                hoverBackgroundColor: {{ agent_colors|tojson }},
-                hoverBorderColor: "rgba(234, 236, 244, 1)",
+                borderWidth: 1,
+                borderColor: '#fff'
             }]
         },
         options: {
             maintainAspectRatio: false,
+            responsive: true,
             plugins: {
                 legend: {
                     display: false
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                    titleColor: '#fff',
+                    bodyColor: '#fff',
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + context.parsed + '%';
+                        }
+                    }
                 }
             },
             cutout: '70%'
