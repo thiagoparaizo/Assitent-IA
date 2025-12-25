@@ -1,155 +1,163 @@
-<!-- admin/templates/webhooks/index.html -->
+<!-- admin/templates/webhooks/index.html - VERSÃO MODERNA -->
 {% extends 'base.html' %}
 
 {% block title %}Webhooks - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
-                <li class="breadcrumb-item active">Webhooks</li>
-            </ol>
-        </nav>
-    </div>
-</div>
-
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1 class="h3">Gerenciamento de Webhooks</h1>
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Gerenciamento de Webhooks</h1>
+            <p class="text-gray-600 mt-2">Configure webhooks para receber eventos em tempo real</p>
+        </div>
         <a href="{{ url_for('webhooks.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus"></i> Novo Webhook
+            <i class="bi bi-plus mr-2"></i>
+            Novo Webhook
         </a>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Webhooks Configurados</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0">
-                        <thead>
-                            <tr>
-                                <th>URL</th>
-                                <th>Eventos</th>
-                                <th>Dispositivos</th>
-                                <th>Status</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% if webhooks %}
-                                {% for webhook in webhooks %}
-                                <tr>
-                                    <td class="text-truncate" style="max-width: 250px;">{{ webhook.url }}</td>
-                                    <td>
-                                        {% if webhook.events %}
-                                            {% for event in webhook.events %}
-                                                <span class="badge bg-info">
-                                                    {% if event == '*' %}
-                                                        Todos
-                                                    {% elif event == '*events.Message' %}
-                                                        Mensagens
-                                                    {% elif event == '*events.Connected' %}
-                                                        Conexão
-                                                    {% elif event == '*events.Disconnected' %}
-                                                        Desconexão
-                                                    {% elif event == '*events.LoggedOut' %}
-                                                        Logout
-                                                    {% else %}
-                                                        {{ event }}
-                                                    {% endif %}
-                                                </span>
-                                                {% if not loop.last %}, {% endif %}
-                                            {% endfor %}
-                                        {% else %}
-                                            <span class="text-muted">Todos</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if webhook.device_ids %}
-                                            <span class="badge bg-secondary">{{ webhook.device_ids|length }} dispositivo(s)</span>
-                                        {% else %}
-                                            <span class="text-muted">Todos</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if webhook.enabled %}
-                                            <span class="badge bg-success">Ativo</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">Inativo</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group">
-                                            <a href="{{ url_for('webhooks.logs', webhook_id=webhook.id) }}" class="btn btn-sm btn-outline-info">
-                                                <i class="bi bi-list-ul"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-sm btn-outline-primary" 
-                                                    onclick="testWebhook({{ webhook.id }})">
-                                                <i class="bi bi-send"></i>
-                                            </button>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" 
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#deleteWebhookModal"
-                                                    data-webhook-id="{{ webhook.id if webhook and webhook.id else "0" }}"
-                                                    data-webhook-url="{{ webhook.url if webhook and webhook.url else "-" }}">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                        
-                                        <form id="test-webhook-form-{{ webhook.id }}" 
-                                              action="{{ url_for('webhooks.test', webhook_id=webhook.id) }}" 
-                                              method="post" class="d-none">
-                                        </form>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="text-lg font-semibold text-gray-900">Webhooks Configurados</h3>
+    </div>
+    
+    <div class="card-body p-0">
+        {% if webhooks %}
+        <div class="overflow-x-auto">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>URL</th>
+                        <th>Eventos</th>
+                        <th>Dispositivos</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for webhook in webhooks %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="font-mono text-sm text-gray-700 truncate max-w-xs">
+                            {{ webhook.url }}
+                        </td>
+                        <td>
+                            {% if webhook.events %}
+                                <div class="flex flex-wrap gap-1">
+                                    {% for event in webhook.events %}
+                                        <span class="badge bg-blue-100 text-blue-800">
+                                            {% if event == '*' %}
+                                                Todos
+                                            {% elif event == '*events.Message' %}
+                                                Mensagens
+                                            {% elif event == '*events.Connected' %}
+                                                Conexão
+                                            {% elif event == '*events.Disconnected' %}
+                                                Desconexão
+                                            {% elif event == '*events.LoggedOut' %}
+                                                Logout
+                                            {% else %}
+                                                {{ event }}
+                                            {% endif %}
+                                        </span>
+                                    {% endfor %}
+                                </div>
                             {% else %}
-                                <tr>
-                                    <td colspan="5" class="text-center py-4">
-                                        <div class="text-muted">
-                                            <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
-                                            Nenhum webhook configurado.
-                                        </div>
-                                        <a href="{{ url_for('webhooks.create') }}" class="btn btn-sm btn-primary mt-2">
-                                            <i class="bi bi-plus"></i> Configurar Webhook
-                                        </a>
-                                    </td>
-                                </tr>
+                                <span class="text-gray-400 text-sm">Todos</span>
                             {% endif %}
-                        </tbody>
-                    </table>
-                </div>
+                        </td>
+                        <td>
+                            {% if webhook.device_ids %}
+                                <span class="badge bg-gray-100 text-gray-800">{{ webhook.device_ids|length }} dispositivo(s)</span>
+                            {% else %}
+                                <span class="text-gray-400 text-sm">Todos</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if webhook.enabled %}
+                                <span class="badge badge-success">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-red-100 text-red-800">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="flex space-x-2">
+                                <a href="{{ url_for('webhooks.logs', webhook_id=webhook.id) }}" 
+                                   class="btn btn-outline btn-sm"
+                                   title="Logs">
+                                    <i class="bi bi-list-ul"></i>
+                                </a>
+                                <button type="button" 
+                                        class="btn btn-outline btn-sm"
+                                        onclick="testWebhook({{ webhook.id }})"
+                                        title="Testar">
+                                    <i class="bi bi-send"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-outline btn-sm text-red-600 hover:bg-red-50"
+                                        data-webhook-id="{{ webhook.id }}"
+                                        data-webhook-url="{{ webhook.url }}"
+                                        onclick="showDeleteWebhookModal(this)"
+                                        title="Excluir">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                            
+                            <form id="test-webhook-form-{{ webhook.id }}" 
+                                  action="{{ url_for('webhooks.test', webhook_id=webhook.id) }}" 
+                                  method="post" class="hidden">
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="text-gray-500">
+                <i class="bi bi-bell text-4xl mb-4 block"></i>
+                <p class="text-lg font-medium">Nenhum webhook configurado</p>
+                <p class="text-sm mt-1">Configure webhooks para receber eventos em tempo real</p>
+                <a href="{{ url_for('webhooks.create') }}" class="btn btn-primary mt-4">
+                    <i class="bi bi-plus mr-2"></i>
+                    Configurar Webhook
+                </a>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- Modal de Confirmação de Exclusão -->
-<div class="modal fade" id="deleteWebhookModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Confirmar Exclusão</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<div id="deleteWebhookModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center">
+                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                    <i class="bi bi-exclamation-triangle text-red-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Confirmar Exclusão</h3>
+                    <p class="text-sm text-gray-600">Esta ação não pode ser desfeita</p>
+                </div>
             </div>
-            <div class="modal-body">
-                <p>Tem certeza que deseja excluir o webhook para <strong id="webhook-url-to-delete"></strong>?</p>
-                <p class="text-danger">Esta ação não pode ser desfeita.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <form method="post" id="delete-webhook-form" action="">
-                    <button type="submit" class="btn btn-danger">Excluir</button>
-                    
-                </form>
-            </div>
+        </div>
+        
+        <div class="p-6">
+            <p>Tem certeza que deseja excluir o webhook para <strong id="webhookUrlToDelete" class="font-semibold"></strong>?</p>
+            <p class="text-red-600 text-sm mt-2">Todos os logs relacionados a este webhook serão permanentemente removidos.</p>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button type="button" onclick="hideDeleteWebhookModal()" class="btn btn-outline">
+                Cancelar
+            </button>
+            <form method="post" id="deleteWebhookForm">
+                <button type="submit" class="btn bg-red-600 text-white hover:bg-red-700">
+                    Excluir Webhook
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -157,9 +165,8 @@
 
 {% block extra_js %}
 <script>
-    // Configurar modal de exclusão
-    document.getElementById('deleteWebhookModal').addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
+    // Modal de exclusão
+    function showDeleteWebhookModal(button) {
         const webhookId = button.getAttribute('data-webhook-id');
         const webhookUrl = button.getAttribute('data-webhook-url');
         
@@ -168,8 +175,22 @@
             return;
         }
         
-        document.getElementById('webhook-url-to-delete').textContent = webhookUrl;
-        document.getElementById('delete-webhook-form').action = '/webhooks/' + webhookId + '/delete';
+        document.getElementById('webhookUrlToDelete').textContent = webhookUrl;
+        document.getElementById('deleteWebhookForm').action = '/webhooks/' + webhookId + '/delete';
+        document.getElementById('deleteWebhookModal').classList.remove('hidden');
+        document.getElementById('deleteWebhookModal').classList.add('flex');
+    }
+    
+    function hideDeleteWebhookModal() {
+        document.getElementById('deleteWebhookModal').classList.add('hidden');
+        document.getElementById('deleteWebhookModal').classList.remove('flex');
+    }
+    
+    // Fechar modal ao clicar fora
+    document.getElementById('deleteWebhookModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDeleteWebhookModal();
+        }
     });
     
     // Função para testar webhook

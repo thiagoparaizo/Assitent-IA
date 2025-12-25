@@ -1,120 +1,140 @@
-<!-- admin/templates/tenants/index.html (continued) -->
+<!-- admin/templates/tenants/index.html - VERSÃO MODERNA -->
 {% extends 'base.html' %}
 
 {% block title %}Tenants - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1 class="h3">Gerenciamento de Tenants</h1>
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Gerenciamento de Tenants</h1>
+            <p class="text-gray-600 mt-2">Gerencie tenants e suas configurações</p>
+        </div>
         <a href="{{ url_for('tenants.create') }}" class="btn btn-primary">
-            <i class="bi bi-plus"></i> Novo Tenant
+            <i class="bi bi-plus mr-2"></i>
+            Novo Tenant
         </a>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h5 class="card-title mb-0">Tenants Disponíveis</h5>
-                    <div class="input-group" style="width: auto;">
-                        <input type="text" class="form-control" id="tenant-search" placeholder="Pesquisar tenants...">
-                        <button class="btn btn-outline-secondary" type="button" id="search-button">
-                            <i class="bi bi-search"></i>
-                        </button>
-                    </div>
+<div class="card">
+    <div class="card-header">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900">Tenants Disponíveis</h3>
+            <div class="relative w-64">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="bi bi-search text-gray-400"></i>
                 </div>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Nome</th>
-                                <th>Descrição</th>
-                                <th>Status</th>
-                                <th>Usuários</th>
-                                <th>Criado em</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% if tenants %}
-                                {% for tenant in tenants %}
-                                <tr>
-                                    <td>{{ tenant.id }}</td>
-                                    <td>{{ tenant.name }}</td>
-                                    <td>{{ tenant.description or 'Sem descrição' }}</td>
-                                    <td>
-                                        {% if tenant.is_active %}
-                                            <span class="badge bg-success">Ativo</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">Inativo</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ tenant.user_count }}</td>
-                                    <td>{{ tenant.created_at|datetime('%d/%m/%Y') }}</td>
-                                    <td>
-                                        <div class="btn-group">
-                                            <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <a href="{{ url_for('tenants.edit', tenant_id=tenant.id) }}" class="btn btn-sm btn-outline-secondary">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" 
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#deleteTenantModal"
-                                                    data-tenant-id="{{ tenant.id }}"
-                                                    data-tenant-name="{{ tenant.name }}">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            {% else %}
-                                <tr>
-                                    <td colspan="7" class="text-center py-4">
-                                        <div class="text-muted">
-                                            <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
-                                            Nenhum tenant encontrado.
-                                        </div>
-                                        <a href="{{ url_for('tenants.create') }}" class="btn btn-sm btn-primary mt-2">
-                                            <i class="bi bi-plus"></i> Criar Tenant
-                                        </a>
-                                    </td>
-                                </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
+                <input type="text" id="tenant-search" 
+                       class="form-input pl-10" 
+                       placeholder="Pesquisar tenants...">
             </div>
         </div>
+    </div>
+    
+    <div class="card-body p-0">
+        {% if tenants %}
+        <div class="overflow-x-auto">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nome</th>
+                        <th>Descrição</th>
+                        <th>Status</th>
+                        <th>Usuários</th>
+                        <th>Criado em</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tenant in tenants %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="font-mono text-gray-700">{{ tenant.id }}</td>
+                        <td class="font-medium text-gray-900">{{ tenant.name }}</td>
+                        <td class="text-gray-600">{{ tenant.description or 'Sem descrição' }}</td>
+                        <td>
+                            {% if tenant.is_active %}
+                                <span class="badge badge-success">Ativo</span>
+                            {% else %}
+                                <span class="badge bg-red-100 text-red-800">Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="font-medium">{{ tenant.user_count }}</span>
+                        </td>
+                        <td class="text-gray-600">{{ tenant.created_at|datetime('%d/%m/%Y') }}</td>
+                        <td>
+                            <div class="flex space-x-2">
+                                <a href="{{ url_for('tenants.view', tenant_id=tenant.id) }}" 
+                                   class="btn btn-outline btn-sm"
+                                   title="Visualizar">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('tenants.edit', tenant_id=tenant.id) }}" 
+                                   class="btn btn-outline btn-sm"
+                                   title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <button type="button" 
+                                        class="btn btn-outline btn-sm text-red-600 hover:bg-red-50"
+                                        data-tenant-id="{{ tenant.id }}"
+                                        data-tenant-name="{{ tenant.name }}"
+                                        onclick="showDeleteTenantModal(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="text-gray-500">
+                <i class="bi bi-building text-4xl mb-4 block"></i>
+                <p class="text-lg font-medium">Nenhum tenant encontrado</p>
+                <p class="text-sm mt-1">Crie seu primeiro tenant para começar</p>
+                <a href="{{ url_for('tenants.create') }}" class="btn btn-primary mt-4">
+                    <i class="bi bi-plus mr-2"></i>
+                    Criar Tenant
+                </a>
+            </div>
+        </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- Modal de Confirmação de Exclusão -->
-<div class="modal fade" id="deleteTenantModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Confirmar Exclusão</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<div id="deleteTenantModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center">
+                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                    <i class="bi bi-exclamation-triangle text-red-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Confirmar Exclusão</h3>
+                    <p class="text-sm text-gray-600">Esta ação não pode ser desfeita</p>
+                </div>
             </div>
-            <div class="modal-body">
-                <p>Tem certeza que deseja excluir o tenant <strong id="tenant-name-to-delete"></strong>?</p>
-                <p class="text-danger">Esta ação não pode ser desfeita. Todos os usuários, agentes e dispositivos associados a este tenant serão excluídos.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <form method="post" id="delete-tenant-form" action="">
-                    <button type="submit" class="btn btn-danger">Excluir</button>
-                </form>
-            </div>
+        </div>
+        
+        <div class="p-6">
+            <p>Tem certeza que deseja excluir o tenant <strong id="tenantNameToDelete" class="font-semibold"></strong>?</p>
+            <p class="text-red-600 text-sm mt-2">Todos os usuários, agentes e dispositivos associados a este tenant serão excluídos.</p>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button type="button" onclick="hideDeleteTenantModal()" class="btn btn-outline">
+                Cancelar
+            </button>
+            <form method="post" id="deleteTenantForm">
+                <button type="submit" class="btn bg-red-600 text-white hover:bg-red-700">
+                    Excluir Tenant
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -122,14 +142,27 @@
 
 {% block extra_js %}
 <script>
-    // Configurar modal de exclusão
-    document.getElementById('deleteTenantModal').addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
+    // Modal de exclusão
+    function showDeleteTenantModal(button) {
         const tenantId = button.getAttribute('data-tenant-id');
         const tenantName = button.getAttribute('data-tenant-name');
         
-        document.getElementById('tenant-name-to-delete').textContent = tenantName;
-        document.getElementById('delete-tenant-form').action = '/tenants/' + tenantId + '/delete';
+        document.getElementById('tenantNameToDelete').textContent = tenantName;
+        document.getElementById('deleteTenantForm').action = '/tenants/' + tenantId + '/delete';
+        document.getElementById('deleteTenantModal').classList.remove('hidden');
+        document.getElementById('deleteTenantModal').classList.add('flex');
+    }
+    
+    function hideDeleteTenantModal() {
+        document.getElementById('deleteTenantModal').classList.add('hidden');
+        document.getElementById('deleteTenantModal').classList.remove('flex');
+    }
+    
+    // Fechar modal ao clicar fora
+    document.getElementById('deleteTenantModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDeleteTenantModal();
+        }
     });
     
     // Pesquisa de tenants
@@ -142,9 +175,9 @@
             const description = row.cells[2].textContent.toLowerCase();
             
             if (name.includes(searchText) || description.includes(searchText)) {
-                row.style.display = '';
+                row.classList.remove('hidden');
             } else {
-                row.style.display = 'none';
+                row.classList.add('hidden');
             }
         });
     });

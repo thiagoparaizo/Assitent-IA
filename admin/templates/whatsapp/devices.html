@@ -1,120 +1,136 @@
-<!-- admin/templates/whatsapp/devices.html -->
+<!-- admin/templates/whatsapp/devices.html - VERSÃO MODERNA -->
 {% extends 'base.html' %}
 
 {% block title %}Dispositivos WhatsApp - Assistente Inteligente{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12 d-flex justify-content-between align-items-center">
-        <h1 class="h3">Dispositivos WhatsApp</h1>
+<div class="mb-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900">Dispositivos WhatsApp</h1>
+            <p class="text-gray-600 mt-2">Gerencie seus dispositivos conectados ao WhatsApp</p>
+        </div>
         <a href="{{ url_for('whatsapp.create_device') }}" class="btn btn-primary">
-            <i class="bi bi-plus"></i> Novo Dispositivo
+            <i class="bi bi-plus mr-2"></i>
+            Novo Dispositivo
         </a>
     </div>
 </div>
 
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Dispositivos Disponíveis</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped">
-                        <thead>
-                            <tr>
-                                <th>Nome</th>
-                                <th>Número</th>
-                                <th>Status</th>
-                                <th>Última Conexão</th>
-                                <th>Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% if devices %}
-                                {% for device in devices %}
-                                <tr>
-                                    <td>{{ device.name }}</td>
-                                    <td>{{ device.phone_number }}</td>
-                                    <td>
-                                        {% if device.status == 'connected' %}
-                                            <span class="badge bg-success">Conectado</span>
-                                        {% elif device.status == 'approved' %}
-                                            <span class="badge bg-warning">Aprovado</span>
-                                        {% elif device.status == 'pending' %}
-                                            <span class="badge bg-secondary">Pendente</span>
-                                        {% elif device.status == 'disabled' %}
-                                            <span class="badge bg-danger">Desativado</span>
-                                        {% else %}
-                                            <span class="badge bg-info">{{ device.status }}</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if device.last_seen %}
-                                            {{ device.last_seen|datetime }}
-                                        {% else %}
-                                            <span class="text-muted">Nunca</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <div class="btn-group">
-                                            <a href="{{ url_for('whatsapp.view_device', device_id=device.id) }}" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-eye"></i>
-                                            </a>
-                                            <a href="{{ url_for('whatsapp.qrcode', device_id=device.id) }}" class="btn btn-sm btn-outline-success">
-                                                <i class="bi bi-qr-code"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" 
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#disconnectDeviceModal"
-                                                    data-device-id="{{ device.id }}"
-                                                    data-device-name="{{ device.name }}">
-                                                <i class="bi bi-power"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                                {% endfor %}
+<div class="card">
+    <div class="card-header">
+        <h3 class="text-lg font-semibold text-gray-900">Dispositivos Disponíveis</h3>
+    </div>
+    
+    <div class="card-body p-0">
+        {% if devices %}
+        <div class="overflow-x-auto">
+            <table class="table-modern">
+                <thead>
+                    <tr>
+                        <th>Nome</th>
+                        <th>Número</th>
+                        <th>Status</th>
+                        <th>Última Conexão</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for device in devices %}
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="font-medium text-gray-900">{{ device.name }}</td>
+                        <td class="font-mono text-gray-700">{{ device.phone_number }}</td>
+                        <td>
+                            {% if device.status == 'connected' %}
+                                <span class="badge badge-success">Conectado</span>
+                            {% elif device.status == 'approved' %}
+                                <span class="badge bg-yellow-100 text-yellow-800">Aprovado</span>
+                            {% elif device.status == 'pending' %}
+                                <span class="badge bg-gray-100 text-gray-800">Pendente</span>
+                            {% elif device.status == 'disabled' %}
+                                <span class="badge bg-red-100 text-red-800">Desativado</span>
                             {% else %}
-                                <tr>
-                                    <td colspan="5" class="text-center py-4">
-                                        <div class="text-muted">
-                                            <i class="bi bi-info-circle fs-4 d-block mb-2"></i>
-                                            Nenhum dispositivo encontrado.
-                                        </div>
-                                        <a href="{{ url_for('whatsapp.create_device') }}" class="btn btn-sm btn-primary mt-2">
-                                            <i class="bi bi-plus"></i> Criar Dispositivo
-                                        </a>
-                                    </td>
-                                </tr>
+                                <span class="badge bg-blue-100 text-blue-800">{{ device.status }}</span>
                             {% endif %}
-                        </tbody>
-                    </table>
-                </div>
+                        </td>
+                        <td class="text-gray-600">
+                            {% if device.last_seen %}
+                                {{ device.last_seen|datetime }}
+                            {% else %}
+                                <span class="text-gray-400">Nunca</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="flex space-x-2">
+                                <a href="{{ url_for('whatsapp.view_device', device_id=device.id) }}" 
+                                   class="btn btn-outline btn-sm"
+                                   title="Visualizar">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                                <a href="{{ url_for('whatsapp.qrcode', device_id=device.id) }}" 
+                                   class="btn btn-outline btn-sm"
+                                   title="QR Code">
+                                    <i class="bi bi-qr-code"></i>
+                                </a>
+                                <button type="button" 
+                                        class="btn btn-outline btn-sm text-red-600 hover:bg-red-50"
+                                        data-device-id="{{ device.id }}"
+                                        data-device-name="{{ device.name }}"
+                                        onclick="showDisconnectModal(this)">
+                                    <i class="bi bi-power"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12">
+            <div class="text-gray-500">
+                <i class="bi bi-whatsapp text-4xl mb-4 block"></i>
+                <p class="text-lg font-medium">Nenhum dispositivo encontrado</p>
+                <p class="text-sm mt-1">Crie seu primeiro dispositivo para começar a usar o WhatsApp</p>
+                <a href="{{ url_for('whatsapp.create_device') }}" class="btn btn-primary mt-4">
+                    <i class="bi bi-plus mr-2"></i>
+                    Criar Dispositivo
+                </a>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 
 <!-- Modal de Confirmação de Desconexão -->
-<div class="modal fade" id="disconnectDeviceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Confirmar Desconexão</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<div id="disconnectModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center">
+                <div class="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                    <i class="bi bi-power text-red-600"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900">Confirmar Desconexão</h3>
+                    <p class="text-sm text-gray-600">O dispositivo precisará ser reconectado via QR code</p>
+                </div>
             </div>
-            <div class="modal-body">
-                <p>Tem certeza que deseja desconectar o dispositivo <strong id="device-name-to-disconnect"></strong>?</p>
-                <p class="text-warning">O dispositivo precisará ser reconectado via QR code.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <form method="post" id="disconnect-device-form" action="">
-                    <button type="submit" class="btn btn-danger">Desconectar</button>
-                </form>
-            </div>
+        </div>
+        
+        <div class="p-6">
+            <p>Tem certeza que deseja desconectar o dispositivo <strong id="deviceNameToDisconnect" class="font-semibold"></strong>?</p>
+            <p class="text-yellow-600 text-sm mt-2">O dispositivo precisará ser reconectado via QR code.</p>
+        </div>
+        
+        <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+            <button type="button" onclick="hideDisconnectModal()" class="btn btn-outline">
+                Cancelar
+            </button>
+            <form method="post" id="disconnectDeviceForm">
+                <button type="submit" class="btn bg-red-600 text-white hover:bg-red-700">
+                    Desconectar
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -122,16 +138,27 @@
 
 {% block extra_js %}
 <script>
-    // Configurar modal de desconexão
-    document.getElementById('disconnectDeviceModal').addEventListener('show.bs.modal', function (event) {
-        const button = event.relatedTarget;
+    // Modal de desconexão
+    function showDisconnectModal(button) {
         const deviceId = button.getAttribute('data-device-id');
         const deviceName = button.getAttribute('data-device-name');
         
-        document.getElementById('device-name-to-disconnect').textContent = deviceName;
-        
-        // Corrigindo a forma de construir a URL de desconexão
-        document.getElementById('disconnect-device-form').action = '/whatsapp/devices/' + deviceId + '/disconnect';
+        document.getElementById('deviceNameToDisconnect').textContent = deviceName;
+        document.getElementById('disconnectDeviceForm').action = '/whatsapp/devices/' + deviceId + '/disconnect';
+        document.getElementById('disconnectModal').classList.remove('hidden');
+        document.getElementById('disconnectModal').classList.add('flex');
+    }
+    
+    function hideDisconnectModal() {
+        document.getElementById('disconnectModal').classList.add('hidden');
+        document.getElementById('disconnectModal').classList.remove('flex');
+    }
+    
+    // Fechar modal ao clicar fora
+    document.getElementById('disconnectModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDisconnectModal();
+        }
     });
 </script>
 {% endblock %}
